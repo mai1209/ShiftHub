@@ -641,10 +641,7 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
         <View style={styles.header}>
           <Text style={styles.eyebrow}>PLAN Y SUSCRIPCIÓN</Text>
           <Text style={styles.title}>Suscripción del negocio</Text>
-          <Text style={styles.subtitle}>
-            Comprá o restaurá el plan del negocio desde Apple y seguí usando la app con acceso
-            completo.
-          </Text>
+       
         </View>
 
         {loading ? (
@@ -1040,7 +1037,7 @@ const createStyles = (theme: Theme) =>
     },
     content: {
       paddingHorizontal: 18,
-      paddingTop: 32,
+      paddingTop: 40,
       paddingBottom: 130,
       gap: 16,
     },
@@ -1062,11 +1059,7 @@ const createStyles = (theme: Theme) =>
       lineHeight: 32,
       fontWeight: '900',
     },
-    subtitle: {
-      color: theme.textSecondary,
-      fontSize: 14,
-      lineHeight: 20,
-    },
+  
     loadingCard: {
       backgroundColor: theme.card,
       borderRadius: 24,

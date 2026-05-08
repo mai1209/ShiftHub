@@ -192,7 +192,7 @@ function createStyles(theme: Theme) {
       alignItems: 'center',
     },
     scrollContent: {
-      paddingTop: 36,
+      paddingTop: 70,
       paddingHorizontal: 20,
       paddingBottom: 140,
       gap: 16,
