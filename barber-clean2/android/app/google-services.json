@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "977969422373",
+    "project_id": "shifthub-62362",
+    "storage_bucket": "shifthub-62362.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:977969422373:android:1cdb610233131f3771dfcc",
+        "android_client_info": {
+          "package_name": "com.shifthub.pro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDI9HOF_pefFRNGWNALGH10mCVoPwUoMig"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

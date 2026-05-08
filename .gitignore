@@ -1,0 +1,41 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+
+# Dependencias (el **/ busca en todas las subcarpetas)
+**/node_modules/
+**/dist/
+**/build/
+**/.expo/
+
+# Secretos (¡VITAL!)
+**/firebase-key.json
+**/.env
+.DS_Store
+
+barber-clean2/barberapp-codex-firebase-adminsdk-fbsvc-0ba42efa59.json
+*firebase-adminsdk*.json
+
+barber-clean2/barberapp-codex-firebase-adminsdk-fbsvc-0ba42efa59.json
+*firebase-adminsdk*.json

@@ -1,0 +1,226 @@
+.screen {
+  min-height: 100vh;
+  padding: 40px 20px 64px;
+  background:
+    radial-gradient(circle at top right, rgba(57, 224, 31, 0.16), transparent 28%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  color: #0f172a;
+}
+
+.hero {
+  max-width: 980px;
+  margin: 0 auto 24px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: #1c1c1c;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0 0 10px;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 0.98;
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 680px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.toolbar {
+  max-width: 980px;
+  margin: 0 auto 18px;
+}
+
+.toolbarForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field span {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.field input {
+  height: 46px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  background: #ffffff;
+  color: #0f172a;
+  padding: 0 14px;
+  font-size: 0.96rem;
+}
+
+.loadButton {
+  height: 46px;
+  border: 0;
+  border-radius: 14px;
+  padding: 0 18px;
+  background: linear-gradient(135deg, #1c1c1c, #39e01f);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.loadButton:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.errorBox {
+  max-width: 980px;
+  margin: 0 auto 18px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(254, 242, 242, 0.96);
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  color: #b91c1c;
+}
+
+.summaryGrid {
+  max-width: 980px;
+  margin: 0 auto 18px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summaryCard {
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.summaryLabel {
+  display: block;
+  color: #64748b;
+  font-size: 0.82rem;
+  margin-bottom: 10px;
+}
+
+.summaryValue {
+  font-size: 1.8rem;
+  font-weight: 900;
+}
+
+.list {
+  max-width: 980px;
+  margin: 0 auto;
+  display: grid;
+  gap: 14px;
+}
+
+.emptyCard,
+.card {
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.emptyCard h2 {
+  margin: 0 0 10px;
+}
+
+.emptyCard p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.cardTitle {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+  font-weight: 800;
+}
+
+.cardMeta {
+  margin: 0;
+  color: #64748b;
+}
+
+.couponBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(245, 196, 81, 0.14);
+  border: 1px solid rgba(245, 196, 81, 0.24);
+  color: #ffd978;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.detailsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detailItem {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 1);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.detailLabel {
+  display: block;
+  margin-bottom: 8px;
+  color: #64748b;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.detailValue {
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+@media (max-width: 900px) {
+  .toolbarForm,
+  .summaryGrid,
+  .detailsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .cardTop {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

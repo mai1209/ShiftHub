@@ -1,0 +1,660 @@
+/* RegisterAccountPage.module.css */
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap");
+
+/* ============================================================
+   TOKENS — same system as LandingPage
+============================================================ */
+:root {
+  --indigo:         #39E01F;
+  --indigo-mid:     #7EFF3A;
+  --indigo-soft:    rgba(57, 224, 31, 0.08);
+  --indigo-border:  rgba(57, 224, 31, 0.18);
+  --emerald:        #F28C28;
+  --emerald-soft:   rgba(242, 140, 40, 0.1);
+  --amber:          #FF5A2A;
+  --bg:             #F8FFF1;
+  --surface:        #FFFFFF;
+  --surface-2:      #F1FCE4;
+  --border:         rgba(20, 20, 40, 0.07);
+  --border-strong:  rgba(20, 20, 40, 0.12);
+  --text:           #18181F;
+  --text-muted:     #6B7280;
+  --text-dim:       #4B5563;
+  --shadow-sm:      0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:      0 4px 20px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+  --shadow-lg:      0 24px 64px rgba(0,0,0,0.10), 0 4px 18px rgba(0,0,0,0.05);
+  --shadow-indigo:  0 8px 32px rgba(57,224,31,0.24);
+}
+
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+a { text-decoration: none; color: inherit; }
+
+/* ============================================================
+   SCREEN
+============================================================ */
+.screen {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Instrument Sans", sans-serif;
+  position: relative;
+  overflow-x: hidden;
+  padding: 0 0 80px;
+}
+
+/* ── Background elements ── */
+.meshGrid {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(57,224,31,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(57,224,31,0.025) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+.orbTop {
+  position: fixed;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(57,224,31,0.1) 0%, transparent 68%);
+  top: -220px;
+  right: -160px;
+  pointer-events: none;
+  z-index: 0;
+  animation: orbDrift 14s ease-in-out infinite;
+}
+.orbBottom {
+  position: fixed;
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(242,140,40,0.08) 0%, transparent 68%);
+  bottom: -160px;
+  left: -120px;
+  pointer-events: none;
+  z-index: 0;
+  animation: orbDrift 18s ease-in-out infinite reverse;
+}
+@keyframes orbDrift {
+  0%,100% { transform: translate(0,0) scale(1); }
+  40%     { transform: translate(-24px, 36px) scale(1.05); }
+  70%     { transform: translate(16px, -20px) scale(0.97); }
+}
+
+/* ============================================================
+   TOP BAR
+============================================================ */
+.topBar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 60px;
+  background: rgba(248,255,241,0.88);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border-bottom: 1px solid var(--border);
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  transition: color 0.2s;
+}
+.backBtn:hover { color: var(--indigo); }
+
+.topBarBrand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.topBarMark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--indigo), var(--indigo-mid));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 10px rgba(57,224,31,0.28);
+}
+.topBarName {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+
+/* ============================================================
+   LAYOUT
+============================================================ */
+.layout {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 0;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 48px 24px 0;
+  align-items: start;
+}
+
+/* ============================================================
+   LEFT PANEL
+============================================================ */
+.leftPanel {
+  padding-right: 48px;
+  position: sticky;
+  top: 88px;
+}
+.leftPanelInner {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.eyebrow {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--indigo);
+  margin-bottom: 14px;
+}
+
+.title {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-size: clamp(2rem, 4vw, 2.9rem);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -2.5px;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+.titleAccent {
+  display: block;
+  background: linear-gradient(130deg, var(--indigo) 0%, #9B8AF8 60%, var(--indigo) 100%);
+  background-size: 220% 220%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: accentShift 6s ease infinite;
+}
+@keyframes accentShift {
+  0%,100% { background-position: 0% 50%; }
+  50%     { background-position: 100% 50%; }
+}
+
+.subtitle {
+  font-size: 0.93rem;
+  color: var(--text-muted);
+  line-height: 1.72;
+  margin-bottom: 36px;
+}
+
+/* ── Progress Steps ── */
+.progressSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 30px;
+}
+.progressItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.progressLine {
+  width: 2px;
+  flex: 1;
+  min-height: 28px;
+  background: var(--border-strong);
+  margin: 4px 0 4px 14px;
+  border-radius: 1px;
+  position: relative;
+  overflow: hidden;
+}
+.progressLineLast {
+  background: transparent;
+}
+
+.stepDot {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
+}
+.stepDot span {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.stepDotActive {
+  border-color: var(--indigo-border);
+  background: var(--indigo-soft);
+  box-shadow: 0 0 0 3px rgba(57,224,31,0.08);
+}
+.stepDotActive span { color: var(--indigo); }
+.stepDotDone {
+  border-color: var(--indigo);
+  background: var(--indigo);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(57,224,31,0.28);
+}
+
+.progressLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 24px;
+}
+.progressTitle {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text);
+  font-family: "Bricolage Grotesque", sans-serif;
+}
+.progressDesc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ── Helper Card ── */
+.helperCard {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+}
+.helperIcon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--indigo-soft);
+  border: 1px solid var(--indigo-border);
+  color: var(--indigo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.helperTitle {
+  font-family: "Bricolage Grotesque", sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 5px;
+}
+.helperText {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+
+/* ============================================================
+   FORM CARD
+============================================================ */
+.formCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 26px;
+  padding: 32px;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
+}
+.formCard::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--indigo), transparent);
+}
+
+.formCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.formCardTag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--indigo);
+  background: var(--indigo-soft);
+  border: 1px solid var(--indigo-border);
+  border-radius: 100px;
+  padding: 4px 12px;
+}
+.formCardCaption {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ============================================================
+   FORM
+============================================================ */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.fieldLabel {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.1px;
+  font-family: "Instrument Sans", sans-serif;
+}
+
+/* ── Input Wrap ── */
+.inputWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 14px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  z-index: 1;
+  transition: color 0.2s;
+}
+
+.inputWrap input,
+.inputWrap select {
+  width: 100%;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 13px 44px 13px 40px;
+  font-size: 0.93rem;
+  font-family: "Instrument Sans", sans-serif;
+  outline: none;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.inputWrap input::placeholder { color: #A8B0BB; }
+
+.inputWrap input:focus,
+.inputWrap select:focus {
+  border-color: var(--indigo);
+  background: #FDFCFF;
+  box-shadow: 0 0 0 3px rgba(57,224,31,0.08);
+}
+.inputWrap input:focus ~ .inputIcon,
+.inputWrap select:focus ~ .inputIcon {
+  color: var(--indigo);
+}
+
+.inputValid {
+  border-color: rgba(16,185,129,0.35) !important;
+  background: rgba(16,185,129,0.02) !important;
+}
+.inputError {
+  border-color: rgba(239,68,68,0.4) !important;
+  background: rgba(254,242,242,0.6) !important;
+}
+
+/* Check icon */
+.inputCheck {
+  position: absolute;
+  right: 13px;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  background: var(--emerald-soft);
+  color: var(--emerald);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: checkIn 0.25s cubic-bezier(0.16,1,0.3,1);
+  pointer-events: none;
+}
+@keyframes checkIn {
+  from { transform: scale(0.5); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+/* Select chevron */
+.selectChevron {
+  position: absolute;
+  right: 40px;
+  color: var(--text-muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+/* ── Field divider ── */
+.fieldDivider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 2px 0;
+}
+.fieldDivider span {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.fieldDivider::before,
+.fieldDivider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Password Grid ── */
+.passwordGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+/* ── Eye Button ── */
+.eyeBtn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(20,20,40,0.04);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.eyeBtn:hover {
+  background: var(--indigo-soft);
+  color: var(--indigo);
+}
+.passwordToggleIcon {
+  width: 18px;
+  height: 18px;
+}
+
+/* ── Strength bar ── */
+.strengthBar {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+.strengthFill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s cubic-bezier(0.16,1,0.3,1), background 0.4s;
+}
+
+/* ── Field hint ── */
+.fieldHint {
+  font-size: 0.75rem;
+  color: #EF4444;
+  font-weight: 500;
+}
+
+/* ── Submit Button ── */
+.submitBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2FAA1F, var(--indigo) 50%, var(--indigo-mid));
+  background-size: 200% 200%;
+  color: #fff;
+  font-family: "Instrument Sans", sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 15px 24px;
+  cursor: pointer;
+  transition: transform 0.22s ease, box-shadow 0.22s ease, opacity 0.2s, background-position 0.3s;
+  box-shadow: 0 4px 20px rgba(57,224,31,0.28);
+  letter-spacing: 0.01em;
+  margin-top: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.submitBtn::after {
+  content: "";
+  position: absolute;
+  top: 0; left: -80%;
+  width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transform: skewX(-16deg);
+  animation: btnShine 3s ease 2s infinite;
+}
+@keyframes btnShine {
+  0%    { left: -80%; }
+  25%,100% { left: 140%; }
+}
+.submitBtn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(57,224,31,0.35);
+  background-position: right center;
+}
+.submitBtn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.submitBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ── Spinner ── */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Error Box ── */
+.errorBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  background: rgba(254,242,242,0.95);
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: 14px;
+  color: #DC2626;
+  font-size: 0.86rem;
+  font-weight: 600;
+  padding: 13px 16px;
+  animation: errorIn 0.3s cubic-bezier(0.16,1,0.3,1);
+}
+.errorIcon { flex-shrink: 0; margin-top: 1px; }
+@keyframes errorIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Footer Note ── */
+.formFooterNote {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.formFooterNote strong { color: var(--text-dim); font-weight: 700; }
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+    padding: 32px 20px 0;
+    gap: 28px;
+  }
+  .leftPanel {
+    padding-right: 0;
+    position: static;
+  }
+  .progressSteps { display: none; }
+}
+
+@media (max-width: 600px) {
+  .topBar { padding: 0 18px; }
+  .formCard { padding: 22px 18px; border-radius: 22px; }
+  .passwordGrid { grid-template-columns: 1fr; }
+  .formCardHeader { flex-wrap: wrap; }
+  .layout { padding: 24px 16px 0; }
+}

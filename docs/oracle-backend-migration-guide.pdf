@@ -1,0 +1,2368 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+2 0 obj
+<< /Length 1779 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+() Tj
+T*
+(GUIA FINAL - BACKEND BARBERAPP EN ORACLE) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Fecha: 2026-04-11) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(OBJETIVO FINAL) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Dejar la arquitectura asi:) Tj
+T*
+() Tj
+T*
+(* Frontend web en Vercel: `https://barberappbycodex.com`) Tj
+T*
+(* Backend en Oracle: `https://api.barberappbycodex.com`) Tj
+T*
+(* App movil apuntando al backend nuevo en Oracle) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(ESTADO FINAL ESPERADO) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Cuando todo queda bien, esto tiene que cumplirse:) Tj
+T*
+() Tj
+T*
+(* `https://barberappbycodex.com` carga el frontend) Tj
+T*
+(* `https://api.barberappbycodex.com/` responde el backend) Tj
+T*
+(* Vercel frontend consume Oracle, no el backend viejo de Vercel) Tj
+T*
+(* La app movil usa Oracle en produccion) Tj
+T*
+(* Los cron jobs quedan corriendo en Oracle) Tj
+T*
+(* El backend reinicia solo con `systemd`) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(1. PROBLEMA DE BASE QUE DISPARO LA MIGRACION) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Antes de mover el backend, se detecto esto:) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Problema 1: Vercel estaba sirviendo codigo viejo) Tj
+T*
+() Tj
+T*
+(Se verifico que el backend deployado en Vercel estaba respondiendo con un commit anterior y) Tj
+T*
+(no con el codigo actual.) Tj
+T*
+() Tj
+T*
+(Evidencia:) Tj
+T*
+() Tj
+T*
+(* el deploy en Vercel mostraba commit viejo) Tj
+T*
+(* el codigo local tenia cambios que en produccion no aparecian) Tj
+T*
+(* rutas nuevas o campos nuevos no existian en la respuesta publica) Tj
+T*
+() Tj
+T*
+(Eso explicaba por que en desarrollo funcionaba y en produccion no.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Problema 2: el flujo de cierre de barberia / cierre de barbero fallaba solo en produccion) Tj
+T*
+() Tj
+T*
+(En local:) Tj
+T*
+() Tj
+T*
+(* guardaba bien) Tj
+ET
+endstream
+endobj
+3 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 2 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1406 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(* reflejaba bien en app y web) Tj
+T*
+() Tj
+T*
+(En produccion:) Tj
+T*
+() Tj
+T*
+(* no reflejaba bien) Tj
+T*
+(* quedaban dias mal marcados) Tj
+T*
+(* parecia que el backend no estaba actualizado) Tj
+T*
+() Tj
+T*
+(La conclusion fue correcta: el problema era el deploy stale del backend en Vercel.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Decision tomada) Tj
+T*
+() Tj
+T*
+(Mover el backend a Oracle y dejar Vercel solamente para el frontend.) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(2. CONCEPTO CLAVE: VCN VS INSTANCIA) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Esto es importante porque fue una confusion real durante la migracion.) Tj
+T*
+() Tj
+T*
+(* VCN = la red) Tj
+T*
+(* Instancia = el servidor/computadora) Tj
+T*
+() Tj
+T*
+(Mas concreto:) Tj
+T*
+() Tj
+T*
+(* la VCN es el entorno de red donde vive todo) Tj
+T*
+(* la instancia es la maquina Ubuntu donde corre Node) Tj
+T*
+() Tj
+T*
+(La VCN contiene:) Tj
+T*
+() Tj
+T*
+(* subnet publica) Tj
+T*
+(* route table) Tj
+T*
+(* internet gateway) Tj
+T*
+(* security list) Tj
+T*
+(* network security group) Tj
+T*
+() Tj
+T*
+(La instancia vive adentro de esa red.) Tj
+T*
+() Tj
+T*
+(Sin VCN no hay red armada.) Tj
+T*
+(Sin instancia no hay donde correr el backend.) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(3. RECURSOS CREADOS EN ORACLE) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Region) Tj
+T*
+() Tj
+T*
+(* `Brazil East \(Sao Paulo\)`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Red creada) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+6 0 obj
+<< /Length 1538 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+() Tj
+T*
+(* VCN: `barber-vcn`) Tj
+T*
+(* Public subnet: `public subnet-barber-vcn`) Tj
+T*
+() Tj
+T*
+(CIDRs usados:) Tj
+T*
+() Tj
+T*
+(* VCN: `10.0.0.0/16`) Tj
+T*
+(* Public subnet: `10.0.0.0/24`) Tj
+T*
+(* Private subnet: `10.0.1.0/24`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Instancia creada) Tj
+T*
+() Tj
+T*
+(* Nombre: `barber-backend-prod`) Tj
+T*
+(* Sistema: Ubuntu) Tj
+T*
+(* IP publica: `147.15.76.141`) Tj
+T*
+(* IP privada: `10.0.0.116`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Acceso SSH) Tj
+T*
+() Tj
+T*
+(    ssh ubuntu@147.15.76.141) Tj
+T*
+() Tj
+T*
+(Nota:) Tj
+T*
+() Tj
+T*
+(La primera vez Oracle muestra el aviso de autenticidad del host. Hay que responder `yes`.) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(4. PREPARACION INICIAL DEL SERVIDOR) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Actualizacion del sistema) Tj
+T*
+() Tj
+T*
+(Durante la preparacion aparecio el mensaje de kernel pendiente \(`Pending kernel upgrade`\).) Tj
+T*
+() Tj
+T*
+(Eso no era un error del backend. Era un aviso del sistema indicando que habia un kernel mas) Tj
+T*
+(nuevo instalado.) Tj
+T*
+() Tj
+T*
+(Si aparece una pantalla morada tipo `Pending kernel upgrade`:) Tj
+T*
+() Tj
+T*
+(* no es problema del proyecto) Tj
+T*
+(* es un dialogo de Ubuntu) Tj
+T*
+(* si se traba, se puede salir con `Enter`, `Tab`, `Ctrl+C` o cerrar el dialogo y seguir) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Node) Tj
+T*
+() Tj
+T*
+(Al principio el servidor tenia Node viejo:) Tj
+T*
+() Tj
+T*
+(    node -v) Tj
+T*
+(    # v12.22.9) Tj
+T*
+() Tj
+T*
+(Despues se instalo la version correcta y quedo:) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 6 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+8 0 obj
+<< /Length 1920 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(    node -v) Tj
+T*
+(    # v20.20.2) Tj
+T*
+(    ) Tj
+T*
+(    npm -v) Tj
+T*
+(    # 10.8.2) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Repo clonado) Tj
+T*
+() Tj
+T*
+(    cd /home/ubuntu) Tj
+T*
+(    git clone https://github.com/mai1209/barberApp.git) Tj
+T*
+(    cd /home/ubuntu/barberApp/backend) Tj
+T*
+(    npm install) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(5. VARIABLES DE ENTORNO DEL BACKEND EN ORACLE) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Archivo:) Tj
+T*
+() Tj
+T*
+(* `/home/ubuntu/barberApp/backend/.env`) Tj
+T*
+() Tj
+T*
+(Base final recomendada:) Tj
+T*
+() Tj
+T*
+(    NODE_ENV=production) Tj
+T*
+(    PORT=3002) Tj
+T*
+(    ) Tj
+T*
+(    JWT_SECRET=TU_JWT_SECRET_REAL) Tj
+T*
+(    JWT_EXPIRES_IN=365d) Tj
+T*
+(    ) Tj
+T*
+(    MONGODB_URI=TU_MONGODB_URI_REAL) Tj
+T*
+(    MONGODB_DB_NAME=barberiaApp) Tj
+T*
+(    MONGODB_TIMEOUT_MS=15000) Tj
+T*
+(    ) Tj
+T*
+(    MAIL_USER=TU_MAIL_REAL) Tj
+T*
+(    MAIL_APP_PASSWORD=TU_MAIL_APP_PASSWORD_REAL) Tj
+T*
+(    MAIL_FROM_NAME=barberAppByCodexCorp) Tj
+T*
+(    ) Tj
+T*
+(    MERCADO_PAGO_CLIENT_ID=TU_CLIENT_ID_REAL) Tj
+T*
+(    MERCADO_PAGO_CLIENT_SECRET=TU_CLIENT_SECRET_REAL) Tj
+T*
+(    MERCADO_PAGO_WEBHOOK_SECRET=TU_WEBHOOK_SECRET_REAL) Tj
+T*
+(    MERCADO_PAGO_SUBSCRIPTIONS_ACCESS_TOKEN=TU_TOKEN_REAL) Tj
+T*
+(    ) Tj
+T*
+(    PUBLIC_BOOKING_BASE_URL=https://barberappbycodex.com) Tj
+T*
+(    BACKEND_PUBLIC_BASE_URL=https://api.barberappbycodex.com) Tj
+T*
+(    MERCADO_PAGO_REDIRECT_URI=https://api.barberappbycodex.com/api/auth/mercadopago/callback) Tj
+T*
+(    ) Tj
+T*
+(    SUBSCRIPTIONS_CURRENCY_ID=ARS) Tj
+T*
+(    SUBSCRIPTIONS_ADMIN_SECRET=TU_ADMIN_SECRET_REAL) Tj
+T*
+(    REMINDERS_CRON_SECRET=TU_REMINDERS_CRON_SECRET_REAL) Tj
+T*
+(    CRON_SECRET=TU_CRON_SECRET_REAL) Tj
+T*
+(    ) Tj
+T*
+(    ALLOWED_WEB_ORIGINS=https://barberappbycodex.com,https://www.barberappbycodex.com) Tj
+T*
+(    ) Tj
+T*
+(    FIREBASE_SERVICE_ACCOUNT=TU_JSON_DE_FIREBASE_EN_UNA_LINEA) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 8 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+10 0 obj
+<< /Length 1696 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+() Tj
+T*
+() Tj
+T*
+(Importante sobre secretos) Tj
+T*
+() Tj
+T*
+(Durante la migracion se pegaron secretos reales en consola/chat.) Tj
+T*
+() Tj
+T*
+(Tecnica y operativamente, lo correcto despues es rotar:) Tj
+T*
+() Tj
+T*
+(* JWT secret) Tj
+T*
+(* password de mail) Tj
+T*
+(* client secret de Mercado Pago) Tj
+T*
+(* token de suscripciones) Tj
+T*
+(* webhook secret) Tj
+T*
+(* secrets admin / cron) Tj
+T*
+() Tj
+T*
+(No porque el backend quede mal, sino porque los secretos ya quedaron expuestos en historial.) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(6. CAMBIO CLAVE EN EL CODIGO PARA ORACLE) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Archivo modificado:) Tj
+T*
+() Tj
+T*
+(* `/Users/maidev/Projects/appBarberiaOrion/backend/server.js`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Problema real) Tj
+T*
+() Tj
+T*
+(El backend estaba preparado para Vercel, pero no para correr como proceso Node clasico en) Tj
+T*
+(una VM.) Tj
+T*
+() Tj
+T*
+(Antes:) Tj
+T*
+() Tj
+T*
+(* si `NODE_ENV=production`, no hacia `app.listen\(\)`) Tj
+T*
+(* eso en Vercel no molesta porque Vercel maneja el request handler) Tj
+T*
+(* en Oracle si molesta, porque el servidor tiene que abrir un puerto real) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Cambio aplicado) Tj
+T*
+() Tj
+T*
+(Se reemplazo la condicion final para que:) Tj
+T*
+() Tj
+T*
+(* en Vercel solo exporte `app`) Tj
+T*
+(* en Oracle / VM abra puerto real con `listen\(\)`) Tj
+T*
+() Tj
+T*
+(Cambio conceptual:) Tj
+T*
+() Tj
+T*
+(    if \(!process.env.VERCEL\) {) Tj
+T*
+(      const PORT = Number\(process.env.PORT ?? 3002\);) Tj
+T*
+(      app.listen\(PORT, \(\) => {) Tj
+T*
+(        console.log\(`Servidor corriendo en http://0.0.0.0:${PORT}`\);) Tj
+T*
+(      }\);) Tj
+T*
+(    }) Tj
+T*
+() Tj
+T*
+() Tj
+ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 10 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+12 0 obj
+<< /Length 1510 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(Mejora extra agregada) Tj
+T*
+() Tj
+T*
+(Tambien se agrego soporte para:) Tj
+T*
+() Tj
+T*
+(* `ALLOWED_WEB_ORIGINS`) Tj
+T*
+() Tj
+T*
+(Eso permite definir origenes web explicitos por variable de entorno.) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(7. LEVANTAR EL BACKEND MANUALMENTE Y VALIDAR LOCALMENTE) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(    cd /home/ubuntu/barberApp/backend) Tj
+T*
+(    npm start) Tj
+T*
+() Tj
+T*
+(Salida esperada:) Tj
+T*
+() Tj
+T*
+(    ? Usando Firebase desde Variable de Entorno) Tj
+T*
+(    ? Servidor corriendo en http://0.0.0.0:3002) Tj
+T*
+(    [MongoDB] ? Conectado exitosamente a la DB: barberiaApp) Tj
+T*
+() Tj
+T*
+(Validaciones correctas:) Tj
+T*
+() Tj
+T*
+(    curl http://127.0.0.1:3002/) Tj
+T*
+(    ss -tulpn | grep 3002) Tj
+T*
+(    sudo ufw status) Tj
+T*
+() Tj
+T*
+(Resultado esperado:) Tj
+T*
+() Tj
+T*
+(* `curl` devuelve JSON) Tj
+T*
+(* `ss` muestra `*:3002`) Tj
+T*
+(* `ufw` puede estar inactivo, y aun asi seguir bloqueando otra capa local via) Tj
+T*
+(  iptables/nftables) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(8. ERROR GRANDE DE CONECTIVIDAD: POR QUE NO ABRIA DESDE INTERNET) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Este fue el error mas importante de toda la migracion.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Sintoma) Tj
+T*
+() Tj
+T*
+(Dentro del servidor funcionaba:) Tj
+T*
+() Tj
+T*
+(    curl http://127.0.0.1:3002/) Tj
+T*
+(    curl http://10.0.0.116:3002/) Tj
+T*
+() Tj
+T*
+(Pero desde la Mac fallaba:) Tj
+T*
+() Tj
+T*
+(    curl http://147.15.76.141:3002/) Tj
+T*
+() Tj
+T*
+() Tj
+ET
+endstream
+endobj
+13 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 12 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+14 0 obj
+<< /Length 1294 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(Lo que ya estaba bien y NO era el problema) Tj
+T*
+() Tj
+T*
+(* Node levantado) Tj
+T*
+(* Mongo conectado) Tj
+T*
+(* IP publica correcta) Tj
+T*
+(* VCN creada) Tj
+T*
+(* subnet publica creada) Tj
+T*
+(* internet gateway existente) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Capa 1: Security List de la subnet publica) Tj
+T*
+() Tj
+T*
+(Hubo que agregar ingress TCP:) Tj
+T*
+() Tj
+T*
+(* Source CIDR: `0.0.0.0/0`) Tj
+T*
+(* Destination Port Range: `3002`) Tj
+T*
+() Tj
+T*
+(Despues, para HTTPS:) Tj
+T*
+() Tj
+T*
+(* puerto `80`) Tj
+T*
+(* puerto `443`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Capa 2: Network Security Group \(NSG\)) Tj
+T*
+() Tj
+T*
+(Oracle habia creado:) Tj
+T*
+() Tj
+T*
+(* `ig-quick-action-NSG`) Tj
+T*
+() Tj
+T*
+(Ese NSG inicialmente tenia solo egress.) Tj
+T*
+() Tj
+T*
+(Hubo que agregar ingress TCP para:) Tj
+T*
+() Tj
+T*
+(* `3002`) Tj
+T*
+(* `80`) Tj
+T*
+(* `443`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Capa 3: firewall local Ubuntu) Tj
+T*
+() Tj
+T*
+(Este fue el bloqueo final real.) Tj
+T*
+() Tj
+T*
+(Se reviso:) Tj
+T*
+() Tj
+T*
+(    sudo iptables -L -n) Tj
+T*
+(    sudo nft list ruleset) Tj
+T*
+() Tj
+T*
+(Y se vio que el INPUT chain permitia:) Tj
+T*
+() Tj
+T*
+(* trafico establecido) Tj
+T*
+(* ICMP) Tj
+T*
+(* loopback) Tj
+T*
+(* SSH 22) Tj
+T*
+() Tj
+T*
+(Y despues hacia `REJECT` del resto.) Tj
+T*
+() Tj
+T*
+() Tj
+ET
+endstream
+endobj
+15 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 14 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+16 0 obj
+<< /Length 1513 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(Solucion aplicada) Tj
+T*
+() Tj
+T*
+(Se abrieron puertos en iptables antes del reject:) Tj
+T*
+() Tj
+T*
+(    sudo iptables -I INPUT 5 -p tcp --dport 3002 -j ACCEPT) Tj
+T*
+(    sudo iptables -I INPUT 5 -p tcp --dport 80 -j ACCEPT) Tj
+T*
+(    sudo iptables -I INPUT 5 -p tcp --dport 443 -j ACCEPT) Tj
+T*
+() Tj
+T*
+(Despues se persistieron:) Tj
+T*
+() Tj
+T*
+(    sudo apt install -y iptables-persistent) Tj
+T*
+(    sudo netfilter-persistent save) Tj
+T*
+(    sudo netfilter-persistent reload) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Validacion que confirmo el fix) Tj
+T*
+() Tj
+T*
+(Despues de eso, desde la Mac:) Tj
+T*
+() Tj
+T*
+(    curl http://147.15.76.141:3002/) Tj
+T*
+() Tj
+T*
+(Respondio:) Tj
+T*
+() Tj
+T*
+(    {"message":"? BarberApp Backend Online - Powered by) Tj
+T*
+(CODEXÆ","status":"Ready","database":"Connected"}) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Conclusion tecnica real) Tj
+T*
+() Tj
+T*
+(El bloqueo final NO estaba en Node.) Tj
+T*
+() Tj
+T*
+(El bloqueo final estaba en la combinacion de:) Tj
+T*
+() Tj
+T*
+(* Security List) Tj
+T*
+(* NSG) Tj
+T*
+(* firewall local Ubuntu) Tj
+T*
+() Tj
+T*
+(Habia que abrir las tres capas.) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(9. DEJAR EL BACKEND PERSISTENTE CON SYSTEMD) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Archivo:) Tj
+T*
+() Tj
+T*
+(* `/etc/systemd/system/barber-backend.service`) Tj
+T*
+() Tj
+T*
+(Contenido:) Tj
+T*
+() Tj
+T*
+(    [Unit]) Tj
+T*
+(    Description=Barber Backend) Tj
+T*
+(    After=network.target) Tj
+T*
+(    ) Tj
+T*
+(    [Service]) Tj
+T*
+(    Type=simple) Tj
+ET
+endstream
+endobj
+17 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 16 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+18 0 obj
+<< /Length 1408 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(    User=ubuntu) Tj
+T*
+(    WorkingDirectory=/home/ubuntu/barberApp/backend) Tj
+T*
+(    EnvironmentFile=/home/ubuntu/barberApp/backend/.env) Tj
+T*
+(    ExecStart=/usr/bin/npm start) Tj
+T*
+(    Restart=always) Tj
+T*
+(    RestartSec=5) Tj
+T*
+(    ) Tj
+T*
+(    [Install]) Tj
+T*
+(    WantedBy=multi-user.target) Tj
+T*
+() Tj
+T*
+(Comandos:) Tj
+T*
+() Tj
+T*
+(    sudo systemctl daemon-reload) Tj
+T*
+(    sudo systemctl enable barber-backend) Tj
+T*
+(    sudo systemctl start barber-backend) Tj
+T*
+(    sudo systemctl status barber-backend) Tj
+T*
+() Tj
+T*
+(Logs en vivo:) Tj
+T*
+() Tj
+T*
+(    journalctl -u barber-backend -f) Tj
+T*
+() Tj
+T*
+(Estado correcto esperado:) Tj
+T*
+() Tj
+T*
+(* `Loaded: enabled`) Tj
+T*
+(* `Active: active \(running\)`) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(10. DNS Y SUBDOMINIO DEL BACKEND) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(No hace falta comprar otro dominio para el backend.) Tj
+T*
+() Tj
+T*
+(Se usa un subdominio del principal:) Tj
+T*
+() Tj
+T*
+(* `api.barberappbycodex.com`) Tj
+T*
+() Tj
+T*
+(Configuracion DNS hecha:) Tj
+T*
+() Tj
+T*
+(* A record) Tj
+T*
+(* `api.barberappbycodex.com -> 147.15.76.141`) Tj
+T*
+() Tj
+T*
+(Validacion:) Tj
+T*
+() Tj
+T*
+(    nslookup api.barberappbycodex.com) Tj
+T*
+() Tj
+T*
+(Resultado esperado:) Tj
+T*
+() Tj
+T*
+(* responde `147.15.76.141`) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(11. HTTPS CON CADDY) Tj
+T*
+() Tj
+T*
+() Tj
+ET
+endstream
+endobj
+19 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 18 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+20 0 obj
+<< /Length 1534 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(Se eligio Caddy porque simplifica mucho HTTPS en Oracle.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Instalacion) Tj
+T*
+() Tj
+T*
+(    sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https) Tj
+T*
+(    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor) Tj
+T*
+(-o /usr/share/keyrings/caddy-stable-archive-keyring.gpg) Tj
+T*
+(    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee) Tj
+T*
+(/etc/apt/sources.list.d/caddy-stable.list) Tj
+T*
+(    sudo apt update) Tj
+T*
+(    sudo apt install -y caddy) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Configuracion) Tj
+T*
+() Tj
+T*
+(Archivo:) Tj
+T*
+() Tj
+T*
+(* `/etc/caddy/Caddyfile`) Tj
+T*
+() Tj
+T*
+(Contenido:) Tj
+T*
+() Tj
+T*
+(    api.barberappbycodex.com {) Tj
+T*
+(        reverse_proxy 127.0.0.1:3002) Tj
+T*
+(    }) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Reinicio) Tj
+T*
+() Tj
+T*
+(    sudo systemctl reload caddy) Tj
+T*
+(    sudo systemctl status caddy) Tj
+T*
+() Tj
+T*
+(Estado esperado:) Tj
+T*
+() Tj
+T*
+(* `Active: active \(running\)`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Requisito para que funcione HTTPS) Tj
+T*
+() Tj
+T*
+(Ademas del Caddyfile, habia que tener abiertos en Oracle y Ubuntu:) Tj
+T*
+() Tj
+T*
+(* `80`) Tj
+T*
+(* `443`) Tj
+T*
+() Tj
+T*
+(Si no, Caddy esta levantado pero desde afuera no entra nadie.) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(12. CAMBIOS DE CODIGO LOCALES PARA CERRAR LA MIGRACION) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Se dejaron preparados estos archivos:) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Backend) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+21 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 20 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+22 0 obj
+<< /Length 1413 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(Archivo:) Tj
+T*
+() Tj
+T*
+(* `/Users/maidev/Projects/appBarberiaOrion/backend/server.js`) Tj
+T*
+() Tj
+T*
+(Cambios:) Tj
+T*
+() Tj
+T*
+(* `listen\(\)` real para Oracle/VM) Tj
+T*
+(* soporte `ALLOWED_WEB_ORIGINS`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Frontend web) Tj
+T*
+() Tj
+T*
+(Archivo:) Tj
+T*
+() Tj
+T*
+(* `/Users/maidev/Projects/appBarberiaOrion/barber-web/barber-web/vercel.json`) Tj
+T*
+() Tj
+T*
+(Cambio:) Tj
+T*
+() Tj
+T*
+(* `Content-Security-Policy` ahora permite conectar con:) Tj
+T*
+(  - `https://api.barberappbycodex.com`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(App movil) Tj
+T*
+() Tj
+T*
+(Archivo:) Tj
+T*
+() Tj
+T*
+(* `/Users/maidev/Projects/appBarberiaOrion/barber-clean2/src/services/api.ts`) Tj
+T*
+() Tj
+T*
+(Cambio:) Tj
+T*
+() Tj
+T*
+(* `PROD_API_URL` paso a:) Tj
+T*
+(  - `https://api.barberappbycodex.com`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Documento tecnico) Tj
+T*
+() Tj
+T*
+(Archivo:) Tj
+T*
+() Tj
+T*
+(* `/Users/maidev/Projects/appBarberiaOrion/docs/oracle-backend-migration-guide.md`) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(13. QUE SIGUE DESPUES DEL COMMIT) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Hacer commit y push del repo local.) Tj
+T*
+() Tj
+T*
+(Archivos importantes:) Tj
+T*
+() Tj
+T*
+(* `backend/server.js`) Tj
+T*
+(* `barber-web/barber-web/vercel.json`) Tj
+T*
+(* `barber-clean2/src/services/api.ts`) Tj
+T*
+(* `docs/oracle-backend-migration-guide.md`) Tj
+T*
+() Tj
+T*
+(Despues, seguir este orden.) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+23 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 22 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+24 0 obj
+<< /Length 1512 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+() Tj
+T*
+(Paso 1: actualizar el backend en Oracle) Tj
+T*
+() Tj
+T*
+(    ssh ubuntu@147.15.76.141) Tj
+T*
+(    cd /home/ubuntu/barberApp) Tj
+T*
+(    git pull) Tj
+T*
+(    cd /home/ubuntu/barberApp/backend) Tj
+T*
+(    npm install) Tj
+T*
+(    sudo systemctl restart barber-backend) Tj
+T*
+(    sudo systemctl restart caddy) Tj
+T*
+() Tj
+T*
+(Nota:) Tj
+T*
+() Tj
+T*
+(* `npm install` solo hace falta si cambian dependencias) Tj
+T*
+(* si solo cambia codigo JS, con `git pull` + restart alcanza) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Paso 2: cambiar variable del frontend en Vercel) Tj
+T*
+() Tj
+T*
+(En Vercel del frontend:) Tj
+T*
+() Tj
+T*
+(* `REACT_APP_API_BASE_URL=https://api.barberappbycodex.com`) Tj
+T*
+() Tj
+T*
+(Despues redeploy del frontend.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Paso 3: mobile) Tj
+T*
+() Tj
+T*
+(Como la URL productiva quedo hardcodeada en el codigo mobile, hay que:) Tj
+T*
+() Tj
+T*
+(* subir version) Tj
+T*
+(* generar nuevo `AAB` / `APK`) Tj
+T*
+(* subir a Play Console o testers) Tj
+T*
+() Tj
+T*
+(Sin nueva build, la app sigue apuntando a la URL vieja.) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(14. VALIDACIONES FINALES) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(API directa) Tj
+T*
+() Tj
+T*
+(    curl https://api.barberappbycodex.com/) Tj
+T*
+() Tj
+T*
+(Debe devolver JSON del backend.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Shop publica) Tj
+T*
+() Tj
+T*
+(    curl https://api.barberappbycodex.com/api/public/shops/orion) Tj
+T*
+() Tj
+T*
+(Debe devolver informacion publica de la barberia.) Tj
+T*
+() Tj
+T*
+() Tj
+ET
+endstream
+endobj
+25 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 24 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+26 0 obj
+<< /Length 1520 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(Frontend) Tj
+T*
+() Tj
+T*
+(Abrir:) Tj
+T*
+() Tj
+T*
+(* `https://barberappbycodex.com`) Tj
+T*
+() Tj
+T*
+(Y probar:) Tj
+T*
+() Tj
+T*
+(* cargar landing) Tj
+T*
+(* pedir turno) Tj
+T*
+(* cargar barberos) Tj
+T*
+(* ver servicios) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(App movil) Tj
+T*
+() Tj
+T*
+(Probar:) Tj
+T*
+() Tj
+T*
+(* login) Tj
+T*
+(* carga de turnos) Tj
+T*
+(* cierres por dia / barbero) Tj
+T*
+(* metricas) Tj
+T*
+(* push notifications) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(15. CRON JOBS FINALES EN ORACLE) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Como ya no dependemos del cron de Vercel, se recomienda correr cron local en Oracle.) Tj
+T*
+() Tj
+T*
+(Editar crontab:) Tj
+T*
+() Tj
+T*
+(    crontab -e) Tj
+T*
+() Tj
+T*
+(Agregar:) Tj
+T*
+() Tj
+T*
+(    */10 * * * * curl -fsS -X POST http://127.0.0.1:3002/api/appointments/reminders/run -H) Tj
+T*
+("Authorization: Bearer TU_REMINDERS_CRON_SECRET" >/dev/null 2>&1) Tj
+T*
+(    0 11 * * * curl -fsS -X POST http://127.0.0.1:3002/api/auth/subscription/lifecycle/run) Tj
+T*
+(-H "Authorization: Bearer TU_REMINDERS_CRON_SECRET" >/dev/null 2>&1) Tj
+T*
+() Tj
+T*
+(Nota importante:) Tj
+T*
+() Tj
+T*
+(En tu proyecto quedaron variables parecidas como:) Tj
+T*
+() Tj
+T*
+(* `REMINDERS_CRON_SECRET`) Tj
+T*
+(* `CRON_SECRET`) Tj
+T*
+() Tj
+T*
+(No son necesariamente lo mismo. Hay que mirar que secret espera exactamente cada endpoint y) Tj
+T*
+(usar ese valor en el cron correspondiente.) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(16. PUSH NOTIFICATIONS: ERROR REAL Y SOLUCION FINAL) Tj
+ET
+endstream
+endobj
+27 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 26 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+28 0 obj
+<< /Length 2001 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+() Tj
+T*
+() Tj
+T*
+(Despues de dejar Oracle operativo, aparecio un problema puntual:) Tj
+T*
+() Tj
+T*
+(* los turnos web se guardaban) Tj
+T*
+(* el backend respondia bien) Tj
+T*
+(* el usuario tenia `pushToken` guardado) Tj
+T*
+(* pero la notificacion push instantanea no llegaba al telefono) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Prueba que confirmo el problema) Tj
+T*
+() Tj
+T*
+(Se hizo una prueba manual en Oracle enviando una push directamente al token:) Tj
+T*
+() Tj
+T*
+(    cd /home/ubuntu/barberApp/backend) Tj
+T*
+(    node --input-type=module -e 'import "dotenv/config"; import admin from "./firebase.js";) Tj
+T*
+(const resp = await admin.messaging\(\).send\({ token: "TOKEN_REAL", notification: { title:) Tj
+T*
+("Prueba push Oracle", body: "Si ves esto, Firebase y el token est·n bien." }, android: {) Tj
+T*
+(priority: "high" } }\); console.log\(resp\);') Tj
+T*
+() Tj
+T*
+(Firebase devolvio:) Tj
+T*
+() Tj
+T*
+(    FirebaseMessagingError: SenderId mismatch) Tj
+T*
+(    code: 'messaging/mismatched-credential') Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Causa real) Tj
+T*
+() Tj
+T*
+(La app movil estaba registrada en un proyecto Firebase, pero el backend estaba usando una) Tj
+T*
+(service account de otro proyecto.) Tj
+T*
+() Tj
+T*
+(App movil:) Tj
+T*
+() Tj
+T*
+(* proyecto: `barberapp-codex`) Tj
+T*
+(* sender id: `856164090518`) Tj
+T*
+() Tj
+T*
+(Backend Oracle al principio:) Tj
+T*
+() Tj
+T*
+(* usaba `firebase-key.json` de otro proyecto \(`growth-219b1`\)) Tj
+T*
+() Tj
+T*
+(Eso hace que Firebase rechace cualquier envio push hacia tokens emitidos por la app.) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Como se detecto) Tj
+T*
+() Tj
+T*
+(Se verifico:) Tj
+T*
+() Tj
+T*
+(* `pushToken` del usuario existia en Mongo) Tj
+T*
+(* `notificationSettings` estaban activas) Tj
+T*
+(* el backend intentaba enviar la push) Tj
+T*
+(* Firebase rechazaba el envio por credenciales cruzadas) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Solucion aplicada) Tj
+T*
+() Tj
+T*
+(Se descargo desde Firebase Console la service account correcta del proyecto:) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+29 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 28 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+30 0 obj
+<< /Length 1629 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(* `barberapp-codex`) Tj
+T*
+() Tj
+T*
+(Archivo descargado:) Tj
+T*
+() Tj
+T*
+(* `barberapp-codex-firebase-adminsdk-fbsvc-0ba42efa59.json`) Tj
+T*
+() Tj
+T*
+(Luego se reemplazo en Oracle el archivo del backend:) Tj
+T*
+() Tj
+T*
+(    scp) Tj
+T*
+(/Users/maidev/Projects/appBarberiaOrion/barber-clean2/barberapp-codex-firebase-adminsdk-fbsv) Tj
+T*
+(c-0ba42efa59.json ubuntu@147.15.76.141:/home/ubuntu/barberApp/backend/firebase-key.json) Tj
+T*
+() Tj
+T*
+(Y despues:) Tj
+T*
+() Tj
+T*
+(    ssh ubuntu@147.15.76.141) Tj
+T*
+(    chmod 600 /home/ubuntu/barberApp/backend/firebase-key.json) Tj
+T*
+(    sudo systemctl restart barber-backend) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Validacion final correcta) Tj
+T*
+() Tj
+T*
+(Despues del reemplazo:) Tj
+T*
+() Tj
+T*
+(* la prueba manual de push funciono) Tj
+T*
+(* la push instantanea de turno web llego al telefono) Tj
+T*
+() Tj
+T*
+(Conclusion:) Tj
+T*
+() Tj
+T*
+(* la infraestructura de Oracle estaba bien) Tj
+T*
+(* el problema no era el token) Tj
+T*
+(* el problema no era la app) Tj
+T*
+(* el problema era usar Admin SDK de Firebase del proyecto equivocado) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(17. ERRORES REALES QUE APARECIERON EN ESTE PROCESO) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Error A: deploy viejo en Vercel) Tj
+T*
+() Tj
+T*
+(Sintoma:) Tj
+T*
+() Tj
+T*
+(* produccion no reflejaba local) Tj
+T*
+() Tj
+T*
+(Causa:) Tj
+T*
+() Tj
+T*
+(* Vercel deployando o sirviendo un commit viejo) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Error B: backend no levantaba puerto en Oracle) Tj
+T*
+() Tj
+T*
+(Sintoma:) Tj
+T*
+() Tj
+T*
+(* `npm start` no dejaba el backend accesible como servidor real) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+31 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 30 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+32 0 obj
+<< /Length 1296 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(Causa:) Tj
+T*
+() Tj
+T*
+(* `server.js` pensado para Vercel, no para VM) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Error C: firewall local Ubuntu bloqueando aunque Oracle estaba bien) Tj
+T*
+() Tj
+T*
+(Sintoma:) Tj
+T*
+() Tj
+T*
+(* adentro del server andaba) Tj
+T*
+(* desde afuera no) Tj
+T*
+() Tj
+T*
+(Causa:) Tj
+T*
+() Tj
+T*
+(* `iptables` / `nftables`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Error D: Caddy levantado pero HTTPS sin entrar) Tj
+T*
+() Tj
+T*
+(Sintoma:) Tj
+T*
+() Tj
+T*
+(* `caddy.service` activo) Tj
+T*
+(* `curl https://api.barberappbycodex.com/` colgaba) Tj
+T*
+() Tj
+T*
+(Causa:) Tj
+T*
+() Tj
+T*
+(* puertos `80` y `443` no abiertos en todas las capas) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Error E: dialogo de kernel update de Ubuntu) Tj
+T*
+() Tj
+T*
+(Sintoma:) Tj
+T*
+() Tj
+T*
+(* pantalla morada rara) Tj
+T*
+() Tj
+T*
+(Causa:) Tj
+T*
+() Tj
+T*
+(* mantenimiento del sistema, no del proyecto) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Error F: Node viejo al principio) Tj
+T*
+() Tj
+T*
+(Sintoma:) Tj
+T*
+() Tj
+T*
+(* `node -v` devolvia `v12.22.9`) Tj
+T*
+() Tj
+T*
+(Causa:) Tj
+T*
+() Tj
+T*
+(* faltaba instalar / activar la version nueva) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Error G: Firebase Admin del proyecto equivocado) Tj
+T*
+() Tj
+T*
+(Sintoma:) Tj
+T*
+() Tj
+T*
+(* los turnos web se guardaban) Tj
+T*
+(* el usuario tenia `pushToken`) Tj
+ET
+endstream
+endobj
+33 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 32 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+34 0 obj
+<< /Length 1540 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(* pero no llegaban las push) Tj
+T*
+() Tj
+T*
+(Causa:) Tj
+T*
+() Tj
+T*
+(* `firebase-key.json` del backend pertenecia a otro proyecto Firebase) Tj
+T*
+(* Firebase devolvia `SenderId mismatch`) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(18. CHECKLIST FINAL RESUMIDA) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Codigo local) Tj
+T*
+() Tj
+T*
+([ ] commit de cambios) Tj
+T*
+([ ] push a GitHub) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Oracle backend) Tj
+T*
+() Tj
+T*
+([ ] `git pull`) Tj
+T*
+([ ] `.env` final correcto) Tj
+T*
+([ ] `ALLOWED_WEB_ORIGINS` cargado) Tj
+T*
+([ ] `firebase-key.json` del proyecto Firebase correcto \(`barberapp-codex`\)) Tj
+T*
+([ ] `sudo systemctl restart barber-backend`) Tj
+T*
+([ ] `sudo systemctl restart caddy`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Red Oracle) Tj
+T*
+() Tj
+T*
+([ ] Security List con `3002`, `80`, `443`) Tj
+T*
+([ ] NSG con `3002`, `80`, `443`) Tj
+T*
+([ ] iptables con `3002`, `80`, `443`) Tj
+T*
+([ ] reglas persistidas con `netfilter-persistent`) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(DNS y HTTPS) Tj
+T*
+() Tj
+T*
+([ ] `api.barberappbycodex.com` apunta a `147.15.76.141`) Tj
+T*
+([ ] Caddy reverse proxy activo) Tj
+T*
+([ ] `curl https://api.barberappbycodex.com/` responde) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Frontend) Tj
+T*
+() Tj
+T*
+([ ] `REACT_APP_API_BASE_URL=https://api.barberappbycodex.com`) Tj
+T*
+([ ] redeploy en Vercel) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Mobile) Tj
+T*
+() Tj
+T*
+([ ] subir version) Tj
+T*
+([ ] generar nuevo AAB/APK) Tj
+T*
+([ ] publicar update) Tj
+T*
+([ ] probar recepcion de push instantanea desde turno web) Tj
+ET
+endstream
+endobj
+35 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 34 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+36 0 obj
+<< /Length 1643 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(19. COMANDOS UTILES DE SOPORTE) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Estado del backend) Tj
+T*
+() Tj
+T*
+(    sudo systemctl status barber-backend) Tj
+T*
+(    journalctl -u barber-backend -f) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Estado de Caddy) Tj
+T*
+() Tj
+T*
+(    sudo systemctl status caddy) Tj
+T*
+(    journalctl -u caddy -f) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Validar puertos) Tj
+T*
+() Tj
+T*
+(    ss -tulpn | grep 3002) Tj
+T*
+(    sudo iptables -L INPUT -n --line-numbers) Tj
+T*
+(    sudo nft list ruleset) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Validar API) Tj
+T*
+() Tj
+T*
+(    curl http://127.0.0.1:3002/) Tj
+T*
+(    curl http://147.15.76.141:3002/) Tj
+T*
+(    curl https://api.barberappbycodex.com/) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Validar push manual) Tj
+T*
+() Tj
+T*
+(    cd /home/ubuntu/barberApp/backend) Tj
+T*
+(    node --input-type=module -e 'import "dotenv/config"; import admin from "./firebase.js";) Tj
+T*
+(const resp = await admin.messaging\(\).send\({ token: "TOKEN_REAL", notification: { title:) Tj
+T*
+("Prueba push Oracle", body: "Si ves esto, Firebase y el token est·n bien." }, android: {) Tj
+T*
+(priority: "high" } }\); console.log\(resp\);') Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(20. RECOMENDACION TECNICA FINAL) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(La arquitectura correcta para este proyecto hoy es esta:) Tj
+T*
+() Tj
+T*
+(* frontend en Vercel) Tj
+T*
+(* backend en Oracle) Tj
+T*
+(* subdominio `api.barberappbycodex.com`) Tj
+T*
+(* cron jobs en Oracle) Tj
+T*
+(* app movil nueva build cuando cambia URL o codigo productivo) Tj
+T*
+() Tj
+T*
+(No hace falta mover el frontend de Vercel ahora.) Tj
+ET
+endstream
+endobj
+37 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 36 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+38 0 obj
+<< /Length 472 >>
+stream
+BT
+/F1 10 Tf
+13 TL
+1 0 0 1 40 792 Tm
+(El punto critico era sacar el backend de Vercel para evitar deploys inconsistentes y limites) Tj
+T*
+(del plan hobby.) Tj
+T*
+() Tj
+T*
+(---) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(21. ARCHIVO PDF FINAL) Tj
+T*
+() Tj
+T*
+() Tj
+T*
+(Este documento tambien fue exportado como PDF para tenerlo como guia operativa.) Tj
+T*
+() Tj
+T*
+(Archivo esperado:) Tj
+T*
+() Tj
+T*
+(* `/Users/maidev/Projects/appBarberiaOrion/docs/oracle-backend-migration-guide.pdf`) Tj
+ET
+endstream
+endobj
+39 0 obj
+<< /Type /Page /Parent 40 0 R /MediaBox [0 0 595 842] /Contents 38 0 R /Resources << /Font << /F1 1 0 R >> >> >>
+endobj
+40 0 obj
+<< /Type /Pages /Kids [ 3 0 R 5 0 R 7 0 R 9 0 R 11 0 R 13 0 R 15 0 R 17 0 R 19 0 R 21 0 R 23 0 R 25 0 R 27 0 R 29 0 R 31 0 R 33 0 R 35 0 R 37 0 R 39 0 R ] /Count 19 >>
+endobj
+41 0 obj
+<< /Type /Catalog /Pages 40 0 R >>
+endobj
+xref
+0 42
+0000000000 65535 f 
+0000000015 00000 n 
+0000000085 00000 n 
+0000001916 00000 n 
+0000002043 00000 n 
+0000003501 00000 n 
+0000003628 00000 n 
+0000005218 00000 n 
+0000005345 00000 n 
+0000007317 00000 n 
+0000007444 00000 n 
+0000009193 00000 n 
+0000009322 00000 n 
+0000010885 00000 n 
+0000011014 00000 n 
+0000012361 00000 n 
+0000012490 00000 n 
+0000014056 00000 n 
+0000014185 00000 n 
+0000015646 00000 n 
+0000015775 00000 n 
+0000017362 00000 n 
+0000017491 00000 n 
+0000018957 00000 n 
+0000019086 00000 n 
+0000020651 00000 n 
+0000020780 00000 n 
+0000022353 00000 n 
+0000022482 00000 n 
+0000024536 00000 n 
+0000024665 00000 n 
+0000026347 00000 n 
+0000026476 00000 n 
+0000027825 00000 n 
+0000027954 00000 n 
+0000029547 00000 n 
+0000029676 00000 n 
+0000031372 00000 n 
+0000031501 00000 n 
+0000032025 00000 n 
+0000032154 00000 n 
+0000032338 00000 n 
+trailer
+<< /Size 42 /Root 41 0 R >>
+startxref
+32389
+%%EOF
