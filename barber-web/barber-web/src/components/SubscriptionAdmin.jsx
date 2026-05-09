@@ -156,8 +156,17 @@ function isCouponExpired(coupon) {
   return expiresAt.getTime() < Date.now();
 }
 
+function isSubscriptionCouponStillValid(subscription) {
+  if (!subscription?.couponCode) return false;
+  if (!subscription?.couponValidUntil) return true;
+
+  const validUntil = new Date(subscription.couponValidUntil);
+  if (Number.isNaN(validUntil.getTime())) return true;
+  return validUntil.getTime() >= Date.now();
+}
+
 function getSubscriptionDiscountLabel(subscription) {
-  if (!subscription?.couponCode) return '';
+  if (!isSubscriptionCouponStillValid(subscription)) return '';
 
   if (subscription?.couponDiscountType === 'fixed_usd_reference') {
     return `USD ${Number(subscription?.couponDiscountAmountUsdReference || 0).toLocaleString('es-AR')} OFF`;
@@ -170,8 +179,9 @@ function hasSubscriptionDiscount(subscription) {
   return (
     subscription?.customPriceArs != null ||
     subscription?.customPriceUsdReference != null ||
-    Number(subscription?.couponDiscountPercent || 0) > 0 ||
-    Number(subscription?.couponDiscountAmountUsdReference || 0) > 0
+    (isSubscriptionCouponStillValid(subscription) &&
+      (Number(subscription?.couponDiscountPercent || 0) > 0 ||
+        Number(subscription?.couponDiscountAmountUsdReference || 0) > 0))
   );
 }
 
@@ -227,7 +237,9 @@ function getBasePlanValues(plan, pricingDraft) {
 function calculateDiscountPercent({ plan, subscription, pricingDraft }) {
   const base = getBasePlanValues(plan, pricingDraft);
   const customArs = Number(subscription?.customPriceArs ?? 0);
-  const couponPercent = Number(subscription?.couponDiscountPercent ?? 0);
+  const couponPercent = isSubscriptionCouponStillValid(subscription)
+    ? Number(subscription?.couponDiscountPercent ?? 0)
+    : 0;
 
   if (couponPercent > 0) {
     return Number(couponPercent.toFixed(2));
@@ -1758,7 +1770,7 @@ export default function SubscriptionAdmin() {
                 {visibleUsers.map((user) => {
                   const draft = drafts[user._id] || {};
                   const hasDiscount = hasSubscriptionDiscount(user.subscription);
-                  const activeCouponDurationBadge = user.subscription?.couponCode
+                  const activeCouponDurationBadge = isSubscriptionCouponStillValid(user.subscription)
                     ? getCouponDurationBadge({
                         benefitDurationType: user.subscription?.couponBenefitDurationType,
                         benefitDurationValue: user.subscription?.couponBenefitDurationValue,
@@ -1775,7 +1787,7 @@ export default function SubscriptionAdmin() {
                           {hasDiscount ? (
                             <span className={styles.discountBadge}>Plan diferenciado activo</span>
                           ) : null}
-                          {user.subscription?.couponCode ? (
+                          {isSubscriptionCouponStillValid(user.subscription) ? (
                             <span className={styles.accountCouponWrap}>
                               <span className={styles.discountBadge}>Cupón: {user.subscription.couponCode}</span>
                               {activeCouponDurationBadge ? (
@@ -1949,7 +1961,7 @@ export default function SubscriptionAdmin() {
                             Renovación: {resolveRenewalModeLabel(user.subscription?.renewalMode)} · Próximo cobro:{' '}
                             {formatDate(resolveNextDueDate(user.subscription))}
                           </span>
-                          {user.subscription?.couponCode ? (
+                          {isSubscriptionCouponStillValid(user.subscription) ? (
                             <span className={styles.currentMeta}>
                               Beneficio activo: cupón {user.subscription.couponCode} ·{' '}
                               {getSubscriptionDiscountLabel(user.subscription)}

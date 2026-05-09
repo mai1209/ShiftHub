@@ -12,6 +12,7 @@ import {
   Pressable,
   Image,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 
 import { registerUser } from '../services/api';
@@ -30,7 +31,7 @@ const AUTH_THEME = {
   primary: '#39E01F',
   card: '#FFFFFF',
   background: '#F8FAFC',
-  logo: require('../assets/logoBarber.png'),
+  logo: require('../assets/LOGO REDONDEADO BORDEADO.png'),
 } as const;
 
 function Register({ navigation }: any) {
@@ -40,6 +41,7 @@ function Register({ navigation }: any) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [businessType, setBusinessType] = useState<BusinessType>('beauty_center');
+  const [businessTypePickerVisible, setBusinessTypePickerVisible] = useState(false);
 
   // Estados para visibilidad de contraseñas
   const [showPass, setShowPass] = useState(false);
@@ -49,6 +51,9 @@ function Register({ navigation }: any) {
   const [error, setError] = useState('');
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const styles = useMemo(() => createStyles(AUTH_THEME), []);
+  const selectedBusinessType = BUSINESS_TYPE_OPTIONS.find(
+    option => option.value === businessType,
+  );
 
   const handleRegister = async () => {
     if (loading) return;
@@ -75,7 +80,7 @@ function Register({ navigation }: any) {
         await saveUserProfile(response.user);
         applyUserTheme(response.user);
       }
-      navigation.replace('Plans', { fromRegistration: true, email });
+      navigation.replace('Subscription-Settings');
     } catch (err: any) {
       setError(err.message || 'Error al registrarse');
     } finally {
@@ -106,35 +111,17 @@ function Register({ navigation }: any) {
 
             <View style={styles.categoryBlock}>
               <Text style={styles.categoryLabel}>Rubro principal</Text>
-              <View style={styles.categoryGrid}>
-                {BUSINESS_TYPE_OPTIONS.map(option => {
-                  const active = option.value === businessType;
-                  return (
-                    <Pressable
-                      key={option.value}
-                      style={[
-                        styles.categoryChip,
-                        active && styles.categoryChipActive,
-                      ]}
-                      onPress={() => setBusinessType(option.value)}
-                    >
-                      <Text
-                        style={[
-                          styles.categoryChipText,
-                          active && styles.categoryChipTextActive,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <Pressable
+                style={styles.categorySelect}
+                onPress={() => setBusinessTypePickerVisible(true)}
+              >
+                <Text style={styles.categorySelectText}>
+                  {selectedBusinessType?.label ?? 'Elegí un rubro'}
+                </Text>
+                <Text style={styles.categorySelectChevron}>▾</Text>
+              </Pressable>
               <Text style={styles.categoryHint}>
-                {
-                  BUSINESS_TYPE_OPTIONS.find(option => option.value === businessType)
-                    ?.description
-                }
+                {selectedBusinessType?.description}
               </Text>
             </View>
 
@@ -262,6 +249,61 @@ function Register({ navigation }: any) {
           <Text style={styles.codexText}>{SHIFT_APP_BRAND_NAME} by CODEX®</Text>
         </ScrollView>
       </TouchableWithoutFeedback>
+
+      <Modal
+        visible={businessTypePickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setBusinessTypePickerVisible(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setBusinessTypePickerVisible(false)}
+        >
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <Text style={styles.modalTitle}>Elegí un rubro</Text>
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {BUSINESS_TYPE_OPTIONS.map(option => {
+                const active = option.value === businessType;
+                return (
+                  <Pressable
+                    key={option.value}
+                    style={[
+                      styles.modalOption,
+                      active && styles.modalOptionActive,
+                    ]}
+                    onPress={() => {
+                      setBusinessType(option.value);
+                      setBusinessTypePickerVisible(false);
+                    }}
+                  >
+                    <View style={styles.modalOptionContent}>
+                      <Text
+                        style={[
+                          styles.modalOptionLabel,
+                          active && styles.modalOptionLabelActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                      <Text style={styles.modalOptionDescription}>
+                        {option.description}
+                      </Text>
+                    </View>
+                    {active ? (
+                      <Text style={styles.modalOptionCheck}>✓</Text>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -302,36 +344,97 @@ const createStyles = (theme: Theme | typeof AUTH_THEME) =>
       fontWeight: '700',
       marginBottom: 10,
     },
-    categoryGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    categoryChip: {
+    categorySelect: {
       borderWidth: 1,
       borderColor: '#CBD5E1',
-      borderRadius: 999,
-      paddingHorizontal: 12,
-      paddingVertical: 9,
-      backgroundColor: '#F8FAFC',
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      backgroundColor: '#FFFFFF',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
     },
-    categoryChipActive: {
-      borderColor: theme.primary,
-      backgroundColor: 'rgba(57, 224, 31, 0.08)',
-    },
-    categoryChipText: {
-      color: '#475569',
-      fontSize: 12,
+    categorySelectText: {
+      color: '#0F172A',
+      fontSize: 15,
       fontWeight: '600',
     },
-    categoryChipTextActive: {
-      color: theme.primary,
+    categorySelectChevron: {
+      color: '#64748B',
+      fontSize: 18,
+      lineHeight: 18,
     },
     categoryHint: {
       color: '#64748B',
       fontSize: 12,
       lineHeight: 18,
       marginTop: 10,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(15, 23, 42, 0.45)',
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 24,
+    },
+    modalCard: {
+      backgroundColor: '#FFFFFF',
+      borderRadius: 24,
+      padding: 20,
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      maxHeight: '82%',
+    },
+    modalTitle: {
+      color: '#0F172A',
+      fontSize: 18,
+      fontWeight: '800',
+      marginBottom: 12,
+    },
+    modalScroll: {
+      maxHeight: '100%',
+    },
+    modalScrollContent: {
+      gap: 10,
+      paddingBottom: 4,
+    },
+    modalOption: {
+      borderWidth: 1,
+      borderColor: '#E2E8F0',
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    modalOptionActive: {
+      borderColor: theme.primary,
+      backgroundColor: 'rgba(57, 224, 31, 0.08)',
+    },
+    modalOptionContent: {
+      flex: 1,
+      gap: 4,
+    },
+    modalOptionLabel: {
+      color: '#0F172A',
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    modalOptionLabelActive: {
+      color: '#0B7A17',
+    },
+    modalOptionDescription: {
+      color: '#64748B',
+      fontSize: 12,
+      lineHeight: 16,
+    },
+    modalOptionCheck: {
+      color: '#0B7A17',
+      fontSize: 18,
+      fontWeight: '800',
     },
 
     inputContainer: { marginBottom: 12 },

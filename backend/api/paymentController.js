@@ -501,6 +501,13 @@ async function syncAutomaticSubscriptionFromPreapproval(preapproval) {
       mercadoPagoPreapprovalId:
         String(preapproval.id || userDoc.subscription?.mercadoPagoPreapprovalId || "") || null,
       mercadoPagoPreapprovalStatus: normalizedStatus,
+      mercadoPagoPreapprovalAmountArs: Number(
+        preapproval?.auto_recurring?.transaction_amount ||
+          userDoc.subscription?.mercadoPagoPreapprovalAmountArs ||
+          resolvedCouponPricing?.effectiveArs ||
+          pricing?.[plan]?.ars ||
+          0,
+      ) || null,
       renewalReminder7dAt: null,
       renewalReminder3dAt: null,
       renewalReminder1dAt: null,

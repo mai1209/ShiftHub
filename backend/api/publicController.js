@@ -663,6 +663,7 @@ export async function publicCreateRecurringSubscriptionCheckout(req, res, next) 
       renewalMode: "automatic",
       mercadoPagoPreapprovalId: preapproval.id || null,
       mercadoPagoPreapprovalStatus: preapproval.status || "pending",
+      mercadoPagoPreapprovalAmountArs: amount,
       pendingCouponCode: coupon ? coupon.code : null,
       pendingCouponDiscountType: coupon ? coupon.discountType || "percentage" : null,
       pendingCouponDiscountPercent: coupon ? Number(coupon.discountPercent || 0) : null,

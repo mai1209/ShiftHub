@@ -40,62 +40,62 @@ const DEFAULT_BUSINESS_TYPE: BusinessType = 'other';
 export const BUSINESS_TYPE_OPTIONS: BusinessTypeOption[] = [
   {
     value: 'beauty_center',
-    label: 'Centro de estética',
+    label: '✨ Centro de estética',
     description: 'Faciales, depilación, cosmetología y tratamientos.',
   },
   {
     value: 'hair_salon',
-    label: 'Peluquería',
+    label: '💇 Peluquería',
     description: 'Cortes, color, brushing y peinados.',
   },
   {
     value: 'nails',
-    label: 'Uñas',
+    label: '💅 Salón de uñas',
     description: 'Manicuría, pedicuría y nail art.',
   },
   {
     value: 'spa',
-    label: 'Spa y masajes',
+    label: '🧖 Spa y masajes',
     description: 'Masajes, relax y bienestar.',
   },
   {
     value: 'medical',
-    label: 'Consultorio médico',
+    label: '🩺 Consultorio médico',
     description: 'Turnos para medicina general o especialidades.',
   },
   {
     value: 'dentistry',
-    label: 'Odontología',
+    label: '🦷 Odontología',
     description: 'Consultas, limpiezas y tratamientos odontológicos.',
   },
   {
     value: 'kinesiology',
-    label: 'Kinesiología',
+    label: '🦴 Kinesiología',
     description: 'Rehabilitación, fisioterapia y sesiones.',
   },
   {
     value: 'psychology',
-    label: 'Psicología y terapia',
+    label: '🧠 Psicología y terapia',
     description: 'Consultas psicológicas y terapias.',
   },
   {
     value: 'veterinary',
-    label: 'Veterinaria',
+    label: '🐾 Veterinaria',
     description: 'Consultas, controles y atención animal.',
   },
   {
     value: 'tattoo',
-    label: 'Estudio de tatuajes',
+    label: '🖋️ Estudio de tatuajes',
     description: 'Sesiones, consultas y reservas de tatuaje.',
   },
   {
     value: 'fitness',
-    label: 'Fitness y entrenamiento',
+    label: '🏋️ Fitness y entrenamiento',
     description: 'Clases, sesiones y entrenamientos personalizados.',
   },
   {
     value: 'other',
-    label: 'Otro rubro',
+    label: '🧩 Otro rubro',
     description: 'Usá términos neutrales para cualquier otro negocio.',
   },
 ];

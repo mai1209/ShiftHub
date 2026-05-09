@@ -1235,6 +1235,22 @@ export async function syncStoreSubscription(req, res, next) {
       billingCycle: "monthly",
       renewalMode: autoRenewing ? "automatic" : "manual",
       provider,
+      customPriceArs: null,
+      customPriceUsdReference: null,
+      couponCode: null,
+      couponDiscountType: null,
+      couponDiscountPercent: null,
+      couponDiscountAmountUsdReference: null,
+      couponBenefitDurationType: null,
+      couponBenefitDurationValue: null,
+      couponAppliedAt: null,
+      couponValidUntil: null,
+      pendingCouponCode: null,
+      pendingCouponDiscountType: null,
+      pendingCouponDiscountPercent: null,
+      pendingCouponDiscountAmountUsdReference: null,
+      pendingCouponBenefitDurationType: null,
+      pendingCouponBenefitDurationValue: null,
       startedAt,
       expiresAt,
       nextBillingAt: autoRenewing ? expiresAt : null,
@@ -1242,6 +1258,7 @@ export async function syncStoreSubscription(req, res, next) {
       mercadoPagoPreferenceId: null,
       mercadoPagoPreapprovalId: null,
       mercadoPagoPreapprovalStatus: null,
+      mercadoPagoPreapprovalAmountArs: null,
       storeProductId: productId,
       storeCurrentPlanId: currentPlanId,
       storePurchaseToken: purchaseToken,
@@ -1891,6 +1908,7 @@ export async function updateOwnSubscriptionSettings(req, res, next) {
 
       updates.mercadoPagoPreapprovalStatus = "cancelled";
       updates.mercadoPagoPreapprovalId = null;
+      updates.mercadoPagoPreapprovalAmountArs = null;
       updates.nextBillingAt = null;
     }
 

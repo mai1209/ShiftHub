@@ -288,6 +288,11 @@ const subscriptionSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    mercadoPagoPreapprovalAmountArs: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
     mercadoPagoPaymentId: {
       type: String,
       default: null,

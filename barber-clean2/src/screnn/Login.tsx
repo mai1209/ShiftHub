@@ -12,7 +12,6 @@ import {
   Pressable,
   Image,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
 
 import { loginUser, savePushTokenApi } from '../services/api'; // Importado savePushTokenApi
@@ -24,17 +23,15 @@ import type { Theme } from '../context/ThemeContext';
 import OjoAbierto from '../assets/ojo_abierto.png';
 import OjoCerrado from '../assets/ojo_cerrado.png';
 import { SHIFT_APP_BRAND_NAME } from '../utils/businessCopy';
-import { REGISTER_ACCOUNT_URL } from '../utils/publicLinks';
 
 const AUTH_THEME = {
   primary: '#39E01F',
   card: '#FFFFFF',
   background: '#F8FAFC',
-  logo: require('../assets/logoBarber.png'),
+  logo: require('../assets/LOGO REDONDEADO BORDEADO.png'),
 } as const;
 function Login({ navigation }: any) {
   const { applyUserTheme } = useTheme();
-  const isIOS = Platform.OS === 'ios';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
@@ -43,14 +40,6 @@ function Login({ navigation }: any) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [focusedField, setFocusedField] = useState<string | null>(null);
-
-  const handleOpenWebRegistration = async () => {
-    try {
-      await Linking.openURL(REGISTER_ACCOUNT_URL);
-    } catch (_error) {
-      setError('No pudimos abrir el registro web');
-    }
-  };
 
   const handleLogin = async () => {
     if (loading) return;
@@ -112,29 +101,8 @@ function Login({ navigation }: any) {
 
           <View style={styles.loginCard}>
             <Text style={styles.instructionText}>
-              Iniciá sesión con tu cuenta existente para continuar
+              Iniciá sesión para continuar
             </Text>
-
-            <View style={styles.iosInfoCard}>
-              <Text style={styles.iosInfoTitle}>
-                Las cuentas se administran fuera de la app.
-              </Text>
-              <Text style={styles.iosInfoText}>
-                {isIOS
-                  ? 'Si ya tenés cuenta, iniciá sesión para continuar.'
-                  : 'El alta y la activación se resuelven por web.'}
-              </Text>
-              {!isIOS ? (
-                <Pressable
-                  style={styles.iosInfoAction}
-                  onPress={handleOpenWebRegistration}
-                >
-                  <Text style={styles.iosInfoActionText}>
-                    Crear cuenta por web
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
 
             <View style={styles.inputContainer}>
               <Text style={styles.inputLabel}>Email</Text>
@@ -208,17 +176,15 @@ function Login({ navigation }: any) {
               </Text>
             </Pressable>
 
-            {!isIOS ? (
-              <Pressable
-                onPress={handleOpenWebRegistration}
-                style={styles.registerBtn}
-              >
-                <Text style={styles.registerText}>
-                  ¿No tenés cuenta?{' '}
-                  <Text style={styles.registerTextBold}>Creala por web</Text>
-                </Text>
-              </Pressable>
-            ) : null}
+            <Pressable
+              onPress={() => navigation.navigate('Register')}
+              style={styles.registerBtn}
+            >
+              <Text style={styles.registerText}>
+                ¿No tenés cuenta?{' '}
+                <Text style={styles.registerTextBold}>Creala ahora</Text>
+              </Text>
+            </Pressable>
           </View>
           <Text style={styles.codexText}>{SHIFT_APP_BRAND_NAME} by CODEX®</Text>
         </ScrollView>
@@ -254,38 +220,6 @@ const createStyles = (theme: Theme | typeof AUTH_THEME) =>
       textAlign: 'center',
       marginBottom: 25,
       fontSize: 14,
-    },
-    iosInfoCard: {
-      marginBottom: 18,
-      borderRadius: 16,
-      padding: 14,
-      backgroundColor: '#F8FAFC',
-      borderWidth: 1,
-      borderColor: '#DBE5F0',
-      gap: 6,
-    },
-    iosInfoTitle: {
-      color: '#0F172A',
-      fontSize: 13,
-      fontWeight: '800',
-    },
-    iosInfoText: {
-      color: '#475569',
-      fontSize: 12,
-      lineHeight: 18,
-    },
-    iosInfoAction: {
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 12,
-      backgroundColor: 'rgba(57, 224, 31, 0.08)',
-      borderWidth: 1,
-      borderColor: 'rgba(57, 224, 31, 0.22)',
-    },
-    iosInfoActionText: {
-      color: '#1F9D36',
-      fontSize: 12,
-      fontWeight: '800',
     },
     inputContainer: { marginBottom: 15 },
     inputLabel: {

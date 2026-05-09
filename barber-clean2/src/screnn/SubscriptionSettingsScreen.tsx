@@ -1059,6 +1059,11 @@ const createStyles = (theme: Theme) =>
       lineHeight: 32,
       fontWeight: '900',
     },
+    subtitle: {
+      color: theme.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
   
     loadingCard: {
       backgroundColor: theme.card,

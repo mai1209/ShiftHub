@@ -1,6 +1,12 @@
 import admin from "../firebase.js";
 import { UserModel } from "../models/User.js";
+import {
+  getOrCreatePlanPricing,
+  serializePlanPricing,
+} from "./planPricingService.js";
+import { updateMercadoPagoSystemPreapproval } from "./mercadoPago.js";
 import { sendAppMail } from "./mailer.js";
+import { resolvePlanPricingForSubscription } from "./subscriptionPricingService.js";
 
 const GRACE_PERIOD_DAYS = 3;
 
@@ -316,6 +322,50 @@ function buildGraceUntil(expiresAt) {
   return grace;
 }
 
+async function reconcileAutomaticMercadoPagoAmount(userDoc) {
+  const subscription = userDoc?.subscription ?? {};
+  const provider = String(subscription?.provider || "mercadopago").trim().toLowerCase();
+  const renewalMode = String(subscription?.renewalMode || "").trim().toLowerCase();
+  const plan = String(subscription?.plan || "").trim().toLowerCase();
+  const preapprovalId = String(subscription?.mercadoPagoPreapprovalId || "").trim();
+
+  if (renewalMode !== "automatic" || !preapprovalId) return false;
+  if (provider === "apple" || provider === "google") return false;
+  if (!["basic", "pro"].includes(plan)) return false;
+
+  const pricingDoc = await getOrCreatePlanPricing();
+  const pricing = serializePlanPricing(pricingDoc);
+  const resolvedPricing = resolvePlanPricingForSubscription({
+    plan,
+    pricing,
+    subscription,
+  });
+  const targetAmount = Math.max(0, Number(resolvedPricing.effectiveArs || 0));
+  const currentAmount = Math.max(0, Number(subscription?.mercadoPagoPreapprovalAmountArs || 0));
+
+  if (!(targetAmount > 0)) return false;
+  if (currentAmount > 0 && Math.abs(currentAmount - targetAmount) < 0.01) {
+    return false;
+  }
+
+  await updateMercadoPagoSystemPreapproval({
+    preapprovalId,
+    payload: {
+      auto_recurring: {
+        transaction_amount: targetAmount,
+        currency_id: "ARS",
+      },
+    },
+  });
+
+  userDoc.subscription = {
+    ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+    mercadoPagoPreapprovalAmountArs: targetAmount,
+  };
+
+  return true;
+}
+
 export async function processSubscriptionLifecycle({ now = new Date() } = {}) {
   const users = await UserModel.find({
     "subscription.expiresAt": { $ne: null },
@@ -338,6 +388,18 @@ export async function processSubscriptionLifecycle({ now = new Date() } = {}) {
     if (!expiresAt || Number.isNaN(expiresAt.getTime())) continue;
 
     if (status === "active") {
+      try {
+        const reconciledAutomaticAmount = await reconcileAutomaticMercadoPagoAmount(userDoc);
+        if (reconciledAutomaticAmount) {
+          await userDoc.save();
+        }
+      } catch (error) {
+        console.error(
+          "Error reconciliando el monto de la renovación automática:",
+          error?.message || error,
+        );
+      }
+
       const remainingDays = daysUntil(expiresAt, now);
 
       if (remainingDays <= 0) {
