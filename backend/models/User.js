@@ -75,6 +75,8 @@ const mercadoPagoAuthSchema = new mongoose.Schema(
 
 const notificationSettingsSchema = new mongoose.Schema(
   {
+    adminInstantBookingEnabled: { type: Boolean, default: true },
+    barberInstantBookingEnabled: { type: Boolean, default: true },
     barberReminderEnabled: { type: Boolean, default: true },
     barberReminderMinutesBefore: {
       type: Number,

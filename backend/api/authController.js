@@ -926,6 +926,16 @@ function sanitizeNotificationSettingsInput(input) {
   let hasAnyField = false;
   const allowedReminderMinutes = new Set([15, 30, 60, 120, 180, 1440]);
 
+  if (Object.prototype.hasOwnProperty.call(input, "adminInstantBookingEnabled")) {
+    hasAnyField = true;
+    updates.adminInstantBookingEnabled = Boolean(input.adminInstantBookingEnabled);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, "barberInstantBookingEnabled")) {
+    hasAnyField = true;
+    updates.barberInstantBookingEnabled = Boolean(input.barberInstantBookingEnabled);
+  }
+
   if (Object.prototype.hasOwnProperty.call(input, "barberReminderEnabled")) {
     hasAnyField = true;
     updates.barberReminderEnabled = Boolean(input.barberReminderEnabled);

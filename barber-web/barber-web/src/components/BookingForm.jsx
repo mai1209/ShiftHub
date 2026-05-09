@@ -927,7 +927,14 @@ function BookingForm({ shopSlug, onNotFound }) {
       }
       // -----------------------------
 
+      setCustomerName("");
+      setPhone("");
+      setEmail("");
+      setEmailConfirmation("");
+      setSelectedServices([]);
+      setSelectedBarber("");
       setSelectedSlot(null);
+      setPaymentMethod("cash");
       await loadSlots();
     } catch (err) {
       alert("Error: " + (err.details?.error || err.message));

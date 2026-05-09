@@ -1052,7 +1052,13 @@ const makeStyles = (theme: Theme) =>
       justifyContent: 'center',
     },
     btnMain: { backgroundColor: theme.primary, flex: 1.18 },
-    btnMainText: { color: theme.secondary, fontSize: 13, fontWeight: '800' },
+    btnMainText: {
+      color: theme.textOnPrimary,
+      fontSize: 12,
+      fontWeight: '800',
+      textAlign: 'center',
+      lineHeight: 15,
+    },
     btnSec: {
       backgroundColor: theme.surfaceAlt,
       borderWidth: 1,

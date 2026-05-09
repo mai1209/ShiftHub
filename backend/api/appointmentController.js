@@ -27,7 +27,10 @@ import {
   processAppointmentReminders,
 } from "../services/reminderService.js";
 import { getAppointmentOccupiedEnd } from "../utils/appointmentTiming.js";
-import { resolveAssignedBarberPushTarget } from "../utils/pushRecipients.js";
+import {
+  resolveAssignedBarberPushTarget,
+  resolveOwnerPushTarget,
+} from "../utils/pushRecipients.js";
 
 // Función auxiliar para calcular rangos de fecha
 function buildDayRange(dateLike) {
@@ -370,11 +373,29 @@ export async function createAppointment(req, res, next) {
 
     // --- ENVIAR NOTIFICACIÓN PUSH AL BARBERO ---
     try {
-      const pushTarget = await resolveAssignedBarberPushTarget({
-        ownerId: finalOwnerId,
-        barberId,
-      });
-      if (pushTarget?.token) {
+      const [ownerUser, ownerPushTarget, barberPushTarget] = await Promise.all([
+        UserModel.findById(finalOwnerId)
+          .select({ notificationSettings: 1 })
+          .lean(),
+        resolveOwnerPushTarget({ ownerId: finalOwnerId }),
+        resolveAssignedBarberPushTarget({
+          ownerId: finalOwnerId,
+          barberId,
+        }),
+      ]);
+      const ownerToken =
+        ownerUser?.notificationSettings?.adminInstantBookingEnabled !== false
+          ? String(ownerPushTarget?.token || "").trim()
+          : "";
+      const barberToken =
+        ownerUser?.notificationSettings?.barberInstantBookingEnabled !== false
+          ? String(barberPushTarget?.token || "").trim()
+          : "";
+      const targetTokens = Array.from(
+        new Set([ownerToken, barberToken].filter(Boolean)),
+      );
+
+      if (targetTokens.length) {
         const timeZone = "America/Argentina/Cordoba";
         const timeLabel = startTime.toLocaleTimeString("es-AR", {
           hour: "2-digit",
@@ -389,7 +410,6 @@ export async function createAppointment(req, res, next) {
           timeZone,
         });
         const payload = {
-          token: pushTarget.token,
           notification: {
             title: "💈Nuevo turno confirmado",
             body: `${customerName} reservó ${service} con ${barber?.fullName || "tu barbero"} el ${dateLabel} a las ${timeLabel}.`,
@@ -398,8 +418,10 @@ export async function createAppointment(req, res, next) {
             priority: "high",
           },
         };
-        const resp = await admin.messaging().send(payload);
-        console.log("Push enviado OK:", resp);
+        const responses = await Promise.all(
+          targetTokens.map((token) => admin.messaging().send({ ...payload, token })),
+        );
+        console.log("Push enviado OK:", responses);
       }
     } catch (err) {
       console.log("Push error:", err.message, err);

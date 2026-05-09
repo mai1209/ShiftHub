@@ -52,7 +52,10 @@ import {
   normalizeBusinessType,
 } from "../utils/businessTypes.js";
 import { getAppointmentOccupiedEnd } from "../utils/appointmentTiming.js";
-import { resolveAssignedBarberPushTarget } from "../utils/pushRecipients.js";
+import {
+  resolveAssignedBarberPushTarget,
+  resolveOwnerPushTarget,
+} from "../utils/pushRecipients.js";
 
 function buildDayRange(dateParam) {
   return getTimeZoneDayRange(dateParam);
@@ -940,11 +943,29 @@ export async function publicCreateAppointment(req, res, next) {
 
     // --- LÓGICA DE NOTIFICACIÓN PUSH AL BARBERO (YA LA TENÍAS) ---
     try {
-      const pushTarget = await resolveAssignedBarberPushTarget({
-        ownerId,
-        barberId,
-      });
-      if (pushTarget?.token) {
+      const [ownerUser, ownerPushTarget, barberPushTarget] = await Promise.all([
+        UserModel.findById(ownerId)
+          .select({ notificationSettings: 1 })
+          .lean(),
+        resolveOwnerPushTarget({ ownerId }),
+        resolveAssignedBarberPushTarget({
+          ownerId,
+          barberId,
+        }),
+      ]);
+      const ownerToken =
+        ownerUser?.notificationSettings?.adminInstantBookingEnabled !== false
+          ? String(ownerPushTarget?.token || "").trim()
+          : "";
+      const barberToken =
+        ownerUser?.notificationSettings?.barberInstantBookingEnabled !== false
+          ? String(barberPushTarget?.token || "").trim()
+          : "";
+      const targetTokens = Array.from(
+        new Set([ownerToken, barberToken].filter(Boolean)),
+      );
+
+      if (targetTokens.length) {
         const timeLabel = appointmentDate.toLocaleTimeString("es-AR", {
           hour: "2-digit",
           minute: "2-digit",
@@ -958,7 +979,6 @@ export async function publicCreateAppointment(req, res, next) {
           timeZone: "America/Argentina/Cordoba",
         });
         const payload = {
-          token: pushTarget.token,
           notification: {
             title:
               normalizedPaymentMethod === "transfer"
@@ -971,8 +991,10 @@ export async function publicCreateAppointment(req, res, next) {
           },
           android: { priority: "high" },
         };
-        const resp = await admin.messaging().send(payload);
-        console.log("Push público OK:", resp);
+        const responses = await Promise.all(
+          targetTokens.map((token) => admin.messaging().send({ ...payload, token })),
+        );
+        console.log("Push público OK:", responses);
       }
     } catch (pushErr) {
       console.error("⚠️ Error enviando push:", pushErr.message);
