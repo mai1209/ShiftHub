@@ -1,6 +1,6 @@
 import { SHIFT_APP_BRAND_NAME } from './businessCopy';
 
-export const PUBLIC_WEB_BASE_URL = 'https://barberappbycodex.com';
+export const PUBLIC_WEB_BASE_URL = 'https://shifthubycodex.com';
 export const SUPPORT_EMAIL = 'barberappbycodex@gmail.com';
 export const SUPPORT_WHATSAPP_NUMBER = '543425543308';
 

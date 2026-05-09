@@ -93,7 +93,7 @@ function buildSubscriptionPaymentReturnHtml({ result }) {
         <h1 style="margin:0 0 12px;font-size:24px;">${config.title}</h1>
         <p style="margin:0 0 18px;color:#B7BECC;line-height:1.5;">${config.message}</p>
         <p style="margin:0 0 18px;color:#7C8596;font-size:13px;line-height:1.5;">${config.helper}</p>
-        <a href="https://barberappbycodex.com/planes" style="display:inline-block;background:${config.accent};color:#111;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:800;">
+        <a href="https://shifthubycodex.com/planes" style="display:inline-block;background:${config.accent};color:#111;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:800;">
           Volver al sitio de planes
         </a>
       </div>

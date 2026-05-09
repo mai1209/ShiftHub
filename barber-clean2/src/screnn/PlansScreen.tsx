@@ -11,11 +11,11 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
 import { getPlanPricing } from '../services/api';
-
-const BASIC_PLAN_URL = 'https://barberappbycodex.com/planes?plan=basic';
-const PRO_PLAN_URL = 'https://barberappbycodex.com/planes?plan=pro';
-const CUSTOM_PLAN_URL =
-  'https://wa.me/543425543308?text=Hola%20quiero%20consultar%20por%20el%20plan%20personalizable%20de%20Shift%20App';
+import {
+  BASIC_PLAN_URL,
+  PRO_PLAN_URL,
+  CUSTOM_PLAN_URL,
+} from '../utils/publicLinks';
 
 const DEFAULT_PRICING = {
   basic: { ars: 25000, usdReference: 25 },

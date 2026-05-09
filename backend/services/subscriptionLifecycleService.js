@@ -36,7 +36,7 @@ function formatDateLabel(value) {
 }
 
 function buildRenewalUrl({ email, plan, renewalMode }) {
-  const base = String(process.env.PUBLIC_BOOKING_BASE_URL || "https://barberappbycodex.com").replace(/\/+$/, "");
+  const base = String(process.env.PUBLIC_BOOKING_BASE_URL || "https://shifthubycodex.com").replace(/\/+$/, "");
   const params = new URLSearchParams();
   if (plan) params.set("plan", String(plan));
   if (email) params.set("email", String(email));
@@ -218,7 +218,7 @@ export async function notifySubscriptionActivated({
           ],
           note,
           ctaLabel: "Ver sitio de planes",
-          ctaUrl: String(process.env.PUBLIC_BOOKING_BASE_URL || "https://barberappbycodex.com").replace(/\/+$/, "") + "/planes",
+          ctaUrl: String(process.env.PUBLIC_BOOKING_BASE_URL || "https://shifthubycodex.com").replace(/\/+$/, "") + "/planes",
         }),
       });
     }

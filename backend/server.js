@@ -86,7 +86,7 @@ function isAllowedWebOrigin(origin) {
       return true;
     }
 
-    if (protocol === "https:" && (hostname === "barberappbycodex.com" || hostname === "www.barberappbycodex.com")) {
+    if (protocol === "https:" && (hostname === "shifthubycodex.com" || hostname === "www.shifthubycodex.com")) {
       return true;
     }
 
