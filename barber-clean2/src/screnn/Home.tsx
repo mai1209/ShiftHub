@@ -140,6 +140,13 @@ function getPaymentSnapshot(appointment: Appointment) {
   };
 }
 
+function formatDateParam(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function Home({ navigation }: Props) {
   const { theme, shopSlug, businessCopy } = useTheme();
   const isIOS = Platform.OS === 'ios';
@@ -304,7 +311,7 @@ function Home({ navigation }: Props) {
       if (!isRefresh) setLoading(true);
       setError('');
       const appointmentsRes = await fetchAppointments({
-        date: activeDate.toISOString().slice(0, 10),
+        date: formatDateParam(activeDate),
       });
       setAppointments(
         appointmentsRes.appointments.filter(a => a.status !== 'cancelled'),
