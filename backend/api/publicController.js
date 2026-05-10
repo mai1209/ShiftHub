@@ -61,6 +61,14 @@ function buildDayRange(dateParam) {
   return getTimeZoneDayRange(dateParam);
 }
 
+function logPushError(label, error) {
+  console.error(label, {
+    code: error?.code,
+    message: error?.message,
+    errorInfo: error?.errorInfo,
+  });
+}
+
 function normalizeSlug(value) {
   return String(value ?? "")
     .trim()
@@ -997,7 +1005,7 @@ export async function publicCreateAppointment(req, res, next) {
         console.log("Push público OK:", responses);
       }
     } catch (pushErr) {
-      console.error("⚠️ Error enviando push:", pushErr.message);
+      logPushError("⚠️ Error enviando push:", pushErr);
     }
 
     let mercadoPagoCheckout = null;

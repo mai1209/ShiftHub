@@ -37,6 +37,14 @@ function buildDayRange(dateLike) {
   return getTimeZoneDayRange(dateLike);
 }
 
+function logPushError(label, error) {
+  console.error(label, {
+    code: error?.code,
+    message: error?.message,
+    errorInfo: error?.errorInfo,
+  });
+}
+
 function normalizePaymentMethod(value) {
   return value === "transfer" ? "transfer" : "cash";
 }
@@ -228,7 +236,7 @@ export async function listAppointments(req, res, next) {
   try {
     const { date } = req.query;
     const { startOfDay, endOfDay } = buildDayRange(date);
-    const ownerId = req.user.id;
+    const ownerId = req.user.ownerId || req.user.id;
 
     const appointments = await AppointmentModel.find({
       owner: ownerId,
@@ -424,7 +432,7 @@ export async function createAppointment(req, res, next) {
         console.log("Push enviado OK:", responses);
       }
     } catch (err) {
-      console.log("Push error:", err.message, err);
+      logPushError("Push error:", err);
     }
 
     // --- ENVIAR EMAIL DE CONFIRMACIÓN AL CLIENTE ---
