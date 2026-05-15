@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -124,7 +125,7 @@ function PlansScreen({ navigation, route }: any) {
             ),
           },
         });
-      } catch (_error) {
+      } catch {
       }
     };
 
@@ -163,12 +164,17 @@ function PlansScreen({ navigation, route }: any) {
       const parsed = new URL(url);
       parsed.searchParams.set('email', registeredEmail);
       return parsed.toString();
-    } catch (_error) {
+    } catch {
       return url;
     }
   };
 
   const handleOpen = async (url: string) => {
+    if (Platform.OS === 'ios') {
+      navigation.replace('Subscription-Settings');
+      return;
+    }
+
     try {
       await Linking.openURL(buildPlanUrl(url));
     } catch (error: any) {
@@ -195,8 +201,9 @@ function PlansScreen({ navigation, route }: any) {
           {fromRegistration ? 'Cuenta creada. Elegí cómo querés seguir.' : 'Planes disponibles'}
         </Text>
         <Text style={styles.subtitle}>
-          {`Elegí el plan que mejor acompaña ${businessCopy.yourBusiness}. La contratación y renovación se resuelven`}
-          por web para mantener la app alineada con las políticas de tienda.
+          {Platform.OS === 'ios'
+            ? `Elegí el plan que mejor acompaña ${businessCopy.yourBusiness}. En este dispositivo vas a ver las opciones disponibles para la cuenta.`
+            : `Elegí el plan que mejor acompaña ${businessCopy.yourBusiness}. La contratación y renovación se resuelven por web.`}
         </Text>
       </View>
 

@@ -1,5 +1,9 @@
 import { Router } from "express";
-import { requireAdminRole, requireAuth } from "../middlewares/authMiddlewares.js";
+import {
+  requireActiveSubscription,
+  requireAdminRole,
+  requireAuth,
+} from "../middlewares/authMiddlewares.js";
 import {
   createBarber,
   deactivateBarber,
@@ -12,6 +16,7 @@ const router = Router();
 
 // Rutas privadas (la web pública usa /api/public/shops/:slug/*)
 router.use(requireAuth);
+router.use(requireActiveSubscription);
 router.get("/", requireAdminRole, listBarbers);
 router.get("/:barberId/appointments", listBarberAppointments);
 router.post("/", requireAdminRole, createBarber);

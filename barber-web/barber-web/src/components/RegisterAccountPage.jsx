@@ -49,20 +49,6 @@ function buildPlansUrl(email) {
   return target.toString();
 }
 
-function StepDot({ n, active, done }) {
-  return (
-    <div className={`${styles.stepDot} ${active ? styles.stepDotActive : ''} ${done ? styles.stepDotDone : ''}`}>
-      {done ? (
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      ) : (
-        <span>{n}</span>
-      )}
-    </div>
-  );
-}
-
 export default function RegisterAccountPage() {
   const [fullName, setFullName]               = useState('');
   const [email, setEmail]                     = useState('');
@@ -83,10 +69,6 @@ export default function RegisterAccountPage() {
       businessType.trim().length > 0,
     [businessType, confirmPassword.length, email, fullName, password.length],
   );
-
-  const step1Done = fullName.trim().length >= 3 && businessType.trim().length > 0;
-  const step2Done = step1Done && email.trim().length > 0;
-  const step3Done = step2Done && password.length >= 8 && confirmPassword.length >= 8;
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -158,34 +140,6 @@ export default function RegisterAccountPage() {
             <p className={styles.subtitle}>
               Registrá tu negocio en menos de 2 minutos. Después elegís el plan y activás desde la web.
             </p>
-
-            {/* Progress steps */}
-            <div className={styles.progressSteps}>
-              <div className={styles.progressItem}>
-                <StepDot n="1" active={!step1Done} done={step1Done} />
-                <div className={styles.progressLine} />
-                <div className={styles.progressLabel}>
-                  <span className={styles.progressTitle}>Tu negocio</span>
-                  <span className={styles.progressDesc}>Nombre y rubro</span>
-                </div>
-              </div>
-              <div className={styles.progressItem}>
-                <StepDot n="2" active={step1Done && !step2Done} done={step2Done} />
-                <div className={styles.progressLine} />
-                <div className={styles.progressLabel}>
-                  <span className={styles.progressTitle}>Acceso</span>
-                  <span className={styles.progressDesc}>Email de ingreso</span>
-                </div>
-              </div>
-              <div className={styles.progressItem}>
-                <StepDot n="3" active={step2Done && !step3Done} done={step3Done} />
-                <div className={`${styles.progressLine} ${styles.progressLineLast}`} />
-                <div className={styles.progressLabel}>
-                  <span className={styles.progressTitle}>Seguridad</span>
-                  <span className={styles.progressDesc}>Tu contrasena</span>
-                </div>
-              </div>
-            </div>
 
             {/* Helper card */}
             <div className={styles.helperCard}>

@@ -49,6 +49,13 @@ function getInitialPaymentMode() {
     : 'manual';
 }
 
+function getInitialPaymentProvider() {
+  const url = new URL(window.location.href);
+  return String(url.searchParams.get('provider') || '').trim().toLowerCase() === 'mercadopago'
+    ? 'mercadopago'
+    : 'astropay';
+}
+
 function CheckIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
@@ -104,6 +111,7 @@ function PlayIcon() {
 export default function SubscriptionCheckoutPage() {
   const [selectedPlan, setSelectedPlan] = useState(getInitialPlan);
   const [paymentMode, setPaymentMode] = useState(getInitialPaymentMode);
+  const [paymentProvider, setPaymentProvider] = useState(getInitialPaymentProvider);
   const [email, setEmail] = useState(getInitialEmail);
   const [couponCode, setCouponCode] = useState('');
   const [pricing, setPricing] = useState({
@@ -141,8 +149,10 @@ export default function SubscriptionCheckoutPage() {
     else url.searchParams.delete('email');
     if (paymentMode === 'automatic') url.searchParams.set('mode', paymentMode);
     else url.searchParams.delete('mode');
+    if (paymentProvider !== 'astropay') url.searchParams.set('provider', paymentProvider);
+    else url.searchParams.delete('provider');
     window.history.replaceState({}, '', url.toString());
-  }, [selectedPlan, email, paymentMode]);
+  }, [selectedPlan, email, paymentMode, paymentProvider]);
 
   const planCards = useMemo(
     () => [
@@ -172,7 +182,12 @@ export default function SubscriptionCheckoutPage() {
       const response =
         paymentMode === 'automatic'
           ? await createPublicRecurringSubscription({ email, plan: selectedPlan, couponCode })
-          : await createPublicSubscriptionCheckout({ email, plan: selectedPlan, couponCode });
+          : await createPublicSubscriptionCheckout({
+              email,
+              plan: selectedPlan,
+              couponCode,
+              provider: paymentProvider,
+            });
 
       if (response.activatedDirectly) {
         setMessage(
@@ -295,6 +310,37 @@ export default function SubscriptionCheckoutPage() {
 
             {/* Payment mode toggle */}
             <div className={styles.modeToggleGroup}>
+              <p className={styles.modeGroupLabel}>Procesador de pago</p>
+              <div className={styles.modeToggle}>
+                <button
+                  type="button"
+                  className={`${styles.modeBtn} ${paymentProvider === 'astropay' ? styles.modeBtnActive : ''}`}
+                  onClick={() => {
+                    setPaymentProvider('astropay');
+                    setPaymentMode('manual');
+                  }}
+                >
+                  <span className={styles.modeBtnDot} />
+                  AstroPay
+                  <span className={styles.modeBtnReco}>nuevo</span>
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.modeBtn} ${paymentProvider === 'mercadopago' ? styles.modeBtnActive : ''}`}
+                  onClick={() => setPaymentProvider('mercadopago')}
+                >
+                  <span className={styles.modeBtnDot} />
+                  Mercado Pago
+                </button>
+              </div>
+              <p className={styles.modeHelper}>
+                {paymentProvider === 'astropay'
+                  ? 'El checkout web se genera con AstroPay y el pago se acredita en tu cuenta AstroPay.'
+                  : 'Usa Mercado Pago para mantener el flujo actual o la renovacion automatica.'}
+              </p>
+            </div>
+
+            <div className={styles.modeToggleGroup}>
               <p className={styles.modeGroupLabel}>Modalidad de pago</p>
               <div className={styles.modeToggle}>
                 <button
@@ -309,7 +355,10 @@ export default function SubscriptionCheckoutPage() {
                 <button
                   type="button"
                   className={`${styles.modeBtn} ${styles.modeBtnAuto} ${paymentMode === 'automatic' ? styles.modeBtnAutoActive : ''}`}
-                  onClick={() => setPaymentMode('automatic')}
+                  onClick={() => {
+                    setPaymentProvider('mercadopago');
+                    setPaymentMode('automatic');
+                  }}
                 >
                   <span className={styles.modeBtnDot} />
                   Renovacion automatica
@@ -318,7 +367,9 @@ export default function SubscriptionCheckoutPage() {
               <p className={styles.modeHelper}>
                 {paymentMode === 'automatic'
                   ? 'Autorizas una vez el cobro mensual y Mercado Pago renueva solo cada mes.'
-                  : 'Pagas cada mes manualmente desde la web cuando toque renovar.'}
+                  : paymentProvider === 'astropay'
+                    ? 'Pagas el mes desde AstroPay. Para renovar, volves a generar un pago desde la web.'
+                    : 'Pagas cada mes manualmente desde la web cuando toque renovar.'}
               </p>
             </div>
 

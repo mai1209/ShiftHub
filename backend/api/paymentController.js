@@ -31,6 +31,29 @@ function normalizePaymentStatus(value) {
   return "unknown";
 }
 
+function normalizeAstroPayPaymentStatus(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["approved", "authorized", "paid", "completed", "success", "succeeded"].includes(normalized)) {
+    return "approved";
+  }
+  if (["pending", "processing", "in_process", "created"].includes(normalized)) {
+    return "pending";
+  }
+  if (["cancelled", "canceled", "rejected", "failed", "declined", "expired"].includes(normalized)) {
+    return "rejected";
+  }
+  if (["refunded", "chargeback"].includes(normalized)) return "refunded";
+  return "unknown";
+}
+
+function getFirstString(...values) {
+  for (const value of values) {
+    const normalized = String(value || "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
+}
+
 function calculateAdvanceAmount({ amountTotal, settings }) {
   const total = Number(amountTotal || 0);
   if (!Number.isFinite(total) || total <= 0) return 0;
@@ -946,6 +969,118 @@ export async function handleSubscriptionMercadoPagoWebhook(req, res, next) {
     }
 
     return res.status(200).json({ received: true });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function handleSubscriptionAstroPayWebhook(req, res, next) {
+  try {
+    const body = req.body || {};
+    const data = body.data || body.payment || body.transaction || body.checkout || body;
+    const status = normalizeAstroPayPaymentStatus(
+      getFirstString(data.status, body.status, data.payment_status, body.payment_status),
+    );
+    const paymentId = getFirstString(
+      data.id,
+      data.paymentId,
+      data.payment_id,
+      data.transactionId,
+      data.transaction_id,
+      data.checkoutId,
+      data.checkout_id,
+      body.id,
+    );
+    const externalReference = getFirstString(
+      data.external_reference,
+      data.externalReference,
+      data.reference,
+      data.merchantReference,
+      data.merchant_reference,
+      body.external_reference,
+      body.externalReference,
+      body.reference,
+    );
+    const parsedReference = normalizeSubscriptionReference(externalReference);
+    const metadata = data.metadata || body.metadata || {};
+    const userId = getFirstString(metadata.user_id, metadata.userId, req.query?.userId, parsedReference?.userId);
+    const plan = getFirstString(metadata.plan, parsedReference?.plan);
+
+    if (!userId || !plan) {
+      return res.status(200).json({ received: true, ignored: true });
+    }
+
+    const userDoc = await UserModel.findById(userId);
+    if (!userDoc || userDoc.isActive === false) {
+      return res.status(200).json({ received: true, ignored: true });
+    }
+
+    if (status === "approved") {
+      const paidAt = data.approvedAt || data.approved_at || data.paidAt || data.paid_at
+        ? new Date(data.approvedAt || data.approved_at || data.paidAt || data.paid_at)
+        : new Date();
+      const previousPaymentId = String(userDoc.subscription?.astroPayPaymentId || "").trim();
+      const pricingDoc = await getOrCreatePlanPricing();
+      const pricing = serializePlanPricing(pricingDoc);
+
+      const resolvedCouponPricing = await applyPendingCouponToSubscription({
+        userDoc,
+        plan,
+        pricing,
+      });
+      const paidAmount = Math.max(
+        0,
+        Number(data.amount || data.total || resolvedCouponPricing?.effectiveArs || 0),
+      );
+
+      userDoc.subscription = {
+        ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+        plan,
+        status: "active",
+        billingCycle: "monthly",
+        renewalMode: "manual",
+        provider: "astropay",
+        startedAt: paidAt,
+        expiresAt: calculateSubscriptionExpiry({ billingCycle: "monthly", paidAt }),
+        nextBillingAt: calculateSubscriptionExpiry({ billingCycle: "monthly", paidAt }),
+        pendingPlan: null,
+        astroPayPaymentId: paymentId || userDoc.subscription?.astroPayPaymentId || null,
+        lastPaymentAt: paidAt,
+        renewalReminder7dAt: null,
+        renewalReminder3dAt: null,
+        renewalReminder1dAt: null,
+        pastDueAt: null,
+        pastDueReminderSentAt: null,
+        graceUntil: null,
+        cancelledAt: null,
+      };
+      await userDoc.save();
+
+      if (paymentId && paymentId !== previousPaymentId) {
+        try {
+          await notifySubscriptionActivated({
+            userDoc,
+            plan,
+            amountArs: paidAmount,
+            expiresAt: userDoc.subscription?.expiresAt,
+            renewalMode: "manual",
+          });
+        } catch (error) {
+          console.error("Error notificando activación AstroPay:", error?.message || error);
+        }
+      }
+    } else if (status === "rejected") {
+      userDoc.subscription = {
+        ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+        status: userDoc.subscription?.status === "active" ? "active" : "past_due",
+        pendingPlan: null,
+        provider: "astropay",
+        astroPayPaymentId: paymentId || userDoc.subscription?.astroPayPaymentId || null,
+      };
+      await userDoc.save();
+    }
+
+    return res.status(200).json({ received: true, status });
   } catch (err) {
     return next(err);
   }

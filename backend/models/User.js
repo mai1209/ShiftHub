@@ -29,6 +29,20 @@ const themeConfigSchema = new mongoose.Schema(
   },
 );
 
+const publicProfileSchema = new mongoose.Schema(
+  {
+    subtitle: { type: String, trim: true, default: null },
+    address: { type: String, trim: true, default: null },
+    phone: { type: String, trim: true, default: null },
+    googleMapsUrl: { type: String, trim: true, default: null },
+    googleReviewsUrl: { type: String, trim: true, default: null },
+    googlePlaceId: { type: String, trim: true, default: null },
+  },
+  {
+    _id: false,
+  },
+);
+
 const paymentSettingsSchema = new mongoose.Schema(
   {
     cashEnabled: { type: Boolean, default: true },
@@ -166,7 +180,7 @@ const subscriptionSchema = new mongoose.Schema(
     },
     provider: {
       type: String,
-      enum: ["mercadopago", "apple", "google", null],
+      enum: ["mercadopago", "astropay", "apple", "google", null],
       default: null,
     },
     customPriceArs: {
@@ -296,6 +310,14 @@ const subscriptionSchema = new mongoose.Schema(
       min: 0,
     },
     mercadoPagoPaymentId: {
+      type: String,
+      default: null,
+    },
+    astroPayCheckoutId: {
+      type: String,
+      default: null,
+    },
+    astroPayPaymentId: {
       type: String,
       default: null,
     },
@@ -454,6 +476,10 @@ const userSchema = new mongoose.Schema(
     },
     themeConfig: {
       type: themeConfigSchema,
+      default: () => ({}),
+    },
+    publicProfile: {
+      type: publicProfileSchema,
       default: () => ({}),
     },
     paymentSettings: {

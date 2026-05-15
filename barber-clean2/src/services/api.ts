@@ -54,7 +54,7 @@ async function resolveDevBaseUrl(): Promise<string> {
         resolvedDevBaseUrl = base;
         return base;
       }
-    } catch (_e) {
+    } catch {
     }
   }
 
@@ -213,6 +213,15 @@ export type ThemeConfig = {
   mobileBannerDataUrl?: string | null;
 };
 
+export type PublicProfile = {
+  subtitle?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  googleMapsUrl?: string | null;
+  googleReviewsUrl?: string | null;
+  googlePlaceId?: string | null;
+};
+
 export type PaymentSettings = {
   cashEnabled?: boolean;
   advancePaymentEnabled?: boolean;
@@ -258,7 +267,7 @@ export type ShopClosureInfo = {
 
 export type SubscriptionSettings = {
   renewalMode?: 'manual' | 'automatic';
-  provider?: 'mercadopago' | 'apple' | 'google' | null;
+  provider?: 'mercadopago' | 'astropay' | 'apple' | 'google' | null;
   mercadoPagoPreapprovalId?: string | null;
   mercadoPagoPreapprovalStatus?: string | null;
   nextBillingAt?: string | null;
@@ -317,6 +326,14 @@ export function getPlanPricing() {
 
 export function updateThemeConfig(payload: ThemeConfig) {
   return request<{ message: string; user: any }>("/api/auth/theme", {
+    method: "PUT",
+    body: payload,
+    auth: true,
+  });
+}
+
+export function updatePublicProfile(payload: PublicProfile) {
+  return request<{ message: string; user: any }>("/api/auth/public-profile", {
     method: "PUT",
     body: payload,
     auth: true,

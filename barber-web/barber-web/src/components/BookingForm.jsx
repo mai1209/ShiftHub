@@ -597,6 +597,14 @@ function BookingForm({ shopSlug, onNotFound }) {
     DEFAULT_BOOKING_BANNER;
   const shopProfileSrc =
     shopInfo?.themeConfig?.logoDataUrl || DEFAULT_BOOKING_LOGO;
+  const publicProfile = shopInfo?.publicProfile || {};
+  const shopSubtitle = String(publicProfile.subtitle || "").trim();
+  const shopAddress = String(publicProfile.address || "").trim();
+  const shopPhone = String(publicProfile.phone || "").trim();
+  const googleMapsUrl = String(publicProfile.googleMapsUrl || "").trim();
+  const googleReviewsUrl = String(publicProfile.googleReviewsUrl || "").trim();
+  const hasMapLink = Boolean(googleMapsUrl);
+  const hasReviewsLink = Boolean(googleReviewsUrl);
   const webStyleVars = useMemo(
     () => getWebStylePreset(shopInfo?.themeConfig?.webPreset),
     [shopInfo?.themeConfig?.webPreset],
@@ -1055,10 +1063,9 @@ function BookingForm({ shopSlug, onNotFound }) {
       {/* NAV */}
       <nav className={style.nav}>
         <div className={style.navLogo}>
-          <span className={style.navLogoScissors}>
-            <img src="" alt="" />
+          <span className={`${style.navLogoMark} ${styles.bookingNavLogoMark}`}>
+            <img src={shopProfileSrc} alt={shopInfo?.name || SHIFT_APP_BRAND_NAME} />
           </span>
-          <span className={style.navLogoText}>{SHIFT_APP_BRAND_NAME}</span>
         </div>
         <a
           href="https://www.letsbuilditcodex.com/"
@@ -1081,25 +1088,59 @@ function BookingForm({ shopSlug, onNotFound }) {
                 aria-hidden="true"
               />
             </picture>
-            <div className={styles.shopHeroOverlay}>
-              <div className={styles.shopHeroText}>
-                <p className={styles.shopHeroEyebrow}>Reservá tu turno en</p>
-                <h2 className={styles.shopHeroName}>
-                  {shopLoading
-                    ? "Cargando negocio..."
-                    : shopInfo?.name || businessCopy.businessTypeLabel}
-                </h2>
-                <p className={styles.shopHeroSubtitle}>
-                  Elegí servicio, horario y forma de pago para confirmar tu visita.
-                </p>
-              </div>
-            </div>
+            {hasMapLink ? (
+              <a
+                className={styles.mapTopLink}
+                href={googleMapsUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Ver en el mapa
+              </a>
+            ) : null}
             <div className={styles.shopHeroAvatar}>
               <img
                 src={shopProfileSrc}
                 alt={shopInfo?.name ? `Logo de ${shopInfo.name}` : "Logo del negocio"}
               />
             </div>
+          </div>
+          <div className={styles.shopHeroContent}>
+            <div className={styles.shopHeroText}>
+              <p className={styles.shopHeroEyebrow}>Reservas online</p>
+              <div className={styles.shopHeroTitleRow}>
+                <h2 className={styles.shopHeroName}>
+                  {shopLoading
+                    ? "Cargando negocio..."
+                    : shopInfo?.name || businessCopy.businessTypeLabel}
+                </h2>
+              </div>
+              {shopSubtitle ? (
+                <p className={styles.shopHeroSubtitle}>
+                  {shopSubtitle}
+                </p>
+              ) : null}
+              {shopAddress || shopPhone ? (
+                <div className={styles.shopContactMeta}>
+                  {shopAddress ? <span>{shopAddress}</span> : null}
+                  {shopPhone ? <span>{shopPhone}</span> : null}
+                </div>
+              ) : null}
+            </div>
+            {hasMapLink || hasReviewsLink ? (
+              <div className={styles.shopSecondaryLinks}>
+                {hasMapLink ? (
+                  <a href={googleMapsUrl} target="_blank" rel="noreferrer">
+                    Cómo llegar
+                  </a>
+                ) : null}
+                {hasReviewsLink ? (
+                  <a href={googleReviewsUrl} target="_blank" rel="noreferrer">
+                    Ver reseñas
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
 

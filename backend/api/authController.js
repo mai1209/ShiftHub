@@ -121,6 +121,30 @@ function resolveStorePlan({ provider, plan, productId, currentPlanId }) {
   return null;
 }
 
+function normalizeSubscriptionProvider(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isWebSubscriptionProvider(provider) {
+  return provider === "mercadopago" || provider === "astropay";
+}
+
+function isStoreSubscriptionProvider(provider) {
+  return provider === "apple" || provider === "google";
+}
+
+function getChannelConflictMessage(provider) {
+  if (isStoreSubscriptionProvider(provider)) {
+    return "Esta cuenta ya tiene una suscripción asociada a la tienda donde fue activada.";
+  }
+
+  if (isWebSubscriptionProvider(provider)) {
+    return "Esta cuenta ya tiene una suscripción asociada a pagos web.";
+  }
+
+  return "Esta cuenta ya tiene una suscripción asociada a otro canal.";
+}
+
 function sanitizeStoreSubscriptionSyncInput(input) {
   const provider = String(input?.provider || "").trim().toLowerCase();
   if (!["apple", "google"].includes(provider)) {
@@ -446,6 +470,61 @@ function sanitizeThemeConfigInput(input) {
       }
       updates.mobileBannerDataUrl = mobileBannerDataUrl;
     }
+  }
+
+  return { updates, hasAnyField };
+}
+
+function sanitizePublicProfileInput(input) {
+  if (!input || typeof input !== "object") {
+    return { updates: {}, hasAnyField: false };
+  }
+
+  const updates = {};
+  let hasAnyField = false;
+  const stringFields = [
+    ["subtitle", 160, "El subtítulo no puede superar los 160 caracteres."],
+    ["address", 220, "La dirección no puede superar los 220 caracteres."],
+    ["phone", 80, "El teléfono no puede superar los 80 caracteres."],
+    ["googlePlaceId", 180, "El Place ID no puede superar los 180 caracteres."],
+  ];
+
+  for (const [field, maxLength, message] of stringFields) {
+    if (!Object.prototype.hasOwnProperty.call(input, field)) continue;
+    hasAnyField = true;
+    const value = String(input[field] ?? "").trim();
+    if (value.length > maxLength) {
+      throw new Error(message);
+    }
+    updates[field] = value || null;
+  }
+
+  const urlFields = [
+    ["googleMapsUrl", "El link de Google Maps no es válido."],
+    ["googleReviewsUrl", "El link de Google Reviews no es válido."],
+  ];
+
+  for (const [field, message] of urlFields) {
+    if (!Object.prototype.hasOwnProperty.call(input, field)) continue;
+    hasAnyField = true;
+    const value = String(input[field] ?? "").trim();
+    if (!value) {
+      updates[field] = null;
+      continue;
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(value);
+    } catch (_error) {
+      throw new Error(message);
+    }
+
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new Error(message);
+    }
+
+    updates[field] = parsed.toString();
   }
 
   return { updates, hasAnyField };
@@ -1019,6 +1098,7 @@ async function buildAuthUserResponse(userDoc) {
       shopSlug: 1,
       subscription: 1,
       themeConfig: 1,
+      publicProfile: 1,
       barberProfileSettings: 1,
       businessType: 1,
     })
@@ -1034,6 +1114,10 @@ async function buildAuthUserResponse(userDoc) {
 
   if (ownerDoc?.themeConfig) {
     userResponse.themeConfig = ownerDoc.themeConfig;
+  }
+
+  if (ownerDoc?.publicProfile) {
+    userResponse.publicProfile = ownerDoc.publicProfile;
   }
 
   if (ownerDoc?.barberProfileSettings) {
@@ -1140,6 +1224,15 @@ export async function createSubscriptionCheckout(req, res, next) {
       return res.status(404).json({ error: "No encontramos la cuenta." });
     }
 
+    const currentProvider = normalizeSubscriptionProvider(userDoc.subscription?.provider);
+    if (isStoreSubscriptionProvider(currentProvider)) {
+      return res.status(409).json({
+        error: getChannelConflictMessage(currentProvider),
+        code: "SUBSCRIPTION_CHANNEL_LOCKED",
+        provider: currentProvider,
+      });
+    }
+
     const pricingDoc = await getOrCreatePlanPricing();
     const pricing = serializePlanPricing(pricingDoc);
     const resolvedPricing = resolvePlanPricingForSubscription({
@@ -1192,6 +1285,7 @@ export async function createSubscriptionCheckout(req, res, next) {
     userDoc.subscription = {
       ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
       pendingPlan: plan,
+      provider: "mercadopago",
       mercadoPagoPreferenceId: preference.id || null,
     };
     await userDoc.save();
@@ -1234,6 +1328,15 @@ export async function syncStoreSubscription(req, res, next) {
       status,
       expiresAt,
     } = sanitizeStoreSubscriptionSyncInput(req.body ?? {});
+
+    const currentProvider = normalizeSubscriptionProvider(userDoc.subscription?.provider);
+    if (currentProvider && currentProvider !== provider) {
+      return res.status(409).json({
+        error: getChannelConflictMessage(currentProvider),
+        code: "SUBSCRIPTION_CHANNEL_LOCKED",
+        provider: currentProvider,
+      });
+    }
 
     const nextStatus = status === "cancelled" ? "cancelled" : status === "past_due" ? "past_due" : "active";
     const startedAt = userDoc.subscription?.startedAt || new Date();
@@ -1731,6 +1834,42 @@ export async function updateThemeConfig(req, res, next) {
 
     return res.json({
       message: "Tema guardado correctamente",
+      user: userDoc.toJSON(),
+    });
+  } catch (err) {
+    if (err instanceof Error) {
+      return res.status(400).json({ error: err.message });
+    }
+    return next(err);
+  }
+}
+
+export async function updatePublicProfile(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuario no autorizado" });
+    }
+
+    const userDoc = await UserModel.findById(userId);
+    if (!userDoc || userDoc.isActive === false) {
+      return res.status(401).json({ error: "Usuario no autorizado" });
+    }
+
+    const { updates, hasAnyField } = sanitizePublicProfileInput(req.body ?? {});
+    if (!hasAnyField) {
+      return res.status(400).json({ error: "No llegaron datos públicos para guardar." });
+    }
+
+    userDoc.publicProfile = {
+      ...(userDoc.publicProfile?.toObject?.() ?? userDoc.publicProfile ?? {}),
+      ...updates,
+    };
+
+    await userDoc.save();
+
+    return res.json({
+      message: "Datos públicos guardados correctamente",
       user: userDoc.toJSON(),
     });
   } catch (err) {

@@ -64,6 +64,20 @@ export function requireAdminRole(req, res, next) {
   return next();
 }
 
+export function requireActiveSubscription(req, res, next) {
+  const status = String(req.user?.subscription?.status || "trial").trim();
+
+  if (status !== "active") {
+    return res.status(402).json({
+      error: "Esta cuenta no tiene una suscripción activa.",
+      code: "SUBSCRIPTION_REQUIRED",
+      subscriptionStatus: status || "trial",
+    });
+  }
+
+  return next();
+}
+
 export function requireProSubscription(req, res, next) {
   const plan = String(req.user?.subscription?.plan || "").trim();
   const status = String(req.user?.subscription?.status || "").trim();

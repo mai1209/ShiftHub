@@ -26,6 +26,7 @@ import {
   updateNotificationSettings,
   updateBarberProfileSettings,
   updatePlanPricingAdmin,
+  updatePublicProfile,
   updateOwnSubscriptionSettings,
   upsertBarberAccess,
   updateShopClosedDays,
@@ -34,7 +35,11 @@ import {
   updateThemeConfig,
 } from "../api/authController.js";
 import { savePushToken } from "../api/authController.js";
-import { requireAdminRole, requireAuth } from "../middlewares/authMiddlewares.js";
+import {
+  requireActiveSubscription,
+  requireAdminRole,
+  requireAuth,
+} from "../middlewares/authMiddlewares.js";
 import { requireAdminPanelSecret } from "../middlewares/adminPanelMiddleware.js";
 
 const router = Router();
@@ -51,21 +56,22 @@ router.get("/subscription/lifecycle/run", runSubscriptionLifecycle);
 router.post("/subscription/lifecycle/run", runSubscriptionLifecycle);
 router.get("/mail-debug", requireAuth, getMailDebug);
 router.get("/me", requireAuth, getCurrentUser);
-router.get("/mercadopago/status", requireAuth, getMercadoPagoConnectionStatus);
-router.get("/mercadopago/connect", requireAuth, getMercadoPagoConnectUrl);
-router.delete("/mercadopago/connect", requireAuth, disconnectMercadoPago);
+router.get("/mercadopago/status", requireAuth, requireActiveSubscription, getMercadoPagoConnectionStatus);
+router.get("/mercadopago/connect", requireAuth, requireActiveSubscription, getMercadoPagoConnectUrl);
+router.delete("/mercadopago/connect", requireAuth, requireActiveSubscription, disconnectMercadoPago);
 router.post("/subscription/checkout", requireAuth, createSubscriptionCheckout);
 router.post("/subscription/platform/sync", requireAuth, syncStoreSubscription);
 router.put("/password", requireAuth, updatePassword);
-router.put("/theme", requireAuth, updateThemeConfig);
-router.put("/payment-settings", requireAuth, updatePaymentSettings);
-router.put("/notification-settings", requireAuth, updateNotificationSettings);
-router.put("/barber-profile-settings", requireAuth, requireAdminRole, updateBarberProfileSettings);
-router.put("/shop-closed-days", requireAuth, updateShopClosedDays);
+router.put("/theme", requireAuth, requireActiveSubscription, updateThemeConfig);
+router.put("/public-profile", requireAuth, requireActiveSubscription, updatePublicProfile);
+router.put("/payment-settings", requireAuth, requireActiveSubscription, updatePaymentSettings);
+router.put("/notification-settings", requireAuth, requireActiveSubscription, updateNotificationSettings);
+router.put("/barber-profile-settings", requireAuth, requireActiveSubscription, requireAdminRole, updateBarberProfileSettings);
+router.put("/shop-closed-days", requireAuth, requireActiveSubscription, updateShopClosedDays);
 router.put("/subscription-settings", requireAuth, updateOwnSubscriptionSettings);
-router.post("/barber-access", requireAuth, requireAdminRole, upsertBarberAccess);
-router.delete("/barber-access/:barberId", requireAuth, requireAdminRole, disableBarberAccess);
-router.post("/test-mail", requireAuth, sendTestMail);
+router.post("/barber-access", requireAuth, requireActiveSubscription, requireAdminRole, upsertBarberAccess);
+router.delete("/barber-access/:barberId", requireAuth, requireActiveSubscription, requireAdminRole, disableBarberAccess);
+router.post("/test-mail", requireAuth, requireActiveSubscription, sendTestMail);
 router.post("/save-push-token", requireAuth, savePushToken);
 router.get("/admin/subscriptions", requireAdminPanelSecret, listSubscriptionUsers);
 router.patch("/admin/subscriptions/:userId", requireAdminPanelSecret, updateSubscriptionUser);

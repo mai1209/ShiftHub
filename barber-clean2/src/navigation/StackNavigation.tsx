@@ -98,7 +98,7 @@ export default function StackNavigator({
   const styles = useMemo(() => createStyles(), []);
   const isBarberUser = currentUserRole === 'barber';
   const showAdminArea = !isBarberUser && !isSubscriptionLocked;
-  const showBarberArea = isBarberUser;
+  const showBarberArea = isBarberUser && !isSubscriptionLocked;
   const showNav = showAdminArea || showBarberArea;
 
   return (

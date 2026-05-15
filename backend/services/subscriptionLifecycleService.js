@@ -50,6 +50,35 @@ function buildRenewalUrl({ email, plan, renewalMode }) {
   return `${base}/planes?${params.toString()}`;
 }
 
+function getSubscriptionProvider(userDoc) {
+  return String(userDoc?.subscription?.provider || "").trim().toLowerCase();
+}
+
+function isStoreSubscriptionProvider(provider) {
+  return provider === "apple" || provider === "google";
+}
+
+function buildLifecycleAction({ userDoc, plan, renewalMode, ctaLabel }) {
+  const provider = getSubscriptionProvider(userDoc);
+  if (isStoreSubscriptionProvider(provider)) {
+    return {
+      ctaLabel: null,
+      ctaUrl: null,
+      actionText: "Revisá el estado de la suscripción desde la tienda donde fue activada.",
+    };
+  }
+
+  return {
+    ctaLabel,
+    ctaUrl: buildRenewalUrl({
+      email: userDoc.email,
+      plan,
+      renewalMode,
+    }),
+    actionText: "Podés completar la renovación desde la web cuando quieras.",
+  };
+}
+
 function buildSubscriptionMailHtml({
   title,
   intro,
@@ -57,6 +86,7 @@ function buildSubscriptionMailHtml({
   expiresAt,
   statusColor,
   ctaUrl,
+  actionText,
 }) {
   return `
     <div style="background:#121212;color:#ffffff;padding:30px;font-family:sans-serif;border-radius:15px;max-width:520px;margin:auto;border:1px solid ${statusColor};">
@@ -69,7 +99,7 @@ function buildSubscriptionMailHtml({
         <span style="color:#FF1493;font-weight:700;"> ${formatDateLabel(expiresAt)}</span>
       </p>
       <p style="margin:14px 0 0;color:#bbb;font-size:14px;line-height:1.6;">
-        Podés completar la renovación desde la web cuando quieras.
+        ${actionText || ""}
       </p>
       ${ctaUrl ? `
       <div style="text-align:center;margin-top:18px;">
@@ -147,6 +177,7 @@ async function sendSubscriptionMail({
   expiresAt,
   statusColor,
   ctaUrl,
+  actionText,
 }) {
   if (!userDoc?.email) return false;
 
@@ -160,6 +191,7 @@ async function sendSubscriptionMail({
       expiresAt,
       statusColor,
       ctaUrl,
+      actionText,
     }),
   });
 
@@ -403,6 +435,12 @@ export async function processSubscriptionLifecycle({ now = new Date() } = {}) {
       const remainingDays = daysUntil(expiresAt, now);
 
       if (remainingDays <= 0) {
+        const lifecycleAction = buildLifecycleAction({
+          userDoc,
+          plan: userDoc.subscription?.plan || "basic",
+          renewalMode: "manual",
+          ctaLabel: "Renovar ahora",
+        });
         userDoc.subscription = {
           ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
           status: "past_due",
@@ -416,14 +454,11 @@ export async function processSubscriptionLifecycle({ now = new Date() } = {}) {
             userDoc,
             title: "Tu plan venció",
             intro: "Tu plan ya venció. Tenés unos días de gracia para renovarlo sin perder continuidad.",
-            ctaLabel: "Renovar ahora",
+            ctaLabel: lifecycleAction.ctaLabel,
             expiresAt,
             statusColor: "#F5C451",
-            ctaUrl: buildRenewalUrl({
-              email: userDoc.email,
-              plan: userDoc.subscription?.plan || "basic",
-              renewalMode: "manual",
-            }),
+            ctaUrl: lifecycleAction.ctaUrl,
+            actionText: lifecycleAction.actionText,
           });
           await sendSubscriptionPush({
             userDoc,
@@ -450,18 +485,21 @@ export async function processSubscriptionLifecycle({ now = new Date() } = {}) {
         if (subscription[reminder.field]) continue;
 
         try {
+          const lifecycleAction = buildLifecycleAction({
+            userDoc,
+            plan: userDoc.subscription?.plan || "basic",
+            renewalMode: "manual",
+            ctaLabel: "Renovar ahora",
+          });
           await sendSubscriptionMail({
             userDoc,
             title: `Tu plan vence en ${reminder.days} día${reminder.days === 1 ? "" : "s"}`,
             intro: `Tu suscripción está por vencer. Renovala antes del ${formatDateLabel(expiresAt)} para no perder acceso.`,
-            ctaLabel: "Renovar ahora",
+            ctaLabel: lifecycleAction.ctaLabel,
             expiresAt,
             statusColor: reminder.days === 1 ? "#FF8A00" : "#21C063",
-            ctaUrl: buildRenewalUrl({
-              email: userDoc.email,
-              plan: userDoc.subscription?.plan || "basic",
-              renewalMode: "manual",
-            }),
+            ctaUrl: lifecycleAction.ctaUrl,
+            actionText: lifecycleAction.actionText,
           });
           await sendSubscriptionPush({
             userDoc,
@@ -493,18 +531,21 @@ export async function processSubscriptionLifecycle({ now = new Date() } = {}) {
 
       if (!subscription.pastDueReminderSentAt) {
         try {
+          const lifecycleAction = buildLifecycleAction({
+            userDoc,
+            plan: userDoc.subscription?.plan || "basic",
+            renewalMode: "manual",
+            ctaLabel: "Renovar ahora",
+          });
           await sendSubscriptionMail({
             userDoc,
             title: "Pago pendiente del plan",
             intro: "Tu cuenta está pendiente de pago. Renovala antes de la fecha límite para evitar la baja comercial.",
-            ctaLabel: "Renovar ahora",
+            ctaLabel: lifecycleAction.ctaLabel,
             expiresAt: graceUntil,
             statusColor: "#F5C451",
-            ctaUrl: buildRenewalUrl({
-              email: userDoc.email,
-              plan: userDoc.subscription?.plan || "basic",
-              renewalMode: "manual",
-            }),
+            ctaUrl: lifecycleAction.ctaUrl,
+            actionText: lifecycleAction.actionText,
           });
           await sendSubscriptionPush({
             userDoc,
@@ -533,18 +574,21 @@ export async function processSubscriptionLifecycle({ now = new Date() } = {}) {
         };
 
         try {
+          const lifecycleAction = buildLifecycleAction({
+            userDoc,
+            plan: userDoc.subscription?.plan || "basic",
+            renewalMode: "manual",
+            ctaLabel: "Activar plan",
+          });
           await sendSubscriptionMail({
             userDoc,
             title: "Tu plan fue desactivado",
             intro: "No registramos la renovación dentro del período de gracia. Podés volver a activarlo desde la app cuando quieras.",
-            ctaLabel: "Activar plan",
+            ctaLabel: lifecycleAction.ctaLabel,
             expiresAt: graceUntil,
             statusColor: "#FF5A5F",
-            ctaUrl: buildRenewalUrl({
-              email: userDoc.email,
-              plan: userDoc.subscription?.plan || "basic",
-              renewalMode: "manual",
-            }),
+            ctaUrl: lifecycleAction.ctaUrl,
+            actionText: lifecycleAction.actionText,
           });
           await sendSubscriptionPush({
             userDoc,

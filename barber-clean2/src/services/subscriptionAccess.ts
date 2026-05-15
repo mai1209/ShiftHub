@@ -12,11 +12,13 @@ export function resolveUserRole(user: any): AppRole {
 }
 
 export function resolvePostAuthRoute(user: any) {
+  if (isSubscriptionRestricted(user?.subscription?.status)) {
+    return 'Subscription-Settings';
+  }
+
   if (resolveUserRole(user) === 'barber') {
     return 'Barber-Home';
   }
 
-  return isSubscriptionRestricted(user?.subscription?.status)
-    ? 'Subscription-Settings'
-    : 'Home';
+  return 'Home';
 }

@@ -39,6 +39,11 @@ import {
   createMercadoPagoSystemPreference,
 } from "../services/mercadoPago.js";
 import {
+  buildAstroPaySubscriptionReturnUrls,
+  buildAstroPaySubscriptionWebhookUrl,
+  createAstroPayCheckout,
+} from "../services/astroPay.js";
+import {
   getOrCreatePlanPricing,
   serializePlanPricing,
 } from "../services/planPricingService.js";
@@ -73,6 +78,34 @@ function normalizeSlug(value) {
   return String(value ?? "")
     .trim()
     .toLowerCase();
+}
+
+function normalizeSubscriptionPaymentProvider(value) {
+  return String(value || "").trim().toLowerCase() === "astropay"
+    ? "astropay"
+    : "mercadopago";
+}
+
+function normalizeSubscriptionProvider(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isStoreSubscriptionProvider(provider) {
+  return provider === "apple" || provider === "google";
+}
+
+function ensureWebSubscriptionCheckoutAllowed(userDoc) {
+  const currentProvider = normalizeSubscriptionProvider(userDoc?.subscription?.provider);
+  if (!isStoreSubscriptionProvider(currentProvider)) return null;
+
+  return {
+    status: 409,
+    body: {
+      error: "Esta cuenta ya tiene una suscripción asociada a la tienda donde fue activada.",
+      code: "SUBSCRIPTION_CHANNEL_LOCKED",
+      provider: currentProvider,
+    },
+  };
 }
 
 async function findActiveShop(shopSlug) {
@@ -123,12 +156,21 @@ function sanitizeShop(shop) {
   if (!shop) return null;
   const paymentSettings = shop.paymentSettings || {};
   const themeConfig = shop.themeConfig || {};
+  const publicProfile = shop.publicProfile || {};
   return {
     _id: shop._id.toString(),
     name: shop.fullName,
     slug: shop.shopSlug,
     businessType: normalizeBusinessType(shop.businessType),
     businessTypeLabel: getBusinessTypeLabel(shop.businessType),
+    publicProfile: {
+      subtitle: publicProfile.subtitle || null,
+      address: publicProfile.address || null,
+      phone: publicProfile.phone || null,
+      googleMapsUrl: publicProfile.googleMapsUrl || null,
+      googleReviewsUrl: publicProfile.googleReviewsUrl || null,
+      googlePlaceId: publicProfile.googlePlaceId || null,
+    },
     themeConfig: {
       mode: themeConfig.mode || null,
       webPreset: themeConfig.webPreset || null,
@@ -222,6 +264,7 @@ async function activateFreeSubscriptionCoupon({
   plan,
   coupon,
   pricing,
+  provider = "mercadopago",
 }) {
   const activatedAt = new Date();
 
@@ -255,6 +298,7 @@ async function activateFreeSubscriptionCoupon({
     status: "active",
     billingCycle: "monthly",
     renewalMode: "manual",
+    provider,
     startedAt: activatedAt,
     expiresAt,
     nextBillingAt: expiresAt,
@@ -446,6 +490,7 @@ export async function publicCreateSubscriptionCheckout(req, res, next) {
     const email = String(req.body?.email || "").trim().toLowerCase();
     const plan = normalizePublicPlan(req.body?.plan);
     const couponCode = String(req.body?.couponCode || "").trim();
+    const paymentProvider = normalizeSubscriptionPaymentProvider(req.body?.provider);
 
     if (!email || !plan) {
       return res.status(400).json({
@@ -458,6 +503,11 @@ export async function publicCreateSubscriptionCheckout(req, res, next) {
       return res.status(404).json({
         error: "No encontramos una cuenta activa con ese email.",
       });
+    }
+
+    const channelConflict = ensureWebSubscriptionCheckoutAllowed(userDoc);
+    if (channelConflict) {
+      return res.status(channelConflict.status).json(channelConflict.body);
     }
 
     const pricingDoc = await getOrCreatePlanPricing();
@@ -487,6 +537,7 @@ export async function publicCreateSubscriptionCheckout(req, res, next) {
         plan,
         coupon,
         pricing,
+        provider: paymentProvider,
       });
 
       return res.json({
@@ -514,6 +565,70 @@ export async function publicCreateSubscriptionCheckout(req, res, next) {
     }
 
     const externalReference = `subscription:${userDoc._id.toString()}:${plan}:${Date.now()}`;
+    if (paymentProvider === "astropay") {
+      const returnUrls = buildAstroPaySubscriptionReturnUrls();
+      const checkout = await createAstroPayCheckout({
+        payload: {
+          amount,
+          currency: "ARS",
+          reference: externalReference,
+          description: `Suscripción ShiftHub ${plan === "basic" ? "Básico" : "Pro"}`,
+          customer: {
+            email: userDoc.email,
+            name: userDoc.fullName,
+          },
+          callbackUrl: `${buildAstroPaySubscriptionWebhookUrl()}?userId=${userDoc._id.toString()}`,
+          notificationUrl: `${buildAstroPaySubscriptionWebhookUrl()}?userId=${userDoc._id.toString()}`,
+          successUrl: returnUrls.success,
+          pendingUrl: returnUrls.pending,
+          failureUrl: returnUrls.failure,
+          metadata: {
+            user_id: userDoc._id.toString(),
+            plan,
+            billing_cycle: "monthly",
+            subscription_type: "shifthub_plan",
+          },
+        },
+      });
+
+      if (!checkout.checkoutUrl) {
+        return res.status(502).json({
+          error: "AstroPay no devolvió un link de pago para este checkout.",
+          details: checkout.raw,
+        });
+      }
+
+      userDoc.subscription = {
+        ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+        pendingPlan: plan,
+        billingCycle: userDoc.subscription?.billingCycle || "monthly",
+        provider: "astropay",
+        astroPayCheckoutId: checkout.checkoutId ? String(checkout.checkoutId) : null,
+        pendingCouponCode: coupon ? coupon.code : null,
+        pendingCouponDiscountType: coupon ? coupon.discountType || "percentage" : null,
+        pendingCouponDiscountPercent: coupon ? Number(coupon.discountPercent || 0) : null,
+        pendingCouponDiscountAmountUsdReference: coupon ? Number(coupon.discountAmountUsdReference || 0) : null,
+        pendingCouponBenefitDurationType: coupon ? coupon.benefitDurationType || "forever" : null,
+        pendingCouponBenefitDurationValue: coupon ? coupon.benefitDurationValue ?? null : null,
+      };
+      await userDoc.save();
+
+      return res.json({
+        provider: "astropay",
+        checkoutUrl: checkout.checkoutUrl,
+        checkoutId: checkout.checkoutId,
+        amount,
+        currencyId: "ARS",
+        discountApplied: resolvedPricing.discountApplied,
+        baseAmount: resolvedPricing.baseArs,
+        couponApplied: coupon ? coupon.code : null,
+        couponDiscountType: coupon ? coupon.discountType || "percentage" : null,
+        couponDiscountAmountUsdReference: coupon ? Number(coupon.discountAmountUsdReference || 0) : null,
+        couponBenefitDurationType: coupon ? coupon.benefitDurationType || "forever" : null,
+        couponBenefitDurationValue: coupon ? coupon.benefitDurationValue ?? null : null,
+      });
+    }
+
     const preference = await createMercadoPagoSystemPreference({
       payload: {
         items: [
@@ -547,6 +662,7 @@ export async function publicCreateSubscriptionCheckout(req, res, next) {
       ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
       pendingPlan: plan,
       billingCycle: userDoc.subscription?.billingCycle || "monthly",
+      provider: "mercadopago",
       mercadoPagoPreferenceId: preference.id || null,
       pendingCouponCode: coupon ? coupon.code : null,
       pendingCouponDiscountType: coupon ? coupon.discountType || "percentage" : null,
@@ -595,6 +711,11 @@ export async function publicCreateRecurringSubscriptionCheckout(req, res, next) 
       });
     }
 
+    const channelConflict = ensureWebSubscriptionCheckoutAllowed(userDoc);
+    if (channelConflict) {
+      return res.status(channelConflict.status).json(channelConflict.body);
+    }
+
     const pricingDoc = await getOrCreatePlanPricing();
     const pricing = serializePlanPricing(pricingDoc);
     const coupon = couponCode
@@ -622,6 +743,7 @@ export async function publicCreateRecurringSubscriptionCheckout(req, res, next) 
         plan,
         coupon,
         pricing,
+        provider: "mercadopago",
       });
 
       return res.json({

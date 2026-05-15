@@ -77,6 +77,21 @@
   box-sizing: border-box;
 }
 
+.bookingNavLogoMark {
+  width: 46px !important;
+  height: 46px !important;
+  border-radius: 15px !important;
+  overflow: hidden;
+  background: var(--surface-2) !important;
+}
+
+.bookingNavLogoMark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .wrapper::before,
 .wrapper::after {
   content: "";
@@ -137,11 +152,11 @@
 .cardHero {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 0;
 }
 
 .shopHeroText {
-  text-align: center;
+  text-align: left;
   position: relative;
   z-index: 2;
 }
@@ -175,16 +190,16 @@
   margin: 0;
   font-family: "Syne", sans-serif;
   color: var(--text);
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   line-height: 1.02;
   font-weight: 800;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   text-wrap: balance;
 }
 
 .shopHeroSubtitle {
-  max-width: 430px;
-  margin: 10px auto 0;
+  max-width: 520px;
+  margin: 10px 0 0;
   color: var(--text-dim);
   font-size: 0.8rem;
   line-height: 1.55;
@@ -192,9 +207,10 @@
 
 .shopHeroMedia {
   position: relative;
-  min-height: 270px;
-  margin: -28px -28px 18px;
-  margin-bottom: 18px;
+  height: 220px;
+  min-height: 220px;
+  margin: -28px -28px 0;
+  border-radius: 32px 32px 24px 24px;
 }
 
 .shopHeroPicture {
@@ -213,8 +229,7 @@
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 50% 28%, rgba(0, 0, 0, 0.16) 0%, transparent 38%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.68) 0%, rgba(0, 0, 0, 0.38) 46%, rgba(0, 0, 0, 0.42) 100%);
+    linear-gradient(180deg, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.20) 100%);
 }
 
 .shopHeroBanner {
@@ -225,62 +240,13 @@
   display: block;
 }
 
-.shopHeroOverlay {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.shopHeroOverlay .shopHeroText {
-  width: 100%;
-  padding: 14px 16px 16px;
-
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.194) 100%);
-  border: 1px solid rgba(0, 0, 0, 0.22);
-  box-shadow:
-    0 18px 45px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(4px);
-}
-
-.shopHeroOverlay .shopHeroEyebrow {
-  background: rgba(255, 255, 255, 0.94);
-  border-color: rgba(255, 255, 255, 0.72);
-  color: #2c1d13;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.24);
-}
-
-.shopHeroOverlay .shopHeroEyebrow::before {
-  background: var(--pink);
-}
-
-.shopHeroOverlay .shopHeroName {
-  color: #ffffff;
-  text-shadow:
-    0 2px 2px rgba(0, 0, 0, 0.95),
-    0 8px 24px rgba(0, 0, 0, 0.82);
-}
-
-.shopHeroOverlay .shopHeroSubtitle {
-  color: rgba(255, 255, 255, 0.96);
-  font-weight: 700;
-  text-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.90),
-    0 5px 18px rgba(0, 0, 0, 0.72);
-}
-
 .shopHeroAvatar {
   position: absolute;
-  left: 50%;
-  bottom: -34px;
+  left: 28px;
+  bottom: -42px;
   z-index: 2;
-  width: 78px;
-  height: 78px;
-  transform: translateX(-50%);
+  width: 92px;
+  height: 92px;
   border-radius: 999px;
   padding: 4px;
   background: var(--card-bg);
@@ -296,6 +262,82 @@
   object-position: center;
   border-radius: inherit;
   background: var(--avatar-bg);
+}
+
+.mapTopLink {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(10px);
+}
+
+.shopHeroContent {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: end;
+  padding-top: 58px;
+}
+
+.shopHeroTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shopContactMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--text-dim);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.shopContactMeta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.shopSecondaryLinks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.shopSecondaryLinks a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--pink-border);
+  background: var(--pink-soft);
+  color: var(--text-soft);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-decoration: none;
 }
 
 
@@ -963,8 +1005,9 @@
   }
 
   .shopHeroMedia {
-    min-height: 230px;
-    margin: -20px -16px 20px;
+    height: 190px;
+    min-height: 190px;
+    margin: -20px -16px 0;
   }
 
   .shopHeroPicture {
@@ -972,18 +1015,27 @@
   }
 
   .shopHeroAvatar {
-    width: 66px;
-    height: 66px;
-    bottom: -30px;
+    width: 76px;
+    height: 76px;
+    left: 18px;
+    bottom: -34px;
   }
 
-  .shopHeroOverlay {
-    padding: 16px 12px 58px;
+  .mapTopLink {
+    top: 12px;
+    right: 12px;
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 0.72rem;
   }
 
-  .shopHeroOverlay .shopHeroText {
-    padding: 12px 12px 14px;
-    border-radius: 20px;
+  .shopHeroContent {
+    grid-template-columns: 1fr;
+    padding-top: 50px;
+  }
+
+  .shopSecondaryLinks {
+    justify-content: flex-start;
   }
 
   .shopHeroEyebrow {
@@ -996,7 +1048,6 @@
   }
 
   .shopHeroSubtitle {
-    max-width: 300px;
     font-size: 0.69rem;
     line-height: 1.45;
   }

@@ -1,5 +1,9 @@
 import { Router } from "express";
-import { requireAuth, requireProSubscription } from "../middlewares/authMiddlewares.js";
+import {
+  requireActiveSubscription,
+  requireAuth,
+  requireProSubscription,
+} from "../middlewares/authMiddlewares.js";
 import {
   createAppointment,
   listAppointments,
@@ -22,6 +26,7 @@ router.get("/reminders/run", runAppointmentReminders);
 router.post("/reminders/run", runAppointmentReminders);
 
 router.use(requireAuth);
+router.use(requireActiveSubscription);
 
 router.get("/services", listServices);
 router.post("/services", createService);
