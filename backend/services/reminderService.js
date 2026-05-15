@@ -189,6 +189,10 @@ export async function processAppointmentReminders({ now = new Date() } = {}) {
           },
           android: {
             priority: "high",
+            notification: { sound: "default" },
+          },
+          apns: {
+            payload: { aps: { sound: "default" } },
           },
         });
 

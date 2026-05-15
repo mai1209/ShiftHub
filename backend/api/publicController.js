@@ -1121,7 +1121,13 @@ export async function publicCreateAppointment(req, res, next) {
                 ? `${customerName} inició ${serviceLabel} con ${barber.fullName} el ${dateLabel} a las ${timeLabel} desde la web. Esperando pago.`
                 : `${customerName} reservó ${serviceLabel} con ${barber.fullName} el ${dateLabel} a las ${timeLabel} desde la web.`,
           },
-          android: { priority: "high" },
+          android: {
+            priority: "high",
+            notification: { sound: "default" },
+          },
+          apns: {
+            payload: { aps: { sound: "default" } },
+          },
         };
         const responses = await Promise.all(
           targetTokens.map((token) => admin.messaging().send({ ...payload, token })),

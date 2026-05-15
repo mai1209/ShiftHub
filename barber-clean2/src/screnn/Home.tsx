@@ -56,6 +56,8 @@ import {
 } from 'lucide-react-native';
 import { PRO_PLAN_URL, PUBLIC_WEB_BASE_URL } from '../utils/publicLinks';
 
+const SHOP_TZ = 'America/Argentina/Cordoba';
+
 type Props = {
   navigation: any;
 };
@@ -141,9 +143,15 @@ function getPaymentSnapshot(appointment: Appointment) {
 }
 
 function formatDateParam(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SHOP_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find(part => part.type === 'year')?.value ?? '0000';
+  const month = parts.find(part => part.type === 'month')?.value ?? '00';
+  const day = parts.find(part => part.type === 'day')?.value ?? '00';
   return `${year}-${month}-${day}`;
 }
 
@@ -1103,7 +1111,7 @@ const formatTimeOnly = (value: string) =>
   new Date(value).toLocaleTimeString('es-AR', {
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'America/Argentina/Cordoba',
+    timeZone: SHOP_TZ,
   });
 const capitalize = (text: string) =>
   text ? text.charAt(0).toUpperCase() + text.slice(1) : '';

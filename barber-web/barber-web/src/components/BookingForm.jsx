@@ -15,10 +15,18 @@ import {
   SHIFT_APP_BRAND_NAME,
 } from "../utils/businessCopy";
 
+const SHOP_TZ = "America/Argentina/Cordoba";
+
 const formatDateParam = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: SHOP_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+  const month = parts.find((part) => part.type === "month")?.value ?? "00";
+  const day = parts.find((part) => part.type === "day")?.value ?? "00";
   return `${year}-${month}-${day}`;
 };
 
@@ -31,7 +39,6 @@ const minutesToLabel = (totalMinutes) => {
 const SLOT_INTERVAL_MINUTES = 30;
 const CATCH_UP_SLOT_INTERVAL_MINUTES = 5;
 const MAX_CATCH_UP_SLOTS = 3;
-const SHOP_TZ = "America/Argentina/Cordoba";
 const DEFAULT_BOOKING_BANNER = "/logoBarber.png";
 const DEFAULT_BOOKING_LOGO = "/logoBarber.png";
 const WEB_STYLE_PRESETS = {
@@ -213,6 +220,35 @@ function formatTimeInShopTZ(value) {
   const mm = parts.find((part) => part.type === "minute")?.value ?? "00";
   return `${hh}:${mm}`;
 }
+
+function getOffsetMinutesInShopTZ(date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: SHOP_TZ,
+    timeZoneName: "shortOffset",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).formatToParts(date);
+
+  const offsetText =
+    parts.find((part) => part.type === "timeZoneName")?.value ?? "GMT";
+  const match = offsetText.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/);
+
+  if (!match) return 0;
+
+  const sign = match[1] === "-" ? -1 : 1;
+  const hours = Number(match[2] ?? 0);
+  const minutes = Number(match[3] ?? 0);
+  return sign * (hours * 60 + minutes);
+}
+
+function buildIsoFromShopDateAndTime(dateValue, slotLabel) {
+  const [year, month, day] = formatDateParam(dateValue).split("-").map(Number);
+  const [hour, minute] = slotLabel.split(":").map(Number);
+  const startUtcGuess = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  const offsetMinutes = getOffsetMinutesInShopTZ(new Date(startUtcGuess));
+  return new Date(startUtcGuess - offsetMinutes * 60_000).toISOString();
+}
+
 const formatPrice = (value) =>
   new Intl.NumberFormat("es-AR", {
     style: "currency",
@@ -888,12 +924,10 @@ function BookingForm({ shopSlug, onNotFound }) {
 
     try {
       setSaving(true);
-      const y = selectedDate.getFullYear();
-      const mo = selectedDate.getMonth();
-      const d = selectedDate.getDate();
-      const [hh, mm] = selectedSlot.split(":").map(Number);
-      const localDate = new Date(y, mo, d, hh, mm, 0, 0);
-      const finalDateUTC = localDate.toISOString();
+      const finalDateUTC = buildIsoFromShopDateAndTime(
+        selectedDate,
+        selectedSlot,
+      );
 
       const response = await createAppointment({
         barberId: selectedBarber,
