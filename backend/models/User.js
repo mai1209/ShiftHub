@@ -36,6 +36,8 @@ const publicProfileSchema = new mongoose.Schema(
     phone: { type: String, trim: true, default: null },
     googleMapsUrl: { type: String, trim: true, default: null },
     googleReviewsUrl: { type: String, trim: true, default: null },
+    instagramUrl: { type: String, trim: true, default: null },
+    linktreeUrl: { type: String, trim: true, default: null },
     googlePlaceId: { type: String, trim: true, default: null },
   },
   {

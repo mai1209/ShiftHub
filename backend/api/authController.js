@@ -502,6 +502,8 @@ function sanitizePublicProfileInput(input) {
   const urlFields = [
     ["googleMapsUrl", "El link de Google Maps no es válido."],
     ["googleReviewsUrl", "El link de Google Reviews no es válido."],
+    ["instagramUrl", "El link de Instagram no es válido."],
+    ["linktreeUrl", "El link de Linktree no es válido."],
   ];
 
   for (const [field, message] of urlFields) {

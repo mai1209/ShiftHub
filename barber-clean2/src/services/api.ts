@@ -219,6 +219,8 @@ export type PublicProfile = {
   phone?: string | null;
   googleMapsUrl?: string | null;
   googleReviewsUrl?: string | null;
+  instagramUrl?: string | null;
+  linktreeUrl?: string | null;
   googlePlaceId?: string | null;
 };
 

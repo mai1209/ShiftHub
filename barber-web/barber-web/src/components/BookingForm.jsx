@@ -603,8 +603,12 @@ function BookingForm({ shopSlug, onNotFound }) {
   const shopPhone = String(publicProfile.phone || "").trim();
   const googleMapsUrl = String(publicProfile.googleMapsUrl || "").trim();
   const googleReviewsUrl = String(publicProfile.googleReviewsUrl || "").trim();
+  const instagramUrl = String(publicProfile.instagramUrl || "").trim();
+  const linktreeUrl = String(publicProfile.linktreeUrl || "").trim();
   const hasMapLink = Boolean(googleMapsUrl);
   const hasReviewsLink = Boolean(googleReviewsUrl);
+  const hasInstagramLink = Boolean(instagramUrl);
+  const hasLinktreeLink = Boolean(linktreeUrl);
   const webStyleVars = useMemo(
     () => getWebStylePreset(shopInfo?.themeConfig?.webPreset),
     [shopInfo?.themeConfig?.webPreset],
@@ -1061,19 +1065,12 @@ function BookingForm({ shopSlug, onNotFound }) {
       )}
 
       {/* NAV */}
-      <nav className={style.nav}>
+      <nav className={`${style.nav} ${styles.bookingNav}`}>
         <div className={style.navLogo}>
           <span className={`${style.navLogoMark} ${styles.bookingNavLogoMark}`}>
             <img src={shopProfileSrc} alt={shopInfo?.name || SHIFT_APP_BRAND_NAME} />
           </span>
         </div>
-        <a
-          href="https://www.letsbuilditcodex.com/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <span className={style.navBadge}>by CODEX®</span>
-        </a>
       </nav>
 
       <form className={styles.card} onSubmit={handleSubmit}>
@@ -1127,7 +1124,7 @@ function BookingForm({ shopSlug, onNotFound }) {
                 </div>
               ) : null}
             </div>
-            {hasMapLink || hasReviewsLink ? (
+            {hasMapLink || hasReviewsLink || hasInstagramLink || hasLinktreeLink ? (
               <div className={styles.shopSecondaryLinks}>
                 {hasMapLink ? (
                   <a href={googleMapsUrl} target="_blank" rel="noreferrer">
@@ -1137,6 +1134,16 @@ function BookingForm({ shopSlug, onNotFound }) {
                 {hasReviewsLink ? (
                   <a href={googleReviewsUrl} target="_blank" rel="noreferrer">
                     Ver reseñas
+                  </a>
+                ) : null}
+                {hasInstagramLink ? (
+                  <a href={instagramUrl} target="_blank" rel="noreferrer">
+                    Instagram
+                  </a>
+                ) : null}
+                {hasLinktreeLink ? (
+                  <a href={linktreeUrl} target="_blank" rel="noreferrer">
+                    Linktree
                   </a>
                 ) : null}
               </div>
@@ -1187,7 +1194,7 @@ function BookingForm({ shopSlug, onNotFound }) {
             <label className={styles.label}>WhatsApp</label>
             <input
               className={styles.input}
-              placeholder="Ej: +54 9 342 000-0000"
+              placeholder="Ej: 342 000 0000"
               type="tel"
               value={phone}
               onChange={(e) =>

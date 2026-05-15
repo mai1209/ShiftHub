@@ -169,6 +169,8 @@ function sanitizeShop(shop) {
       phone: publicProfile.phone || null,
       googleMapsUrl: publicProfile.googleMapsUrl || null,
       googleReviewsUrl: publicProfile.googleReviewsUrl || null,
+      instagramUrl: publicProfile.instagramUrl || null,
+      linktreeUrl: publicProfile.linktreeUrl || null,
       googlePlaceId: publicProfile.googlePlaceId || null,
     },
     themeConfig: {

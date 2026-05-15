@@ -156,6 +156,8 @@ type FormState = {
   publicPhone: string;
   googleMapsUrl: string;
   googleReviewsUrl: string;
+  instagramUrl: string;
+  linktreeUrl: string;
   googlePlaceId: string;
 };
 
@@ -211,6 +213,8 @@ function buildInitialForm(theme: Theme, profile: any): FormState {
     publicPhone: publicProfile.phone ?? '',
     googleMapsUrl: publicProfile.googleMapsUrl ?? '',
     googleReviewsUrl: publicProfile.googleReviewsUrl ?? '',
+    instagramUrl: publicProfile.instagramUrl ?? '',
+    linktreeUrl: publicProfile.linktreeUrl ?? '',
     googlePlaceId: publicProfile.googlePlaceId ?? '',
   };
 }
@@ -335,6 +339,8 @@ export default function AppearanceSettingsScreen({ navigation }: { navigation: a
         field !== 'publicPhone' &&
         field !== 'googleMapsUrl' &&
         field !== 'googleReviewsUrl' &&
+        field !== 'instagramUrl' &&
+        field !== 'linktreeUrl' &&
         field !== 'googlePlaceId'
           ? normalizeHexInput(value)
           : value,
@@ -443,6 +449,8 @@ export default function AppearanceSettingsScreen({ navigation }: { navigation: a
       phone: form.publicPhone.trim() || null,
       googleMapsUrl: form.googleMapsUrl.trim() || null,
       googleReviewsUrl: form.googleReviewsUrl.trim() || null,
+      instagramUrl: form.instagramUrl.trim() || null,
+      linktreeUrl: form.linktreeUrl.trim() || null,
       googlePlaceId: form.googlePlaceId.trim() || null,
     });
     await saveUserProfile(response.user);
@@ -599,6 +607,24 @@ export default function AppearanceSettingsScreen({ navigation }: { navigation: a
             placeholderTextColor={previewTheme.textMuted}
             value={form.googleReviewsUrl}
             onChangeText={value => updateField('googleReviewsUrl', value)}
+            autoCapitalize="none"
+            keyboardType="url"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="URL de Instagram"
+            placeholderTextColor={previewTheme.textMuted}
+            value={form.instagramUrl}
+            onChangeText={value => updateField('instagramUrl', value)}
+            autoCapitalize="none"
+            keyboardType="url"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="URL de Linktree"
+            placeholderTextColor={previewTheme.textMuted}
+            value={form.linktreeUrl}
+            onChangeText={value => updateField('linktreeUrl', value)}
             autoCapitalize="none"
             keyboardType="url"
           />
