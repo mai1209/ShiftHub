@@ -5,7 +5,7 @@
     linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
   color: #0f172a;
   padding: 36px 20px 64px;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: 'Poppins', system-ui, sans-serif;
   position: relative;
 }
 
@@ -50,7 +50,7 @@
   font-size: clamp(2rem, 4vw, 3.4rem);
   line-height: 0.95;
   letter-spacing: -2px;
-  font-family: 'Syne', system-ui, sans-serif;
+  font-family: 'Poppins', system-ui, sans-serif;
 }
 
 .subtitle {

@@ -87,7 +87,16 @@ async function request(path, options = {}) {
     config.body = JSON.stringify(config.body);
   }
 
-  const response = await fetch(url, config);
+  let response;
+  try {
+    response = await fetch(url, config);
+  } catch (err) {
+    const error = new Error(
+      'No pudimos conectar con el servidor de pagos. Revisá tu conexión e intentá de nuevo.',
+    );
+    error.cause = err;
+    throw error;
+  }
   let payload = null;
 
   try {

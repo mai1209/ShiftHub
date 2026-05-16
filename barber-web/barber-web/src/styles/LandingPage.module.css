@@ -1,5 +1,5 @@
 /* LandingPage.module.css */
-@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap");
 
 /* ============================================================
    TOKENS
@@ -38,7 +38,7 @@
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
-  font-family: "Instrument Sans", sans-serif;
+  font-family: "Poppins", sans-serif;
   position: relative;
   overflow-x: hidden;
 }
@@ -211,7 +211,7 @@ a { text-decoration: none; color: inherit; }
 }
 
 .navLogoText {
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-weight: 800;
   font-size: 1.15rem;
   letter-spacing: -0.5px;
@@ -222,6 +222,26 @@ a { text-decoration: none; color: inherit; }
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.navPlanLink {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: rgba(255,255,255,0.58);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition: color 0.2s, border-color 0.2s, background 0.2s, transform 0.15s;
+}
+.navPlanLink:hover {
+  color: var(--indigo);
+  border-color: var(--indigo-border);
+  background: var(--indigo-soft);
+  transform: translateY(-1px);
 }
 
 .navCta {
@@ -316,7 +336,7 @@ a { text-decoration: none; color: inherit; }
 
 /* Title */
 .heroTitle {
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: clamp(3.4rem, 9.5vw, 7.2rem);
   font-weight: 800;
   line-height: 0.93;
@@ -407,7 +427,7 @@ a { text-decoration: none; color: inherit; }
   background: linear-gradient(135deg, #2FAA1F, var(--indigo) 50%, var(--indigo-mid));
   background-size: 200% 200%;
   color: #fff;
-  font-family: "Instrument Sans", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-weight: 700;
   font-size: 0.88rem;
   padding: 14px 28px;
@@ -444,7 +464,7 @@ a { text-decoration: none; color: inherit; }
   gap: 9px;
   background: var(--surface);
   color: var(--text);
-  font-family: "Instrument Sans", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-weight: 600;
   font-size: 0.88rem;
   padding: 14px 24px;
@@ -453,6 +473,7 @@ a { text-decoration: none; color: inherit; }
   border: 1px solid var(--border-strong);
   transition: all 0.25s ease;
   box-shadow: var(--shadow-sm);
+
 }
 .btnGhost:hover {
   border-color: var(--indigo);
@@ -548,7 +569,7 @@ a { text-decoration: none; color: inherit; }
   border-radius: 8px;
   background: linear-gradient(135deg, var(--indigo), var(--indigo-mid));
   color: #fff;
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-weight: 800;
   font-size: 0.75rem;
   display: flex;
@@ -557,7 +578,7 @@ a { text-decoration: none; color: inherit; }
   box-shadow: 0 2px 8px rgba(57,224,31,0.35);
 }
 .appTitle {
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 1.1rem;
   font-weight: 800;
   letter-spacing: 1.5px;
@@ -584,14 +605,14 @@ a { text-decoration: none; color: inherit; }
   padding: 11px 12px;
   color: var(--text-muted);
   font-size: 0.82rem;
-  font-family: "Instrument Sans", sans-serif;
+  font-family: "Poppins", sans-serif;
 }
 .appDots { letter-spacing: 2px; }
 .appBtn {
   background: linear-gradient(135deg, var(--indigo), var(--indigo-mid));
   border: none;
   color: #fff;
-  font-family: "Instrument Sans", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-weight: 700;
   font-size: 0.85rem;
   border-radius: 14px;
@@ -667,7 +688,7 @@ a { text-decoration: none; color: inherit; }
 }
 
 .sectionTitle {
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: clamp(2rem, 4.2vw, 3.4rem);
   font-weight: 800;
   letter-spacing: -2px;
@@ -751,7 +772,7 @@ a { text-decoration: none; color: inherit; }
 .planBadge_custom { background: var(--amber-soft);  border: 1px solid var(--amber-border);  color: var(--amber); }
 
 .planTitle {
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 1.45rem;
   font-weight: 700;
   letter-spacing: -0.8px;
@@ -765,7 +786,7 @@ a { text-decoration: none; color: inherit; }
   gap: 4px;
 }
 .planPrice {
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 2.1rem;
   font-weight: 800;
   letter-spacing: -1.5px;
@@ -820,7 +841,7 @@ a { text-decoration: none; color: inherit; }
   text-align: center;
   padding: 13px 16px;
   border-radius: 14px;
-  font-family: "Instrument Sans", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-weight: 700;
   font-size: 0.88rem;
   letter-spacing: 0.01em;
@@ -911,7 +932,7 @@ a { text-decoration: none; color: inherit; }
 }
 
 .featureTitle {
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 1rem;
   font-weight: 700;
   margin-bottom: 7px;
@@ -973,7 +994,7 @@ a { text-decoration: none; color: inherit; }
 .statCell:last-child { border-right: none; }
 
 .statNum {
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 2.6rem;
   font-weight: 800;
   letter-spacing: -2px;
@@ -1034,7 +1055,7 @@ a { text-decoration: none; color: inherit; }
 .stepRow:not(:last-child):hover .stepConnector { height: 30px; }
 
 .stepNum {
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 3rem;
   font-weight: 800;
   color: rgba(20,20,40,0.06);
@@ -1051,7 +1072,7 @@ a { text-decoration: none; color: inherit; }
 
 .stepBody {}
 .stepTitle {
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 1.18rem;
   font-weight: 700;
   margin-bottom: 7px;
@@ -1087,7 +1108,7 @@ a { text-decoration: none; color: inherit; }
 }
 
 .ctaFinalTitle {
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: clamp(2.2rem, 5vw, 4rem);
   font-weight: 800;
   letter-spacing: -2.5px;
@@ -1126,7 +1147,7 @@ a { text-decoration: none; color: inherit; }
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: "Bricolage Grotesque", sans-serif;
+  font-family: "Poppins", sans-serif;
   font-weight: 700;
   font-size: 0.9rem;
   color: var(--text);
@@ -1170,5 +1191,7 @@ a { text-decoration: none; color: inherit; }
   .btnPrimary, .btnGhost { width: 100%; max-width: 300px; justify-content: center; }
   .heroNote { font-size: 0.84rem; }
   .navLogoText { font-size: 0.95rem; }
+  .navBadgeLink { display: none; }
+  .navPlanLink, .navCta { padding: 0 10px; font-size: 0.78rem; }
   .footerInner { flex-direction: column; gap: 10px; }
 }

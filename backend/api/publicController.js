@@ -81,9 +81,8 @@ function normalizeSlug(value) {
 }
 
 function normalizeSubscriptionPaymentProvider(value) {
-  return String(value || "").trim().toLowerCase() === "astropay"
-    ? "astropay"
-    : "mercadopago";
+  const normalized = String(value || "mercadopago").trim().toLowerCase();
+  return normalized === "mercadopago" ? "mercadopago" : null;
 }
 
 function normalizeSubscriptionProvider(value) {
@@ -497,6 +496,12 @@ export async function publicCreateSubscriptionCheckout(req, res, next) {
     if (!email || !plan) {
       return res.status(400).json({
         error: "Necesitamos el email de la cuenta y un plan válido para generar el pago.",
+      });
+    }
+
+    if (!paymentProvider) {
+      return res.status(400).json({
+        error: "Por ahora el pago web disponible es Mercado Pago. Seleccioná Mercado Pago para continuar.",
       });
     }
 

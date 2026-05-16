@@ -6,7 +6,7 @@
     radial-gradient(circle at 86% 18%, rgba(255, 255, 255, 0.5), transparent 28%),
     linear-gradient(180deg, #f8fafc 0%, #eef7e8 100%);
   color: #0f172a;
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: "Poppins", system-ui, sans-serif;
 }
 
 .card {
@@ -41,7 +41,7 @@
 .card h1 {
   margin: 0 0 16px;
   color: #0f172a;
-  font-family: "Syne", system-ui, sans-serif;
+  font-family: "Poppins", system-ui, sans-serif;
   font-size: clamp(2rem, 6vw, 4rem);
   line-height: 0.95;
   letter-spacing: -0.06em;

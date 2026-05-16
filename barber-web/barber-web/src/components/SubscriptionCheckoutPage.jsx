@@ -8,9 +8,9 @@ import styles from '../styles/SubscriptionCheckoutPage.module.css';
 import { SHIFT_APP_BRAND_NAME } from '../utils/businessCopy';
 import { buildWhatsAppUrl } from '../utils/publicLinks';
 
-const APP_STORE_URL = 'https://apps.apple.com';
-const PLAY_STORE_URL =
-  'https://play.google.com/store/apps/details?id=com.shifthub.pro';
+const APP_STORE_URL = 'https://apps.apple.com/ar/app/shifthub/id6767229780';
+/* const PLAY_STORE_URL =
+  'https://play.google.com/store/apps/details?id=com.shifthub.pro'; */
 
 const PLAN_META = {
   basic: {
@@ -50,10 +50,7 @@ function getInitialPaymentMode() {
 }
 
 function getInitialPaymentProvider() {
-  const url = new URL(window.location.href);
-  return String(url.searchParams.get('provider') || '').trim().toLowerCase() === 'mercadopago'
-    ? 'mercadopago'
-    : 'astropay';
+  return 'mercadopago';
 }
 
 function CheckIcon() {
@@ -100,12 +97,8 @@ function AppleIcon() {
   );
 }
 
-function PlayIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M3.18 23.76c.3.17.64.24.99.2l12.5-7.22-2.6-2.6-10.89 9.62zm-1.93-20.7A2 2 0 001 4.08v15.84c0 .45.13.87.35 1.23l.08.08 8.87-8.87v-.21L1.25 3.06zm18.63 8.06l-2.55-1.47-2.9 2.9 2.9 2.9 2.56-1.48c.73-.42.73-1.43-.01-1.85zm-17.5 10.6l10.89-9.62-2.6-2.6L1.25 20.7c.3.35.72.57 1.13.72z" />
-    </svg>
-  );
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
 }
 
 export default function SubscriptionCheckoutPage() {
@@ -149,8 +142,7 @@ export default function SubscriptionCheckoutPage() {
     else url.searchParams.delete('email');
     if (paymentMode === 'automatic') url.searchParams.set('mode', paymentMode);
     else url.searchParams.delete('mode');
-    if (paymentProvider !== 'astropay') url.searchParams.set('provider', paymentProvider);
-    else url.searchParams.delete('provider');
+    url.searchParams.delete('provider');
     window.history.replaceState({}, '', url.toString());
   }, [selectedPlan, email, paymentMode, paymentProvider]);
 
@@ -179,6 +171,18 @@ export default function SubscriptionCheckoutPage() {
     setMessage('');
 
     try {
+      if (!PLAN_META[selectedPlan]) {
+        throw new Error('Seleccioná un plan válido para continuar.');
+      }
+
+      if (!isValidEmail(email)) {
+        throw new Error('Ingresá el email válido de la cuenta que querés activar.');
+      }
+
+      if (paymentProvider !== 'mercadopago') {
+        throw new Error('Seleccioná Mercado Pago para continuar. Es el procesador disponible por ahora.');
+      }
+
       const response =
         paymentMode === 'automatic'
           ? await createPublicRecurringSubscription({ email, plan: selectedPlan, couponCode })
@@ -212,7 +216,7 @@ export default function SubscriptionCheckoutPage() {
       if (!targetUrl) throw new Error('No pudimos generar el link de pago del plan.');
       window.location.assign(targetUrl);
     } catch (err) {
-      setError(err.message || 'No pudimos iniciar el pago del plan.');
+      setError(err.message || 'No pudimos iniciar el pago del plan. Intentá nuevamente en unos segundos.');
     } finally {
       setLoading(false);
     }
@@ -308,36 +312,12 @@ export default function SubscriptionCheckoutPage() {
               <span className={styles.formCardCaption}>Seleccionaste: {PLAN_META[selectedPlan].title}</span>
             </div>
 
-            {/* Payment mode toggle */}
-            <div className={styles.modeToggleGroup}>
-              <p className={styles.modeGroupLabel}>Procesador de pago</p>
-              <div className={styles.modeToggle}>
-                <button
-                  type="button"
-                  className={`${styles.modeBtn} ${paymentProvider === 'astropay' ? styles.modeBtnActive : ''}`}
-                  onClick={() => {
-                    setPaymentProvider('astropay');
-                    setPaymentMode('manual');
-                  }}
-                >
-                  <span className={styles.modeBtnDot} />
-                  AstroPay
-                  <span className={styles.modeBtnReco}>nuevo</span>
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.modeBtn} ${paymentProvider === 'mercadopago' ? styles.modeBtnActive : ''}`}
-                  onClick={() => setPaymentProvider('mercadopago')}
-                >
-                  <span className={styles.modeBtnDot} />
-                  Mercado Pago
-                </button>
-              </div>
-              <p className={styles.modeHelper}>
-                {paymentProvider === 'astropay'
-                  ? 'El checkout web se genera con AstroPay y el pago se acredita en tu cuenta AstroPay.'
-                  : 'Usa Mercado Pago para mantener el flujo actual o la renovacion automatica.'}
-              </p>
+            <div className={styles.paymentBrandRow} aria-label="Procesador de pago">
+              <span className={styles.paymentBrandLabel}>Procesador disponible</span>
+              <span className={styles.mercadoPagoBadge}>
+                <img className={styles.mercadoPagoLogo} src="/mercadopago.png" alt="" />
+                Mercado Pago
+              </span>
             </div>
 
             <div className={styles.modeToggleGroup}>
@@ -367,9 +347,7 @@ export default function SubscriptionCheckoutPage() {
               <p className={styles.modeHelper}>
                 {paymentMode === 'automatic'
                   ? 'Autorizas una vez el cobro mensual y Mercado Pago renueva solo cada mes.'
-                  : paymentProvider === 'astropay'
-                    ? 'Pagas el mes desde AstroPay. Para renovar, volves a generar un pago desde la web.'
-                    : 'Pagas cada mes manualmente desde la web cuando toque renovar.'}
+                  : 'Pagas cada mes manualmente desde la web cuando toque renovar.'}
               </p>
             </div>
 
@@ -519,10 +497,10 @@ export default function SubscriptionCheckoutPage() {
                     <AppleIcon />
                     App Store
                   </a>
-                  <a href={PLAY_STORE_URL} target="_blank" rel="noreferrer" className={styles.storeBtn}>
+                {/*   <a href={PLAY_STORE_URL} target="_blank" rel="noreferrer" className={styles.storeBtn}>
                     <PlayIcon />
                     Google Play
-                  </a>
+                  </a> */}
                 </div>
               </div>
             </div>
