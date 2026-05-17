@@ -9,7 +9,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
@@ -18,9 +17,12 @@ import ColorPickerModal from '../components/ColorPickerModal';
 import { buildThemeFromConfig, useTheme } from '../context/ThemeContext';
 import type { Theme, ThemeMode } from '../context/ThemeContext';
 import { getUserProfile, saveUserProfile } from '../services/authStorage';
-import { updatePublicProfile, updateThemeConfig } from '../services/api';
+import { updateThemeConfig } from '../services/api';
 
 const ACCENT_SWATCHES = [
+  '#111111',
+  '#1F2937',
+  '#334155',
   '#39E01F',
   '#65F239',
   '#1FA83A',
@@ -91,12 +93,12 @@ const GRADIENT_SWATCHES = Array.from(
 const STYLE_PRESETS = [
   {
     label: 'Codex base',
-    helper: 'Vuelve al look original de la app.',
+    helper: 'Vuelve al look base con acentos negros y buen contraste.',
     mode: 'light' as ThemeMode,
-    primary: '#39E01F',
-    secondary: '#F3A63B',
+    primary: '#111111',
+    secondary: '#1F2937',
     card: '#FFFFFF',
-    gradientColors: ['#FFFFFF', '#F7FFF1', '#E6FFC6', '#FFD08A'],
+    gradientColors: ['#FFFFFF', '#F8FAFC', '#EEF2F7', '#E2E8F0'],
   },
   {
     label: 'Lima editorial',
@@ -151,14 +153,6 @@ type FormState = {
   logoDataUrl: string | null;
   bannerDataUrl: string | null;
   mobileBannerDataUrl: string | null;
-  publicSubtitle: string;
-  publicAddress: string;
-  publicPhone: string;
-  googleMapsUrl: string;
-  googleReviewsUrl: string;
-  instagramUrl: string;
-  linktreeUrl: string;
-  googlePlaceId: string;
 };
 
 type PickerField =
@@ -184,7 +178,6 @@ function isValidHexColor(value: string) {
 
 function buildInitialForm(theme: Theme, profile: any): FormState {
   const customTheme = profile?.themeConfig ?? {};
-  const publicProfile = profile?.publicProfile ?? {};
   const gradientColors =
     Array.isArray(customTheme.gradientColors) && customTheme.gradientColors.length === 4
       ? customTheme.gradientColors
@@ -208,14 +201,6 @@ function buildInitialForm(theme: Theme, profile: any): FormState {
     logoDataUrl: customTheme.logoDataUrl ?? null,
     bannerDataUrl: customTheme.bannerDataUrl ?? null,
     mobileBannerDataUrl: customTheme.mobileBannerDataUrl ?? null,
-    publicSubtitle: publicProfile.subtitle ?? '',
-    publicAddress: publicProfile.address ?? '',
-    publicPhone: publicProfile.phone ?? '',
-    googleMapsUrl: publicProfile.googleMapsUrl ?? '',
-    googleReviewsUrl: publicProfile.googleReviewsUrl ?? '',
-    instagramUrl: publicProfile.instagramUrl ?? '',
-    linktreeUrl: publicProfile.linktreeUrl ?? '',
-    googlePlaceId: publicProfile.googlePlaceId ?? '',
   };
 }
 
@@ -333,15 +318,7 @@ export default function AppearanceSettingsScreen({ navigation }: { navigation: a
         typeof value === 'string' &&
         field !== 'logoDataUrl' &&
         field !== 'bannerDataUrl' &&
-        field !== 'mobileBannerDataUrl' &&
-        field !== 'publicSubtitle' &&
-        field !== 'publicAddress' &&
-        field !== 'publicPhone' &&
-        field !== 'googleMapsUrl' &&
-        field !== 'googleReviewsUrl' &&
-        field !== 'instagramUrl' &&
-        field !== 'linktreeUrl' &&
-        field !== 'googlePlaceId'
+        field !== 'mobileBannerDataUrl'
           ? normalizeHexInput(value)
           : value,
     }));
@@ -442,21 +419,6 @@ export default function AppearanceSettingsScreen({ navigation }: { navigation: a
     applyUserTheme(response.user);
   };
 
-  const persistPublicProfile = async () => {
-    const response = await updatePublicProfile({
-      subtitle: form.publicSubtitle.trim() || null,
-      address: form.publicAddress.trim() || null,
-      phone: form.publicPhone.trim() || null,
-      googleMapsUrl: form.googleMapsUrl.trim() || null,
-      googleReviewsUrl: form.googleReviewsUrl.trim() || null,
-      instagramUrl: form.instagramUrl.trim() || null,
-      linktreeUrl: form.linktreeUrl.trim() || null,
-      googlePlaceId: form.googlePlaceId.trim() || null,
-    });
-    await saveUserProfile(response.user);
-    applyUserTheme(response.user);
-  };
-
   const handleSave = async () => {
     if (saving || !validateForm()) return;
 
@@ -473,7 +435,6 @@ export default function AppearanceSettingsScreen({ navigation }: { navigation: a
         bannerDataUrl: form.bannerDataUrl,
         mobileBannerDataUrl: form.mobileBannerDataUrl,
       });
-      await persistPublicProfile();
       Alert.alert('Aspecto guardado', 'La vista del local se actualizó correctamente.');
     } catch (err: any) {
       setError(err?.message ?? 'No se pudo guardar el aspecto.');
@@ -563,78 +524,6 @@ export default function AppearanceSettingsScreen({ navigation }: { navigation: a
             options={WEB_STYLE_PRESETS}
             theme={previewTheme}
             onSelect={preset => setForm(current => ({ ...current, webPreset: preset }))}
-          />
-        </SectionCard>
-
-        <SectionCard title="Datos públicos del local" icon={Sparkles} theme={previewTheme}>
-          <Text style={styles.helperText}>
-            Estos datos aparecen en la web de reservas. Los links de mapa y reseñas se muestran solo si están cargados.
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Subtítulo corto del local"
-            placeholderTextColor={previewTheme.textMuted}
-            value={form.publicSubtitle}
-            onChangeText={value => updateField('publicSubtitle', value)}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Dirección"
-            placeholderTextColor={previewTheme.textMuted}
-            value={form.publicAddress}
-            onChangeText={value => updateField('publicAddress', value)}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Teléfono público"
-            placeholderTextColor={previewTheme.textMuted}
-            value={form.publicPhone}
-            onChangeText={value => updateField('publicPhone', value)}
-            keyboardType="phone-pad"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="URL de Google Maps"
-            placeholderTextColor={previewTheme.textMuted}
-            value={form.googleMapsUrl}
-            onChangeText={value => updateField('googleMapsUrl', value)}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="URL de reseñas de Google"
-            placeholderTextColor={previewTheme.textMuted}
-            value={form.googleReviewsUrl}
-            onChangeText={value => updateField('googleReviewsUrl', value)}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="URL de Instagram"
-            placeholderTextColor={previewTheme.textMuted}
-            value={form.instagramUrl}
-            onChangeText={value => updateField('instagramUrl', value)}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="URL de Linktree"
-            placeholderTextColor={previewTheme.textMuted}
-            value={form.linktreeUrl}
-            onChangeText={value => updateField('linktreeUrl', value)}
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Google Place ID (opcional)"
-            placeholderTextColor={previewTheme.textMuted}
-            value={form.googlePlaceId}
-            onChangeText={value => updateField('googlePlaceId', value)}
-            autoCapitalize="none"
           />
         </SectionCard>
 

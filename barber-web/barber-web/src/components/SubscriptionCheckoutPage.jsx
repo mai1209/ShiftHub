@@ -270,16 +270,19 @@ export default function SubscriptionCheckoutPage() {
               <button
                 key={plan.key}
                 type="button"
-                className={`${styles.planCard} ${styles[`planCard_${plan.variant}`]} ${selectedPlan === plan.key ? styles.planCardActive : ''}`}
+                className={`${styles.planCard} ${styles[`planCard_${plan.variant}`]} ${selectedPlan === plan.key ? styles.planCardActive : styles.planCardInactive}`}
                 onClick={() => setSelectedPlan(plan.key)}
+                aria-pressed={selectedPlan === plan.key}
               >
                 <div className={styles.planCardTop}>
                   <span className={`${styles.planBadge} ${styles[`planBadge_${plan.variant}`]}`}>
                     {plan.label}
                   </span>
-                  {selectedPlan === plan.key && (
-                    <span className={styles.planSelectedDot} />
-                  )}
+                  <span
+                    className={`${styles.planSelectedDot} ${
+                      selectedPlan === plan.key ? styles.planSelectedDotActive : ''
+                    }`}
+                  />
                 </div>
                 <h2 className={styles.planTitle}>{plan.title}</h2>
                 <div className={styles.planPricingRow}>

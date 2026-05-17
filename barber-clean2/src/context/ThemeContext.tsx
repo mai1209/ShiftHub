@@ -132,11 +132,11 @@ export function buildThemeFromConfig(
 
 const DEFAULT_THEME: Theme = {
   mode: 'light',
-  primary: '#39E01F',
-  secondary: '#F3A63B',
+  primary: '#111111',
+  secondary: '#1F2937',
   background: 'transparent',
   card: '#FFFFFF',
-  gradientColors: ['#FFFFFF', '#F7FFF1', '#E6FFC6', '#FFD08A'],
+  gradientColors: ['#FFFFFF', '#F8FAFC', '#EEF2F7', '#E2E8F0'],
   logo: require('../assets/logo.png'),
   surfaceAlt: '#F3F4F6',
   input: '#FFFFFF',
@@ -247,13 +247,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         if (isMounted) {
           applyUserTheme(freshUser);
         }
-      } catch (_error) {}
+      } catch {}
     })();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [applyUserTheme]);
 
   const value = useMemo(
     () => ({

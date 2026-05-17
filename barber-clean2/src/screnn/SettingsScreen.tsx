@@ -19,6 +19,7 @@ import {
   KeyRound,
   LogOut,
   Mail,
+  MapPin,
   MessageCircle,
   Palette,
   ShieldCheck,
@@ -139,7 +140,7 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
     const url = buildSupportMailUrl(`Soporte ${businessCopy.brandName}`);
     try {
       await Linking.openURL(url);
-    } catch (_error) {
+    } catch {
       Alert.alert('No pudimos abrir el mail', SUPPORT_EMAIL);
     }
   };
@@ -147,7 +148,7 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
   const openExternalPage = async (url: string, fallbackLabel: string) => {
     try {
       await Linking.openURL(url);
-    } catch (_error) {
+    } catch {
       Alert.alert('No pudimos abrir el enlace', fallbackLabel);
     }
   };
@@ -210,6 +211,15 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
               label="Cerrar negocio por día"
               description="Bloqueá una fecha puntual para que la web no tome turnos."
               onPress={() => navigation.navigate('Shop-Closure-Settings')}
+              theme={theme}
+              styles={styles}
+            />
+            <View style={styles.separator} />
+            <MenuItem
+              icon={MapPin}
+              label="Perfil público del negocio"
+              description="Dirección, mapa, reseñas, Instagram y Linktree visibles en la web de turnos."
+              onPress={() => navigation.navigate('Public-Profile-Settings')}
               theme={theme}
               styles={styles}
             />

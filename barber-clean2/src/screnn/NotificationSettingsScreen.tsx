@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -407,7 +408,7 @@ function createStyles(theme: Theme) {
       alignItems: 'center',
     },
     scrollContent: {
-      paddingTop: 36,
+      paddingTop: Platform.OS === 'ios' ? 72 : 36,
       paddingHorizontal: 20,
       paddingBottom: 140,
       gap: 16,

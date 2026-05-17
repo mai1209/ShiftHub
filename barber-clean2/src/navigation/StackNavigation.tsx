@@ -16,6 +16,7 @@ import MetricsScreen from '../screnn/MetricsScreen';
 import OwnerMetricsScreen from '../screnn/OwnerMetricsScreen';
 import CustomerHistoryScreen from '../screnn/CustomerHistoryScreen';
 import AppearanceSettingsScreen from '../screnn/AppearanceSettingsScreen';
+import PublicProfileSettingsScreen from '../screnn/PublicProfileSettingsScreen';
 import ServiceSettingsScreen from '../screnn/ServiceSettingsScreen';
 import PaymentSettingsScreen from '../screnn/PaymentSettingsScreen';
 import NotificationSettingsScreen from '../screnn/NotificationSettingsScreen';
@@ -67,6 +68,7 @@ export type RootStackParamList = {
   'Customer-History': undefined;
   Settings: undefined;
   'Appearance-Settings': undefined;
+  'Public-Profile-Settings': undefined;
   'Service-Settings': undefined;
   'Payment-Settings': undefined;
   'Notification-Settings': undefined;
@@ -136,6 +138,7 @@ export default function StackNavigator({
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Usage-Guide" component={UsageGuideScreen} />
               <Stack.Screen name="Appearance-Settings" component={AppearanceSettingsScreen} />
+              <Stack.Screen name="Public-Profile-Settings" component={PublicProfileSettingsScreen} />
               <Stack.Screen name="Service-Settings" component={ServiceSettingsScreen} />
               <Stack.Screen name="Payment-Settings" component={PaymentSettingsScreen} />
               <Stack.Screen name="Notification-Settings" component={NotificationSettingsScreen} />

@@ -226,6 +226,17 @@ a { text-decoration: none; color: inherit; }
   position: relative;
   overflow: hidden;
 }
+.planCardInactive {
+  opacity: 0.62;
+  background: rgba(255,255,255,0.72);
+  filter: saturate(0.72);
+}
+.planCardInactive:hover {
+  opacity: 0.86;
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
 .planCard::before {
   content: "";
   position: absolute;
@@ -270,16 +281,27 @@ a { text-decoration: none; color: inherit; }
 .planBadge_pro   { background: var(--emerald-soft); border: 1px solid var(--emerald-border); color: var(--emerald); }
 
 .planSelectedDot {
-  width: 9px;
-  height: 9px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  background: transparent;
+  flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.planSelectedDotActive {
+  border-color: var(--indigo);
   background: var(--indigo);
-  box-shadow: 0 0 0 3px rgba(57,224,31,0.18);
+  box-shadow: inset 0 0 0 3px #fff, 0 0 0 3px rgba(57,224,31,0.18);
   animation: dotPop 0.25s cubic-bezier(0.16,1,0.3,1);
 }
-.planCard_pro .planSelectedDot { background: var(--emerald); box-shadow: 0 0 0 3px rgba(16,185,129,0.18); }
+.planCard_pro .planSelectedDotActive {
+  border-color: var(--emerald);
+  background: var(--emerald);
+  box-shadow: inset 0 0 0 3px #fff, 0 0 0 3px rgba(16,185,129,0.18);
+}
 @keyframes dotPop {
-  from { transform: scale(0); }
+  from { transform: scale(0.65); }
   to   { transform: scale(1); }
 }
 
