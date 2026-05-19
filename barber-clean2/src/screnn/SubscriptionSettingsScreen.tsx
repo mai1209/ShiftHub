@@ -36,7 +36,7 @@ import { PRIVACY_POLICY_URL, SUPPORT_EMAIL, SUPPORT_URL } from '../utils/publicL
 const TERMS_OF_USE_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 
 type SubscriptionState = {
-  plan?: 'basic' | 'pro' | 'custom';
+  plan?: 'free' | 'basic' | 'pro' | 'custom';
   status?: 'trial' | 'active' | 'past_due' | 'cancelled';
   billingCycle?: 'monthly' | 'yearly' | 'custom' | null;
   renewalMode?: 'manual' | 'automatic';
@@ -54,6 +54,8 @@ type SubscriptionState = {
   expiresAt?: string | null;
   mercadoPagoPreapprovalId?: string | null;
   mercadoPagoPreapprovalStatus?: string | null;
+  mercadoPagoPaymentId?: string | null;
+  astroPayPaymentId?: string | null;
   nextBillingAt?: string | null;
   storeProductId?: string | null;
   storeCurrentPlanId?: string | null;
@@ -66,6 +68,10 @@ type SubscriptionState = {
   storeStatus?: string | null;
 };
 
+type AccountState = {
+  registrationSource?: 'web' | 'mobile' | null;
+};
+
 const PLAN_COPY: Record<
   NonNullable<SubscriptionState['plan']>,
   {
@@ -75,6 +81,17 @@ const PLAN_COPY: Record<
     includes: string[];
   }
 > = {
+  free: {
+    label: 'Gratis',
+    summary: 'Versión inicial para empezar a usar la app con límites concretos.',
+    price: 'Sin cargo',
+    includes: [
+      'Acceso al Home y operación básica',
+      '1 profesional activo',
+      'Servicios y turnos para empezar a trabajar',
+      'Upgrade cuando necesites desbloquear más funciones',
+    ],
+  },
   basic: {
     label: 'Básico',
     summary: 'Todo lo necesario para vender turnos online y ordenar la agenda.',
@@ -169,6 +186,7 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
   const isIOS = Platform.OS === 'ios';
   const usesStoreBilling = isStoreBillingPlatform();
   const [subscription, setSubscription] = useState<SubscriptionState | null>(null);
+  const [currentUser, setCurrentUser] = useState<AccountState | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [billingBusy, setBillingBusy] = useState(false);
@@ -182,8 +200,43 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
     subscriptionProvider === 'mercadopago' || subscriptionProvider === 'astropay';
   const isAppleSubscriptionAccount = subscriptionProvider === 'apple';
   const isGoogleSubscriptionAccount = subscriptionProvider === 'google';
+  const registrationSource = String(currentUser?.registrationSource || '')
+    .trim()
+    .toLowerCase();
+  const hasStoreSubscriptionLink =
+    isAppleSubscriptionAccount ||
+    isGoogleSubscriptionAccount ||
+    Boolean(
+      subscription?.storeProductId ||
+        subscription?.storePurchaseToken ||
+        subscription?.storeTransactionId ||
+        subscription?.storeOriginalTransactionId,
+    );
+  const hasWebPaymentLink =
+    isWebSubscriptionAccount ||
+    Boolean(
+      subscription?.mercadoPagoPreapprovalId ||
+        subscription?.mercadoPagoPreapprovalStatus ||
+        subscription?.mercadoPagoPaymentId ||
+        subscription?.astroPayPaymentId,
+    );
+  const currentPlan = subscription?.plan ?? 'free';
+  const isPaidPlan =
+    currentPlan === 'basic' || currentPlan === 'pro' || currentPlan === 'custom';
+  const isExplicitWebAccount = registrationSource === 'web';
+  const isLegacyWebManagedAccount =
+    !registrationSource &&
+    !hasStoreSubscriptionLink &&
+    (hasWebPaymentLink ||
+      (isPaidPlan &&
+        (subscription?.billingCycle === 'monthly' ||
+          subscription?.billingCycle === 'yearly' ||
+          subscription?.billingCycle === 'custom' ||
+          subscription?.renewalMode === 'manual')));
+  const isWebManagedAccount = isExplicitWebAccount || isLegacyWebManagedAccount;
   const canUseStoreBillingForAccount =
     usesStoreBilling &&
+    !isWebManagedAccount &&
     !isWebSubscriptionAccount &&
     ((Platform.OS === 'ios' && !isGoogleSubscriptionAccount) ||
       (Platform.OS === 'android' && !isAppleSubscriptionAccount));
@@ -303,6 +356,7 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
 
     try {
       const [res, pricingResponse] = await Promise.all([getCurrentUser(), getPlanPricing()]);
+      setCurrentUser(res.user ?? null);
       setSubscription(res.user?.subscription ?? null);
       await saveUserProfile(res.user);
       setPriceOverrides({
@@ -372,7 +426,7 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
     });
   }, [billingConnected, storeSubscriptions, usesStoreBilling]);
 
-  const planKey = subscription?.plan ?? 'basic';
+  const planKey = currentPlan;
   const planInfo = PLAN_COPY[planKey];
   const planAccent = getPlanAccent(planKey, theme);
   const basePriceArs =
@@ -438,7 +492,6 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
       ? Math.ceil((expiresAtDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000))
       : null;
   const isRestrictedAccount =
-    subscription?.status === 'trial' ||
     subscription?.status === 'past_due' ||
     subscription?.status === 'cancelled';
   const hasWebAutomaticRenewal =
@@ -456,8 +509,18 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
   const proStoreProduct = storeSubscriptions.find(product => product.id === STORE_SUBSCRIPTION_PRODUCTS.pro);
   const currentGooglePurchaseToken =
     subscription?.storePurchaseToken || null;
+  const webManagedAccountMessage =
+    subscription?.status === 'past_due' || subscription?.status === 'cancelled'
+      ? 'Tu plan venció.'
+      : planKey === 'free'
+        ? 'Esta cuenta está usando el acceso limitado. Para desbloquear todas las funciones, pagá la suscripción.'
+        : 'Esta cuenta está activa. En este dispositivo solo mostramos el estado comercial.';
 
   const getRenewalHint = () => {
+    if (isWebManagedAccount && usesStoreBilling) {
+      return webManagedAccountMessage;
+    }
+
     if (isWebSubscriptionAccount && usesStoreBilling) {
       if (subscription?.status === 'active') {
         return 'La cuenta está activa. En este dispositivo solo mostramos el estado general del acceso.';
@@ -686,7 +749,9 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
                 <Text style={styles.lockedEyebrow}>ACCESO LIMITADO</Text>
                 <Text style={styles.lockedTitle}>Esta cuenta tiene acceso limitado</Text>
                 <Text style={styles.lockedText}>
-                  {canUseAppleBillingForAccount
+                  {isWebManagedAccount
+                    ? webManagedAccountMessage
+                    : canUseAppleBillingForAccount
                     ? 'Comprá o restaurá la suscripción del negocio para volver a habilitar el acceso operativo completo.'
                     : 'Esta cuenta no tiene acceso operativo en este momento. Por ahora solo mostramos el estado general.'}
                 </Text>
@@ -707,7 +772,9 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
               </View>
 
               <Text style={styles.planSummary}>
-                {canUseAppleBillingForAccount
+                {isWebManagedAccount
+                  ? webManagedAccountMessage
+                  : canUseAppleBillingForAccount
                   ? 'El plan del negocio se administra con tu suscripción de la App Store.'
                   : 'Información general del acceso disponible en esta cuenta.'}
               </Text>
@@ -825,7 +892,9 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
                 <View style={styles.iosNoticeCard}>
                   <Text style={styles.iosNoticeTitle}>Estado de la cuenta</Text>
                   <Text style={styles.iosNoticeText}>
-                    En este dispositivo solo mostramos la información general del acceso y el estado actual.
+                    {isWebManagedAccount
+                      ? webManagedAccountMessage
+                      : 'En este dispositivo solo mostramos la información general del acceso y el estado actual.'}
                   </Text>
                 </View>
               )}

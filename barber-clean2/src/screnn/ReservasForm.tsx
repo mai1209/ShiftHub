@@ -93,6 +93,36 @@ function getOffsetMinutesInShopTZ(date: Date): number {
   return sign * (hours * 60 + minutes);
 }
 
+function getReliableOffsetMinutesInShopTZ(date: Date): number {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: SHOP_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+
+  const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find(part => part.type === type)?.value ?? 0);
+
+  const asUtc = Date.UTC(
+    getPart('year'),
+    getPart('month') - 1,
+    getPart('day'),
+    getPart('hour'),
+    getPart('minute'),
+    getPart('second'),
+  );
+
+  const offsetMinutes = Math.round((asUtc - date.getTime()) / 60000);
+  if (Number.isFinite(offsetMinutes)) return offsetMinutes;
+
+  return getOffsetMinutesInShopTZ(date);
+}
+
 function getWeekdayInShopTZ(value: string | number | Date): number {
   const weekday = new Intl.DateTimeFormat('en-US', {
     timeZone: SHOP_TZ,
@@ -116,7 +146,7 @@ function buildIsoFromShopDateAndTime(dateValue: Date, slotLabel: string): string
   const [year, month, day] = formatDateInShopTZ(dateValue).split('-').map(Number);
   const [hour, minute] = slotLabel.split(':').map(Number);
   const startUtcGuess = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
-  const offsetMinutes = getOffsetMinutesInShopTZ(new Date(startUtcGuess));
+  const offsetMinutes = getReliableOffsetMinutesInShopTZ(new Date(startUtcGuess));
   return new Date(startUtcGuess - offsetMinutes * 60_000).toISOString();
 }
 
@@ -194,7 +224,6 @@ function resolveBarberScheduleForDate(
   }
 
   const weekday = date.getDay();
-  const targetDate = formatDateInShopTZ(date);
   const override =
     barber.dayScheduleOverrides
       ?.filter(item => Number(item.day) === weekday)
@@ -227,7 +256,7 @@ function resolveBarberScheduleForDate(
 }
 
 function ReservasForm({ navigation, route }: any) {
-  const { theme } = useTheme();
+  const { theme, businessCopy } = useTheme();
   const routeBarberId = route?.params?.barberId ?? null;
   const routeLockBarber = Boolean(route?.params?.lockBarber);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -369,6 +398,35 @@ function ReservasForm({ navigation, route }: any) {
     [barbers, selectedBarber],
   );
 
+  const barbersForSelectedService = useMemo(() => {
+    if (!selectedService?._id) return barbers;
+    return barbers.filter(barber => {
+      const serviceIds = (barber.serviceIds || []).map(String);
+      return serviceIds.length === 0 || serviceIds.includes(selectedService._id);
+    });
+  }, [barbers, selectedService]);
+
+  const visibleBarbers = isBarberSelectionLocked ? barbers : barbersForSelectedService;
+
+  useEffect(() => {
+    if (isBarberSelectionLocked) return;
+    if (!selectedService) return;
+
+    const selectedStillAvailable =
+      selectedBarber &&
+      barbersForSelectedService.some(barber => barber._id === selectedBarber);
+
+    if (selectedStillAvailable) return;
+
+    setSelectedBarber(barbersForSelectedService[0]?._id ?? null);
+    setSelectedSlot(null);
+  }, [
+    barbersForSelectedService,
+    isBarberSelectionLocked,
+    selectedBarber,
+    selectedService,
+  ]);
+
   const isWorkDay = useMemo(() => {
     if (!selectedBarberData) return true;
     if (
@@ -494,6 +552,10 @@ function ReservasForm({ navigation, route }: any) {
       Alert.alert('Error', 'Por favor ingresa tu nombre y elige un horario.');
       return;
     }
+    if (!selectedBarber) {
+      Alert.alert('Error', 'Seleccioná un profesional disponible para este servicio.');
+      return;
+    }
     if (closedDayNotice) {
       Alert.alert('No disponible', closedDayNotice);
       return;
@@ -607,6 +669,7 @@ function ReservasForm({ navigation, route }: any) {
                   style={styles.serviceItem}
                   onPress={() => {
                     setSelectedService(s);
+                    setSelectedSlot(null);
                     setServicePickerVisible(false);
                   }}
                 >
@@ -765,18 +828,26 @@ function ReservasForm({ navigation, route }: any) {
               )}
             </View>
 
-            {/* BARBEROS */}
+            {/* PROFESIONALES */}
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>
-                {isBarberSelectionLocked ? 'Barbero asignado' : 'Tu Barbero'}
+                {isBarberSelectionLocked
+                  ? `${businessCopy.staffSingularCapitalized} asignado`
+                  : `Tu ${businessCopy.staffSingular}`}
               </Text>
               {isBarberUser ? (
                 <Text style={styles.sectionHelperText}>
                   Los turnos manuales que cargues desde tu cuenta quedan asignados a tu agenda.
                 </Text>
               ) : null}
+              {!isBarberSelectionLocked && selectedService ? (
+                <Text style={styles.sectionHelperText}>
+                  Mostramos solo profesionales que realizan {selectedService.name}.
+                </Text>
+              ) : null}
+              {visibleBarbers.length ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {barbers.map(b => (
+                {visibleBarbers.map(b => (
                   <Pressable
                     key={b._id}
                     style={styles.barberCard}
@@ -815,6 +886,11 @@ function ReservasForm({ navigation, route }: any) {
                   </Pressable>
                 ))}
               </ScrollView>
+              ) : (
+                <Text style={styles.emptyBarberText}>
+                  No hay profesionales asignados a este servicio.
+                </Text>
+              )}
             </View>
 
             {/* FECHA Y HORARIOS */}
@@ -905,10 +981,14 @@ function ReservasForm({ navigation, route }: any) {
             <Pressable
               style={[
                 styles.submitBtn,
-                (!paymentMethod || saving || Boolean(closedDayNotice)) && styles.submitBtnDisabled,
+                (!paymentMethod ||
+                  saving ||
+                  Boolean(closedDayNotice) ||
+                  !selectedBarber) &&
+                  styles.submitBtnDisabled,
               ]}
               onPress={handleSubmit}
-              disabled={saving || !paymentMethod || Boolean(closedDayNotice)}
+              disabled={saving || !paymentMethod || Boolean(closedDayNotice) || !selectedBarber}
             >
               {saving ? (
                 <ActivityIndicator color={theme.textOnPrimary} />
@@ -1063,6 +1143,18 @@ const createStyles = (theme: Theme) =>
     barberName: { color: hexToRgba(theme.primary, 0.52), marginTop: 6, fontSize: 14, fontWeight: '600' },
     barberNameActive: { color: theme.textPrimary },
     barberSchedule: { color: hexToRgba(theme.primary, 0.35), fontSize: 10, marginTop: 2 },
+    emptyBarberText: {
+      color: theme.textMuted,
+      fontSize: 13,
+      lineHeight: 19,
+      textAlign: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.input,
+    },
     dateHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',

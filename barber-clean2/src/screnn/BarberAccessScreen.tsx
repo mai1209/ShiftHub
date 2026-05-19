@@ -84,6 +84,7 @@ export default function BarberAccessScreen({ navigation, route }: Props) {
   const [accessPassword, setAccessPassword] = useState('');
   const [generatedAccessPassword, setGeneratedAccessPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const backLabel = route.params?.returnLabel || 'Volver';
 
   const hasAccessUser = Boolean(barber?.loginAccess?.enabled);
 
@@ -312,7 +313,7 @@ export default function BarberAccessScreen({ navigation, route }: Props) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>Volver</Text>
+          <Text style={styles.backButtonText}>{backLabel}</Text>
         </Pressable>
       </View>
     );
@@ -461,7 +462,7 @@ export default function BarberAccessScreen({ navigation, route }: Props) {
             ]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backButtonText}>Volver</Text>
+            <Text style={styles.backButtonText}>{backLabel}</Text>
           </Pressable>
         </View>
       </ScrollView>

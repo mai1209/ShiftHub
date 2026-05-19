@@ -28,6 +28,7 @@ import RecoverPasswordScreen from '../screnn/RecoverPasswordScreen';
 import SettingsScreen from '../screnn/SettingsScreen';
 import UsageGuideScreen from '../screnn/UsageGuideScreen';
 import SubscriptionSettingsScreen from '../screnn/SubscriptionSettingsScreen';
+import PlansScreen from '../screnn/PlansScreen';
 import AccountDeletionRequestScreen from '../screnn/AccountDeletionRequestScreen';
 import ScreenGradient from '../components/ScreenGradient';
 import { navigationRef } from '../../App';
@@ -47,9 +48,10 @@ export type RootStackParamList = {
     | {
         barber?: Barber;
         selfEdit?: boolean;
+        advancedSection?: 'buffer' | 'closedDays' | 'timeBlocks';
       }
     | undefined;
-  'Barber-Access': { barber: Barber };
+  'Barber-Access': { barber: Barber; returnLabel?: string };
   'List-Barber': undefined;
   'Barber-Home':
     | {
@@ -76,6 +78,7 @@ export type RootStackParamList = {
   'Shop-Closure-Settings': undefined;
   'WhatsApp-Campaigns': undefined;
   'Subscription-Settings': undefined;
+  Plans: undefined;
   'Usage-Guide': undefined;
   'Change-Password': undefined;
   'Recover-Password': undefined;
@@ -118,6 +121,7 @@ export default function StackNavigator({
           <Stack.Screen name="Login" component={Login} />
           <Stack.Screen name="Register" component={Register} />
           <Stack.Screen name="Subscription-Settings" component={SubscriptionSettingsScreen} />
+          <Stack.Screen name="Plans" component={PlansScreen} />
           <Stack.Screen name="Change-Password" component={ChangePasswordScreen} />
           <Stack.Screen name="Recover-Password" component={RecoverPasswordScreen} />
           <Stack.Screen

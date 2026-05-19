@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   requireActiveSubscription,
   requireAuth,
+  requirePaidOperationalSubscription,
   requireProSubscription,
 } from "../middlewares/authMiddlewares.js";
 import {
@@ -35,7 +36,7 @@ router.delete("/services/:serviceId", deleteService);
 router.get("/metrics", requireProSubscription, getAppointmentMetrics);
 router.get("/month-overview", requireProSubscription, getCurrentMonthOverview);
 router.get("/history", requireProSubscription, getCustomerHistory);
-router.get("/customers", requireProSubscription, listCustomerContacts);
+router.get("/customers", requirePaidOperationalSubscription, listCustomerContacts);
 router.get("/", listAppointments);
 router.post("/", createAppointment);
 router.delete('/:appointmentId',  deleteAppointment);

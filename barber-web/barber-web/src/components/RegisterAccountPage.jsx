@@ -89,6 +89,7 @@ export default function RegisterAccountPage() {
         email: email.trim().toLowerCase(),
         password,
         businessType,
+        registrationSource: 'web',
       });
       window.location.assign(buildPlansUrl(email));
     } catch (err) {

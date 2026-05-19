@@ -10,7 +10,12 @@ import {
 } from 'react-native';
 import type { Theme } from '../context/ThemeContext';
 
-type Variant = 'metrics' | 'history' | 'barber-metrics';
+type Variant =
+  | 'metrics'
+  | 'history'
+  | 'barber-metrics'
+  | 'barber-limit'
+  | 'basic-feature';
 
 type Props = {
   visible: boolean;
@@ -42,6 +47,18 @@ const COPY: Record<
       'Con el plan Pro podés ver el rendimiento individual de cada barbero con paneles y comparativas dedicadas.',
     cta: 'Ver plan Pro',
   },
+  'barber-limit': {
+    title: 'Sumá más profesionales',
+    body:
+      'El plan gratis permite 1 profesional activo. Actualizá el plan para cargar más integrantes del equipo.',
+    cta: 'Ver planes',
+  },
+  'basic-feature': {
+    title: 'Actualizá para desbloquear esta opción',
+    body:
+      'Esta configuración está disponible desde el plan Básico. Podés seguir usando la app gratis con funciones limitadas.',
+    cta: 'Ver planes',
+  },
 };
 
 function hexToRgba(hex: string, alpha: number) {
@@ -66,13 +83,9 @@ export default function ProFeatureModal({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const copy = COPY[variant];
   const isIOS = Platform.OS === 'ios';
-  const ctaLabel = isIOS ? 'Entendido' : copy.cta;
-  const titleText = isIOS
-    ? 'Función no disponible en esta cuenta'
-    : copy.title;
-  const bodyText = isIOS
-    ? 'Esta sección no está disponible desde iPhone para esta cuenta.'
-    : copy.body;
+  const ctaLabel = isIOS ? 'Gestionar plan' : copy.cta;
+  const titleText = copy.title;
+  const bodyText = copy.body;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -145,10 +158,7 @@ export default function ProFeatureModal({
                 <Text style={styles.secondaryBtnText}>Ahora no</Text>
               </Pressable>
             ) : null}
-            <Pressable
-              style={styles.primaryBtn}
-              onPress={isIOS ? onClose : onOpenPlan}
-            >
+            <Pressable style={styles.primaryBtn} onPress={onOpenPlan}>
               <Text style={styles.primaryBtnText}>{ctaLabel}</Text>
             </Pressable>
           </View>

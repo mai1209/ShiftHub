@@ -13,9 +13,11 @@ import {
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { MessageCircle, Search, Send } from 'lucide-react-native';
-import { CustomerContact, fetchCustomerContacts } from '../services/api';
+import { CustomerContact, fetchCustomerContacts, getCurrentUser } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
+import { hasBasicPlanAccess } from '../services/planAccess';
+import LockedFeatureScreen from '../components/LockedFeatureScreen';
 
 const DEFAULT_MESSAGE =
   'Hola {nombre}! Tenemos una promoción especial en la barbería. Escribinos para reservar tu turno.';
@@ -48,7 +50,7 @@ const buildMessage = (template: string, contact: CustomerContact) =>
     .replace(/\{nombre\}/gi, contact.customerName || 'Cliente')
     .replace(/\{servicio\}/gi, contact.lastService || 'tu servicio');
 
-export default function WhatsAppCampaignScreen() {
+export default function WhatsAppCampaignScreen({ navigation }: { navigation: any }) {
   const { theme } = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const [contacts, setContacts] = useState<CustomerContact[]>([]);
@@ -60,10 +62,15 @@ export default function WhatsAppCampaignScreen() {
   >('most_frequent');
   const [minVisitsInput, setMinVisitsInput] = useState('');
   const [maxVisitsInput, setMaxVisitsInput] = useState('');
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
   const loadContacts = useCallback(async () => {
     try {
       setLoading(true);
+      const currentUser = await getCurrentUser();
+      const canUseFeature = hasBasicPlanAccess(currentUser?.user);
+      setHasAccess(canUseFeature);
+      if (!canUseFeature) return;
       const response = await fetchCustomerContacts({ limit: 500 });
       setContacts(response.contacts ?? []);
     } catch (err: any) {
@@ -72,7 +79,7 @@ export default function WhatsAppCampaignScreen() {
         err?.status === 404
           ? 'La ruta de clientes no existe en el backend actual. Subí los cambios y reiniciá el backend.'
           : err?.code === 'PLAN_UPGRADE_REQUIRED' || err?.status === 403
-            ? 'Esta función requiere plan Pro activo.'
+            ? 'Esta función requiere plan Básico activo.'
             : err?.message || 'Intentá de nuevo en unos minutos.';
       Alert.alert(
         'No pudimos cargar clientes',
@@ -155,7 +162,7 @@ export default function WhatsAppCampaignScreen() {
     } catch (firstError) {
       try {
         await Linking.openURL(webUrl);
-      } catch (_secondError) {
+      } catch {
         Clipboard.setString(text);
         console.error('No pudimos abrir WhatsApp:', firstError);
         Alert.alert(
@@ -165,6 +172,17 @@ export default function WhatsAppCampaignScreen() {
       }
     }
   };
+
+  if (hasAccess === false) {
+    return (
+      <LockedFeatureScreen
+        theme={theme}
+        navigation={navigation}
+        title="Promociones bloqueadas"
+        body="Las promociones por WhatsApp están disponibles desde el plan Básico."
+      />
+    );
+  }
 
   return (
     <ScrollView

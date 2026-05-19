@@ -105,6 +105,12 @@ function PlansScreen({ navigation, route }: any) {
   const [pricing, setPricing] = useState(DEFAULT_PRICING);
 
   useEffect(() => {
+    if (Platform.OS === 'ios') {
+      navigation.replace('Subscription-Settings');
+    }
+  }, [navigation]);
+
+  useEffect(() => {
     let mounted = true;
 
     const loadPricing = async () => {
@@ -189,6 +195,10 @@ function PlansScreen({ navigation, route }: any) {
     await handleOpen(plan.url);
   };
 
+  if (Platform.OS === 'ios') {
+    return null;
+  }
+
   return (
     <ScrollView
       style={styles.screen}
@@ -201,9 +211,7 @@ function PlansScreen({ navigation, route }: any) {
           {fromRegistration ? 'Cuenta creada. Elegí cómo querés seguir.' : 'Planes disponibles'}
         </Text>
         <Text style={styles.subtitle}>
-          {Platform.OS === 'ios'
-            ? `Elegí el plan que mejor acompaña ${businessCopy.yourBusiness}. En este dispositivo vas a ver las opciones disponibles para la cuenta.`
-            : `Elegí el plan que mejor acompaña ${businessCopy.yourBusiness}. La contratación y renovación se resuelven por web.`}
+          {`Elegí el plan que mejor acompaña ${businessCopy.yourBusiness}. La contratación y renovación se resuelven por web.`}
         </Text>
       </View>
 

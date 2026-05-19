@@ -139,6 +139,12 @@ const WEB_STYLE_PRESETS = [
 ];
 
 type WebPreset = (typeof WEB_STYLE_PRESETS)[number]['key'];
+const DEFAULT_PRIMARY = '#111111';
+const DEFAULT_SECONDARY = '#1F2937';
+const DEFAULT_GRADIENT = ['#FFFFFF', '#F8FAFC', '#EEF2F7', '#E2E8F0'];
+const LEGACY_DEFAULT_PRIMARY = '#39E01F';
+const LEGACY_DEFAULT_SECONDARY = '#F3A63B';
+const LEGACY_DEFAULT_GRADIENT = ['#FFFFFF', '#F7FFF1', '#E6FFC6', '#FFD08A'];
 
 type FormState = {
   mode: ThemeMode;
@@ -176,23 +182,41 @@ function isValidHexColor(value: string) {
   return /^#[0-9A-F]{6}$/.test(value.trim().toUpperCase());
 }
 
+function normalizeLegacyDefaultPrimary(value: string | null | undefined, fallback: string) {
+  if (!value) return fallback;
+  return value.toUpperCase() === LEGACY_DEFAULT_PRIMARY ? DEFAULT_PRIMARY : value;
+}
+
+function normalizeLegacyDefaultSecondary(value: string | null | undefined, fallback: string) {
+  if (!value) return fallback;
+  return value.toUpperCase() === LEGACY_DEFAULT_SECONDARY ? DEFAULT_SECONDARY : value;
+}
+
+function normalizeLegacyDefaultGradient(value: string[] | null | undefined, fallback: string[]) {
+  if (!Array.isArray(value) || value.length !== 4) return fallback;
+  const isLegacyDefault = value.every(
+    (color, index) => color.toUpperCase() === LEGACY_DEFAULT_GRADIENT[index],
+  );
+  return isLegacyDefault ? DEFAULT_GRADIENT : value;
+}
+
 function buildInitialForm(theme: Theme, profile: any): FormState {
   const customTheme = profile?.themeConfig ?? {};
-  const gradientColors =
-    Array.isArray(customTheme.gradientColors) && customTheme.gradientColors.length === 4
-      ? customTheme.gradientColors
-      : theme.gradientColors;
+  const gradientColors = normalizeLegacyDefaultGradient(
+    customTheme.gradientColors,
+    theme.gradientColors,
+  );
 
-    return {
-      mode: 'light',
+  return {
+    mode: 'light',
     webPreset:
       customTheme.webPreset === 'vintage' ||
       customTheme.webPreset === 'light' ||
       customTheme.webPreset === 'dark'
         ? customTheme.webPreset
         : 'light',
-    primary: customTheme.primary ?? theme.primary,
-    secondary: customTheme.secondary ?? theme.secondary,
+    primary: normalizeLegacyDefaultPrimary(customTheme.primary, theme.primary),
+    secondary: normalizeLegacyDefaultSecondary(customTheme.secondary, theme.secondary),
     card: customTheme.card ?? theme.card,
     gradient0: gradientColors[0] ?? theme.gradientColors[0],
     gradient1: gradientColors[1] ?? theme.gradientColors[1],

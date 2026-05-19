@@ -15,7 +15,7 @@ type ApiError = Error & {
   isNetworkError?: boolean;
 };
 
-const LAN_IP = "192.168.100.63"; 
+const LAN_IP = "192.168.100.51";
 const ANDROID_EMULATOR_HOST = "10.0.2.2";
 const REQUEST_TIMEOUT_MS = 15000;
 const FORCE_PROD_IN_DEBUG = false; // En desarrollo usamos el backend local para no mezclar datos con producción
@@ -186,10 +186,11 @@ export function registerUser(payload: {
   fullName: string;
   password: string;
   businessType?: string;
+  registrationSource?: "web" | "mobile";
 }) {
   return request<{ token?: string; user?: any; message?: string }>("/api/auth/register", {
     method: "POST",
-    body: payload,
+    body: { ...payload, registrationSource: payload.registrationSource ?? "mobile" },
   });
 }
 
@@ -460,6 +461,7 @@ export type Barber = {
   email?: string; 
   phone?: string; 
   photoUrl?: string | null;
+  serviceIds?: string[];
   scheduleRange?: string; 
   scheduleRanges?: { label: string; start: string; end: string }[];
   bookingBufferMinutes?: number;
@@ -657,6 +659,7 @@ export function createBarber(payload: {
   email?: string; 
   phone?: string; 
   photoUrl?: string;
+  serviceIds?: string[];
   scheduleRange?: string;
   scheduleRanges?: { label: string; start: string; end: string }[];
   bookingBufferMinutes?: number;
@@ -690,6 +693,7 @@ export function updateBarber(
     email?: string;
     phone?: string;
     photoUrl?: string;
+    serviceIds?: string[];
     scheduleRange?: string;
     scheduleRanges?: { label: string; start: string; end: string }[];
     bookingBufferMinutes?: number;

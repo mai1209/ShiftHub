@@ -34,9 +34,12 @@ import type { Theme } from '../context/ThemeContext';
 import {
   CustomerHistoryResponse,
   ServiceOption,
+  getCurrentUser,
   fetchCustomerHistory,
   fetchServices,
 } from '../services/api';
+import { hasProPlanAccess } from '../services/planAccess';
+import LockedFeatureScreen from '../components/LockedFeatureScreen';
 
 type Props = {
   navigation: any;
@@ -212,6 +215,7 @@ function CustomerHistoryScreen({ navigation }: Props) {
     'most',
   );
   const [activePicker, setActivePicker] = useState<PickerType>(null);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
   const monthOptions = useMemo<PickerOption[]>(
     () =>
@@ -226,6 +230,10 @@ function CustomerHistoryScreen({ navigation }: Props) {
     async (isRefresh = false) => {
       try {
         if (!isRefresh) setLoading(true);
+        const currentUser = await getCurrentUser();
+        const canUseFeature = hasProPlanAccess(currentUser?.user);
+        setHasAccess(canUseFeature);
+        if (!canUseFeature) return;
         const [historyResponse, servicesResponse] = await Promise.all([
           fetchCustomerHistory({
             year: now.getFullYear(),
@@ -968,6 +976,17 @@ function CustomerHistoryScreen({ navigation }: Props) {
       console.error(err);
     }
   };
+
+  if (hasAccess === false) {
+    return (
+      <LockedFeatureScreen
+        theme={theme}
+        navigation={navigation}
+        title="Historial bloqueado"
+        body="La información e historial de clientes está disponible con plan Pro."
+      />
+    );
+  }
 
   return (
     <View style={styles.screen}>

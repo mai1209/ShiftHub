@@ -18,6 +18,8 @@ import {
 import { saveUserProfile } from '../services/authStorage';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
+import { hasBasicPlanAccess } from '../services/planAccess';
+import LockedFeatureScreen from '../components/LockedFeatureScreen';
 
 type FormState = {
   subtitle: string;
@@ -123,12 +125,13 @@ function toPayload(form: FormState): PublicProfile {
   };
 }
 
-export default function PublicProfileSettingsScreen() {
+export default function PublicProfileSettingsScreen({ navigation }: { navigation: any }) {
   const { theme, applyUserTheme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [hasAccess, setHasAccess] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -137,6 +140,7 @@ export default function PublicProfileSettingsScreen() {
       try {
         const res = await getCurrentUser();
         if (!active) return;
+        setHasAccess(hasBasicPlanAccess(res?.user));
         setForm(toFormState(res?.user?.publicProfile));
       } catch (err: any) {
         if (active) {
@@ -187,6 +191,17 @@ export default function PublicProfileSettingsScreen() {
     );
   }
 
+  if (!hasAccess) {
+    return (
+      <LockedFeatureScreen
+        theme={theme}
+        navigation={navigation}
+        title="Perfil público bloqueado"
+        body="El perfil público del negocio está disponible desde el plan Básico."
+      />
+    );
+  }
+
   return (
     <ScrollView
       style={styles.screen}
@@ -221,15 +236,6 @@ export default function PublicProfileSettingsScreen() {
             />
           </View>
         ))}
-      </View>
-
-      <View style={styles.tipCard}>
-        <Text style={styles.tipTitle}>Implementación recomendada</Text>
-        <Text style={styles.tipText}>
-          Para empezar, cargá el link de Google Maps y el link de reseñas. El
-          Place ID queda preparado para una integración futura si después
-          querés traer datos automáticos desde Google.
-        </Text>
       </View>
 
       <Pressable

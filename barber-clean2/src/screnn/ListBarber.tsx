@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   StyleSheet,
   Text,
@@ -13,17 +19,29 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
-} from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
-import { fetchBarbers, Barber, deleteBarber } from "../services/api";
-import { useTheme } from "../context/ThemeContext";
-import type { Theme } from "../context/ThemeContext";
-import { Pencil, Trash2 } from "lucide-react-native";
-import { Swipeable } from "react-native-gesture-handler";
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import {
+  fetchBarbers,
+  fetchServices,
+  getCurrentUser,
+  Barber,
+  deleteBarber,
+  ServiceOption,
+} from '../services/api';
+import { useTheme } from '../context/ThemeContext';
+import type { Theme } from '../context/ThemeContext';
+import { Pencil, Trash2 } from 'lucide-react-native';
+import { Swipeable } from 'react-native-gesture-handler';
+import ProFeatureModal from '../components/ProFeatureModal';
+import { isFreePlan } from '../services/planAccess';
 
 const hexToRgba = (hex: string, alpha: number) => {
-  const sanitized = hex.replace("#", "");
-  const bigint = parseInt(sanitized.length === 3 ? sanitized.repeat(2) : sanitized, 16);
+  const sanitized = hex.replace('#', '');
+  const bigint = parseInt(
+    sanitized.length === 3 ? sanitized.repeat(2) : sanitized,
+    16,
+  );
   const r = (bigint >> 16) & 255;
   const g = (bigint >> 8) & 255;
   const b = bigint & 255;
@@ -31,39 +49,39 @@ const hexToRgba = (hex: string, alpha: number) => {
 };
 
 const formatLastAccess = (value?: string | null) => {
-  if (!value) return "Nunca ingresó";
+  if (!value) return 'Nunca ingresó';
 
   try {
-    return new Date(value).toLocaleString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+    return new Date(value).toLocaleString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
-  } catch (_error) {
-    return "Sin dato";
+  } catch {
+    return 'Sin dato';
   }
 };
 
 const resolveAccessStatus = (barber: Barber) => {
   if (!barber.loginAccess?.enabled) {
     return {
-      label: "Sin acceso",
-      variant: "disabled" as const,
+      label: 'Sin acceso',
+      variant: 'disabled' as const,
     };
   }
 
   if (barber.loginAccess?.lastLoginAt) {
     return {
-      label: "Activo",
-      variant: "active" as const,
+      label: 'Activo',
+      variant: 'active' as const,
     };
   }
 
   return {
-    label: "Nunca ingresó",
-    variant: "pending" as const,
+    label: 'Nunca ingresó',
+    variant: 'pending' as const,
   };
 };
 
@@ -71,26 +89,37 @@ type Props = {
   navigation: any;
 };
 
-type AccessFilter = "all" | "enabled" | "disabled";
+type AccessFilter = 'all' | 'enabled' | 'disabled';
 
 function ListBarber({ navigation }: Props) {
   const { theme, businessCopy } = useTheme();
   const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [services, setServices] = useState<ServiceOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState("");
-  const [accessFilter, setAccessFilter] = useState<AccessFilter>("all");
+  const [error, setError] = useState('');
+  const [accessFilter, setAccessFilter] = useState<AccessFilter>('all');
+  const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
   const openedSwipeableIdRef = useRef<string | null>(null);
   const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
 
   const loadBarbers = useCallback(async () => {
     try {
       if (!refreshing) setLoading(true);
-      const res = await fetchBarbers();
-      setBarbers(res.barbers);
-      setError("");
+      const [barberRes, serviceRes, currentUserRes] = await Promise.all([
+        fetchBarbers(),
+        fetchServices().catch(() => ({ services: [] })),
+        getCurrentUser().catch(() => null),
+      ]);
+      setBarbers(barberRes.barbers);
+      setServices(serviceRes.services);
+      setCurrentUser(currentUserRes?.user ?? null);
+      setError('');
     } catch (err: any) {
-      setError(err?.message ?? `No pudimos cargar los ${businessCopy.staffPlural}`);
+      setError(
+        err?.message ?? `No pudimos cargar los ${businessCopy.staffPlural}`,
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -113,7 +142,7 @@ function ListBarber({ navigation }: Props) {
   };
 
   const handleOpenBarber = (barber: Barber) => {
-    navigation.navigate("Barber-Home", {
+    navigation.navigate('Barber-Home', {
       barberId: barber._id,
       barberName: barber.fullName,
       barber,
@@ -121,13 +150,13 @@ function ListBarber({ navigation }: Props) {
   };
 
   const handleEditBarber = (barber: Barber) => {
-    navigation.navigate("Register-Employed", {
+    navigation.navigate('Register-Employed', {
       barber,
     });
   };
 
   const handleManageAccess = (barber: Barber) => {
-    navigation.navigate("Barber-Access", { barber });
+    navigation.navigate('Barber-Access', { barber });
   };
 
   const handleDeleteBarber = (barber: Barber) => {
@@ -135,16 +164,19 @@ function ListBarber({ navigation }: Props) {
       `Eliminar ${businessCopy.staffSingular}`,
       `Se va a desactivar a ${barber.fullName}. Ya no va a aparecer para cargar turnos.`,
       [
-        { text: "Cancelar", style: "cancel" },
+        { text: 'Cancelar', style: 'cancel' },
         {
-          text: "Eliminar",
-          style: "destructive",
+          text: 'Eliminar',
+          style: 'destructive',
           onPress: async () => {
             try {
               await deleteBarber(barber._id);
               setBarbers(prev => prev.filter(item => item._id !== barber._id));
             } catch (err: any) {
-              setError(err?.message ?? `No se pudo eliminar el ${businessCopy.staffSingular}`);
+              setError(
+                err?.message ??
+                  `No se pudo eliminar el ${businessCopy.staffSingular}`,
+              );
             }
           },
         },
@@ -152,18 +184,36 @@ function ListBarber({ navigation }: Props) {
     );
   };
 
+  const serviceNameById = useMemo(
+    () => new Map(services.map(service => [service._id, service.name])),
+    [services],
+  );
   const styles = useMemo(() => createStyles(theme), [theme]);
   const filteredBarbers = useMemo(() => {
-    if (accessFilter === "enabled") {
+    if (accessFilter === 'enabled') {
       return barbers.filter(barber => barber.loginAccess?.enabled);
     }
 
-    if (accessFilter === "disabled") {
+    if (accessFilter === 'disabled') {
       return barbers.filter(barber => !barber.loginAccess?.enabled);
     }
 
     return barbers;
   }, [accessFilter, barbers]);
+  const freeLimitReached = isFreePlan(currentUser) && barbers.length >= 1;
+
+  const handleAddBarber = () => {
+    if (freeLimitReached) {
+      setUpgradeModalVisible(true);
+      return;
+    }
+    navigation.navigate('Register-Employed');
+  };
+
+  const handleOpenUpgrade = () => {
+    setUpgradeModalVisible(false);
+    navigation.navigate(Platform.OS === 'ios' ? 'Subscription-Settings' : 'Plans');
+  };
 
   const handleSwipeableOpen = (barberId: string) => {
     const previousId = openedSwipeableIdRef.current;
@@ -189,7 +239,7 @@ function ListBarber({ navigation }: Props) {
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
@@ -205,8 +255,12 @@ function ListBarber({ navigation }: Props) {
         >
           <View style={styles.header}>
             <Image style={styles.logo} source={theme.logo} />
-            <Text style={[styles.headerSubtitle, { color: theme.primary }]}>EQUIPO PROFESIONAL</Text>
-            <Text style={styles.headerTitle}>{businessCopy.staffPluralCapitalized}</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.primary }]}>
+              EQUIPO PROFESIONAL
+            </Text>
+            <Text style={styles.headerTitle}>
+              {businessCopy.staffPluralCapitalized}
+            </Text>
           </View>
 
           <View style={styles.mainCard}>
@@ -214,57 +268,81 @@ function ListBarber({ navigation }: Props) {
 
             <View style={styles.filterRow}>
               <Pressable
-                onPress={() => setAccessFilter("all")}
+                onPress={() => setAccessFilter('all')}
                 style={[
                   styles.filterChip,
-                  accessFilter === "all" && styles.filterChipActive,
+                  accessFilter === 'all' && styles.filterChipActive,
                 ]}
               >
                 <Text
                   style={[
                     styles.filterChipText,
-                    accessFilter === "all" && styles.filterChipTextActive,
+                    accessFilter === 'all' && styles.filterChipTextActive,
                   ]}
                 >
                   Todos
                 </Text>
               </Pressable>
               <Pressable
-                onPress={() => setAccessFilter("enabled")}
+                onPress={() => setAccessFilter('enabled')}
                 style={[
                   styles.filterChip,
-                  accessFilter === "enabled" && styles.filterChipActive,
+                  accessFilter === 'enabled' && styles.filterChipActive,
                 ]}
               >
                 <Text
                   style={[
                     styles.filterChipText,
-                    accessFilter === "enabled" && styles.filterChipTextActive,
+                    accessFilter === 'enabled' && styles.filterChipTextActive,
                   ]}
                 >
                   Con acceso
                 </Text>
               </Pressable>
               <Pressable
-                onPress={() => setAccessFilter("disabled")}
+                onPress={() => setAccessFilter('disabled')}
                 style={[
                   styles.filterChip,
-                  accessFilter === "disabled" && styles.filterChipActive,
+                  accessFilter === 'disabled' && styles.filterChipActive,
                 ]}
               >
                 <Text
                   style={[
                     styles.filterChipText,
-                    accessFilter === "disabled" && styles.filterChipTextActive,
+                    accessFilter === 'disabled' && styles.filterChipTextActive,
                   ]}
                 >
                   Sin acceso
                 </Text>
               </Pressable>
+              <Pressable
+                style={styles.addBtn}
+                onPress={handleAddBarber}
+              >
+                <Text style={styles.addBtnText}>
+                  {`+ Agregar ${businessCopy.staffSingular}`}
+                </Text>
+              </Pressable>
             </View>
 
+            {freeLimitReached ? (
+              <View style={styles.limitCard}>
+                <Text style={styles.limitTitle}>Límite del plan gratis</Text>
+                <Text style={styles.limitText}>
+                  Ya tenés 1 {businessCopy.staffSingular} activo. Actualizá el plan
+                  para sumar más integrantes al equipo.
+                </Text>
+                <Pressable style={styles.limitButton} onPress={handleOpenUpgrade}>
+                  <Text style={styles.limitButtonText}>Ver planes</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             {loading && !barbers.length ? (
-              <ActivityIndicator color={theme.primary} style={{ marginVertical: 40 }} />
+              <ActivityIndicator
+                color={theme.primary}
+                style={{ marginVertical: 40 }}
+              />
             ) : (
               <View style={styles.listContainer}>
                 {filteredBarbers.length === 0 ? (
@@ -276,164 +354,187 @@ function ListBarber({ navigation }: Props) {
                       {`Probá ver todos o cargá credenciales desde editar ${businessCopy.staffSingular}.`}
                     </Text>
                   </View>
-                ) : filteredBarbers.map((barber) => {
-                  const accessStatus = resolveAccessStatus(barber);
+                ) : (
+                  filteredBarbers.map(barber => {
+                    const accessStatus = resolveAccessStatus(barber);
 
-                  return (
-                    <Swipeable
-                      key={barber._id}
-                      ref={ref => {
-                        swipeableRefs.current[barber._id] = ref;
-                      }}
-                      renderRightActions={() => renderRightActions(barber)}
-                      overshootRight={false}
-                      rightThreshold={36}
-                      onSwipeableOpen={() => handleSwipeableOpen(barber._id)}
-                      onSwipeableClose={() => {
-                        if (openedSwipeableIdRef.current === barber._id) {
-                          openedSwipeableIdRef.current = null;
-                        }
-                      }}
-                    >
-                      <View style={styles.barberItem}>
-                        <View style={styles.barberMainAction}>
-                          <View style={styles.barberInfo}>
-                            <View style={styles.avatarCircle}>
-                              {barber.photoUrl ? (
-                                <Image
-                                  source={{ uri: barber.photoUrl }}
-                                  style={styles.avatarImage}
-                                />
-                              ) : (
-                                <Text style={styles.avatarText}>
-                                  {barber.fullName.charAt(0).toUpperCase()}
+                    return (
+                      <Swipeable
+                        key={barber._id}
+                        ref={ref => {
+                          swipeableRefs.current[barber._id] = ref;
+                        }}
+                        renderRightActions={() => renderRightActions(barber)}
+                        overshootRight={false}
+                        rightThreshold={36}
+                        onSwipeableOpen={() => handleSwipeableOpen(barber._id)}
+                        onSwipeableClose={() => {
+                          if (openedSwipeableIdRef.current === barber._id) {
+                            openedSwipeableIdRef.current = null;
+                          }
+                        }}
+                      >
+                        <View style={styles.barberItem}>
+                          <View style={styles.barberMainAction}>
+                            <View style={styles.barberInfo}>
+                              <View style={styles.avatarCircle}>
+                                {barber.photoUrl ? (
+                                  <Image
+                                    source={{ uri: barber.photoUrl }}
+                                    style={styles.avatarImage}
+                                  />
+                                ) : (
+                                  <Text style={styles.avatarText}>
+                                    {barber.fullName.charAt(0).toUpperCase()}
+                                  </Text>
+                                )}
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text
+                                  style={styles.barberName}
+                                  numberOfLines={1}
+                                >
+                                  {barber.fullName}
                                 </Text>
-                              )}
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.barberName} numberOfLines={1}>
-                                {barber.fullName}
-                              </Text>
-                              <View style={styles.accessMetaRow}>
-                                <View
-                                  style={[
-                                    styles.statusBadge,
-                                    accessStatus.variant === "active"
-                                      ? styles.statusBadgeActive
-                                      : accessStatus.variant === "pending"
+                                <View style={styles.accessMetaRow}>
+                                  <View
+                                    style={[
+                                      styles.statusBadge,
+                                      accessStatus.variant === 'active'
+                                        ? styles.statusBadgeActive
+                                        : accessStatus.variant === 'pending'
                                         ? styles.statusBadgePending
                                         : styles.statusBadgeDisabled,
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.statusBadgeText,
-                                      accessStatus.variant === "active"
-                                        ? styles.statusBadgeTextActive
-                                        : accessStatus.variant === "pending"
+                                    ]}
+                                  >
+                                    <Text
+                                      style={[
+                                        styles.statusBadgeText,
+                                        accessStatus.variant === 'active'
+                                          ? styles.statusBadgeTextActive
+                                          : accessStatus.variant === 'pending'
                                           ? styles.statusBadgeTextPending
                                           : styles.statusBadgeTextDisabled,
-                                    ]}
-                                  >
-                                    {accessStatus.label}
-                                  </Text>
-                                </View>
-                                <View
-                                  style={[
-                                    styles.accessChip,
-                                    barber.loginAccess?.enabled
-                                      ? styles.accessChipEnabled
-                                      : styles.accessChipDisabled,
-                                  ]}
-                                >
-                                  <Text
+                                      ]}
+                                    >
+                                      {accessStatus.label}
+                                    </Text>
+                                  </View>
+                                  <View
                                     style={[
-                                      styles.accessChipText,
+                                      styles.accessChip,
                                       barber.loginAccess?.enabled
-                                        ? styles.accessChipTextEnabled
-                                        : styles.accessChipTextDisabled,
+                                        ? styles.accessChipEnabled
+                                        : styles.accessChipDisabled,
                                     ]}
-                                    numberOfLines={1}
                                   >
-                                    {barber.loginAccess?.enabled
-                                      ? barber.loginAccess?.email || 'Con acceso'
-                                      : 'Sin credenciales'}
-                                  </Text>
+                                    <Text
+                                      style={[
+                                        styles.accessChipText,
+                                        barber.loginAccess?.enabled
+                                          ? styles.accessChipTextEnabled
+                                          : styles.accessChipTextDisabled,
+                                      ]}
+                                      numberOfLines={1}
+                                    >
+                                      {barber.loginAccess?.enabled
+                                        ? barber.loginAccess?.email ||
+                                          'Con acceso'
+                                        : 'Sin credenciales'}
+                                    </Text>
+                                  </View>
                                 </View>
-                              </View>
-                              {barber.loginAccess?.enabled ? (
-                                <Text style={styles.lastAccessText}>
-                                  Último acceso: {formatLastAccess(barber.loginAccess?.lastLoginAt)}
+                                {barber.loginAccess?.enabled ? (
+                                  <Text style={styles.lastAccessText}>
+                                    Último acceso:{' '}
+                                    {formatLastAccess(
+                                      barber.loginAccess?.lastLoginAt,
+                                    )}
+                                  </Text>
+                                ) : null}
+                                <Text
+                                  style={styles.servicesText}
+                                  numberOfLines={2}
+                                >
+                                  {(barber.serviceIds || []).length
+                                    ? (barber.serviceIds || [])
+                                        .map(id => serviceNameById.get(id))
+                                        .filter(Boolean)
+                                        .join(' · ') || 'Servicios asignados'
+                                    : 'Atiende todos los servicios'}
                                 </Text>
-                              ) : null}
+                              </View>
                             </View>
-                          </View>
 
-                          <View style={styles.barberActions}>
-                            <Pressable
-                              style={({ pressed }) => [
-                                barber.loginAccess?.enabled
-                                  ? styles.accessActionBtn
-                                  : styles.accessActionBtnPrimary,
-                                { opacity: pressed ? 0.7 : 1 },
-                              ]}
-                              onPress={() => handleManageAccess(barber)}
-                            >
-                              <Text
-                                style={
+                            <View style={styles.barberActions}>
+                              <Pressable
+                                style={({ pressed }) => [
                                   barber.loginAccess?.enabled
-                                    ? styles.accessActionBtnText
-                                    : styles.accessActionBtnPrimaryText
-                                }
-                              >
-                                {barber.loginAccess?.enabled
-                                  ? "Gestionar acceso"
-                                  : "Crear acceso"}
-                              </Text>
-                            </Pressable>
-
-                            <View style={styles.secondaryActionsRow}>
-                              <Pressable
-                                style={({ pressed }) => [
-                                  styles.editBtn,
-                                  { opacity: pressed ? 0.5 : 1 }
+                                    ? styles.accessActionBtn
+                                    : styles.accessActionBtnPrimary,
+                                  { opacity: pressed ? 0.7 : 1 },
                                 ]}
-                                onPress={() => handleEditBarber(barber)}
+                                onPress={() => handleManageAccess(barber)}
                               >
-                                <Pencil size={12} color={theme.textMuted} />
-                                <Text style={styles.editBtnText}>Editar</Text>
+                                <Text
+                                  style={
+                                    barber.loginAccess?.enabled
+                                      ? styles.accessActionBtnText
+                                      : styles.accessActionBtnPrimaryText
+                                  }
+                                >
+                                  {barber.loginAccess?.enabled
+                                    ? 'Gestionar acceso'
+                                    : 'Crear acceso'}
+                                </Text>
                               </Pressable>
 
-                              <Pressable
-                                style={({ pressed }) => [
-                                  styles.openBtn,
-                                  pressed && { transform: [{ scale: 0.96 }], opacity: 0.9 },
-                                ]}
-                                onPress={() => handleOpenBarber(barber)}
-                              >
-                                <Text style={styles.openBtnText}>Abrir panel</Text>
-                              </Pressable>
+                              <View style={styles.secondaryActionsRow}>
+                                <Pressable
+                                  style={({ pressed }) => [
+                                    styles.editBtn,
+                                    { opacity: pressed ? 0.5 : 1 },
+                                  ]}
+                                  onPress={() => handleEditBarber(barber)}
+                                >
+                                  <Pencil size={12} color={theme.textMuted} />
+                                  <Text style={styles.editBtnText}>Editar</Text>
+                                </Pressable>
+
+                                <Pressable
+                                  style={({ pressed }) => [
+                                    styles.openBtn,
+                                    pressed && {
+                                      transform: [{ scale: 0.96 }],
+                                      opacity: 0.9,
+                                    },
+                                  ]}
+                                  onPress={() => handleOpenBarber(barber)}
+                                >
+                                  <Text style={styles.openBtnText}>
+                                    Abrir panel
+                                  </Text>
+                                </Pressable>
+                              </View>
                             </View>
                           </View>
                         </View>
-                      </View>
-                    </Swipeable>
-                  );
-                })}
+                      </Swipeable>
+                    );
+                  })
+                )}
               </View>
             )}
-
-            <Pressable
-              style={styles.addBtn}
-              onPress={() => navigation.navigate("Register-Employed")}
-            >
-              <Text style={styles.addBtnText}>
-                {`+ Agregar ${businessCopy.staffSingular}`}
-              </Text>
-            </Pressable>
           </View>
         </ScrollView>
       </TouchableWithoutFeedback>
+      <ProFeatureModal
+        visible={upgradeModalVisible}
+        variant="barber-limit"
+        theme={theme}
+        onClose={() => setUpgradeModalVisible(false)}
+        onOpenPlan={handleOpenUpgrade}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -442,37 +543,41 @@ const createStyles = (theme: Theme) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: theme.background },
     scrollContent: { paddingBottom: 130 },
-    
-    header: { 
-      marginTop: Platform.OS === 'ios' ? 60 : 20 , 
-      paddingHorizontal: 25, 
+
+    header: {
+      marginTop: Platform.OS === 'ios' ? 60 : 20,
+      paddingHorizontal: 25,
       alignItems: 'center',
-      marginBottom: 20 ,
-                                                            
+      marginBottom: 20,
     },
     logo: { width: 50, height: 50, marginBottom: 15, resizeMode: 'contain' },
-    headerSubtitle: { 
-      color: theme.primary, 
-      fontSize: 12, 
-      fontWeight: "700", 
+    headerSubtitle: {
+      color: theme.primary,
+      fontSize: 12,
+      fontWeight: '700',
       letterSpacing: 2,
-      textTransform: 'uppercase'
+      textTransform: 'uppercase',
     },
-    headerTitle: { color: theme.textPrimary, fontSize: 32, fontWeight: "800", marginTop: 5 },
+    headerTitle: {
+      color: theme.textPrimary,
+      fontSize: 32,
+      fontWeight: '800',
+      marginTop: 5,
+    },
 
-    mainCard: { 
-      marginHorizontal: 15, 
-      backgroundColor: theme.card, 
-      borderRadius: 32, 
-      padding: 20, 
+    mainCard: {
+      marginHorizontal: 15,
+      backgroundColor: theme.card,
+      borderRadius: 32,
+      padding: 20,
       borderWidth: 1,
-      borderColor: hexToRgba(theme.primary, 0.15)
+      borderColor: hexToRgba(theme.primary, 0.15),
     },
     filterRow: {
-      flexDirection: "row",
+      flexDirection: 'row',
       gap: 8,
       marginBottom: 16,
-      flexWrap: "wrap",
+      flexWrap: 'wrap',
     },
     filterChip: {
       borderRadius: 999,
@@ -489,7 +594,7 @@ const createStyles = (theme: Theme) =>
     filterChipText: {
       color: theme.textMuted,
       fontSize: 12,
-      fontWeight: "700",
+      fontWeight: '700',
     },
     filterChipTextActive: {
       color: theme.textOnPrimary,
@@ -503,21 +608,21 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: theme.border,
       backgroundColor: theme.surfaceAlt,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems: 'center',
+      justifyContent: 'center',
       gap: 8,
     },
     emptyStateTitle: {
       color: theme.textPrimary,
       fontSize: 15,
-      fontWeight: "800",
-      textAlign: "center",
+      fontWeight: '800',
+      textAlign: 'center',
     },
     emptyStateText: {
       color: theme.textMuted,
       fontSize: 13,
       lineHeight: 19,
-      textAlign: "center",
+      textAlign: 'center',
     },
 
     barberItem: {
@@ -533,21 +638,21 @@ const createStyles = (theme: Theme) =>
       elevation: 2,
     },
     barberMainAction: {
-      flexDirection: "column",
-      alignItems: "stretch",
+      flexDirection: 'column',
+      alignItems: 'stretch',
       padding: 14,
       gap: 14,
     },
     barberInfo: {
-      flexDirection: "row",
-      alignItems: "flex-start",
+      flexDirection: 'row',
+      alignItems: 'flex-start',
       gap: 12,
     },
     barberActions: {
       gap: 10,
     },
     secondaryActionsRow: {
-      flexDirection: "row",
+      flexDirection: 'row',
       gap: 10,
     },
     avatarCircle: {
@@ -555,33 +660,33 @@ const createStyles = (theme: Theme) =>
       height: 52,
       borderRadius: 26,
       backgroundColor: theme.surfaceAlt,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems: 'center',
+      justifyContent: 'center',
       borderWidth: 1,
       borderColor: theme.border,
-      overflow: "hidden",
+      overflow: 'hidden',
     },
     avatarImage: {
-      width: "100%",
-      height: "100%",
+      width: '100%',
+      height: '100%',
     },
     avatarText: {
       color: theme.primary,
       fontSize: 18,
-      fontWeight: "800",
+      fontWeight: '800',
     },
     barberName: {
       color: theme.textPrimary,
       fontSize: 16,
-      fontWeight: "800",
+      fontWeight: '800',
     },
     accessChip: {
-      alignSelf: "flex-start",
+      alignSelf: 'flex-start',
       borderRadius: 999,
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderWidth: 1,
-      maxWidth: "100%",
+      maxWidth: '100%',
     },
     accessChipEnabled: {
       backgroundColor: hexToRgba(theme.primary, 0.14),
@@ -593,7 +698,7 @@ const createStyles = (theme: Theme) =>
     },
     accessChipText: {
       fontSize: 11,
-      fontWeight: "700",
+      fontWeight: '700',
     },
     accessChipTextEnabled: {
       color: theme.primary,
@@ -602,40 +707,40 @@ const createStyles = (theme: Theme) =>
       color: theme.textMuted,
     },
     accessMetaRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
+      flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: 6,
       marginTop: 6,
-      alignItems: "center",
+      alignItems: 'center',
     },
     statusBadge: {
-      alignSelf: "flex-start",
+      alignSelf: 'flex-start',
       borderRadius: 999,
       paddingHorizontal: 10,
       paddingVertical: 5,
       borderWidth: 1,
     },
     statusBadgeActive: {
-      backgroundColor: "rgba(45, 212, 191, 0.12)",
-      borderColor: "rgba(45, 212, 191, 0.28)",
+      backgroundColor: 'rgba(45, 212, 191, 0.12)',
+      borderColor: 'rgba(45, 212, 191, 0.28)',
     },
     statusBadgePending: {
-      backgroundColor: "rgba(250, 204, 21, 0.12)",
-      borderColor: "rgba(250, 204, 21, 0.26)",
+      backgroundColor: 'rgba(250, 204, 21, 0.12)',
+      borderColor: 'rgba(250, 204, 21, 0.26)',
     },
     statusBadgeDisabled: {
-      backgroundColor: "rgba(148, 163, 184, 0.12)",
-      borderColor: "rgba(148, 163, 184, 0.24)",
+      backgroundColor: 'rgba(148, 163, 184, 0.12)',
+      borderColor: 'rgba(148, 163, 184, 0.24)',
     },
     statusBadgeText: {
       fontSize: 11,
-      fontWeight: "800",
+      fontWeight: '800',
     },
     statusBadgeTextActive: {
-      color: "#2DD4BF",
+      color: '#2DD4BF',
     },
     statusBadgeTextPending: {
-      color: "#FACC15",
+      color: '#FACC15',
     },
     statusBadgeTextDisabled: {
       color: theme.textMuted,
@@ -644,16 +749,22 @@ const createStyles = (theme: Theme) =>
       marginTop: 5,
       color: theme.textMuted,
       fontSize: 11,
-      fontWeight: "600",
+      fontWeight: '600',
       lineHeight: 16,
     },
-    
+    servicesText: {
+      marginTop: 6,
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+      lineHeight: 17,
+    },
 
     // BOTÓN EDITAR (Sutil)
     editBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
       gap: 6,
       paddingHorizontal: 12,
       paddingVertical: 11,
@@ -666,7 +777,7 @@ const createStyles = (theme: Theme) =>
     editBtnText: {
       color: theme.textMuted,
       fontSize: 12,
-      fontWeight: "700",
+      fontWeight: '700',
     },
     accessActionBtn: {
       borderRadius: 14,
@@ -675,8 +786,8 @@ const createStyles = (theme: Theme) =>
       backgroundColor: hexToRgba(theme.primary, 0.1),
       paddingHorizontal: 14,
       paddingVertical: 13,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     accessActionBtnPrimary: {
       borderRadius: 14,
@@ -685,25 +796,25 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.primary,
       paddingHorizontal: 14,
       paddingVertical: 13,
-      alignItems: "center",
-      justifyContent: "center",
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     accessActionBtnText: {
       color: theme.primary,
       fontSize: 13,
-      fontWeight: "800",
+      fontWeight: '800',
     },
     accessActionBtnPrimaryText: {
       color: theme.textOnPrimary,
       fontSize: 13,
-      fontWeight: "800",
+      fontWeight: '800',
     },
 
     // BOTÓN ABRIR (Principal)
     openBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor: theme.primary,
       paddingHorizontal: 14,
       paddingVertical: 11,
@@ -718,45 +829,76 @@ const createStyles = (theme: Theme) =>
     openBtnText: {
       color: theme.textOnPrimary,
       fontSize: 12,
-      fontWeight: "800",
+      fontWeight: '800',
     },
- 
 
     deleteSwipeAction: {
       width: 90,
       borderRadius: 24,
       marginLeft: 10,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "#d64545",
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#d64545',
       gap: 4,
     },
     deleteSwipeText: {
-      color: "#fff",
+      color: '#fff',
       fontSize: 11,
-      fontWeight: "800",
+      fontWeight: '800',
     },
 
     addBtn: {
-      backgroundColor: "transparent",
+      backgroundColor: 'transparent',
       paddingVertical: 16,
       borderRadius: 20,
       marginTop: 25,
       borderWidth: 1.5,
       borderColor: hexToRgba(theme.primary, 0.5),
-      alignItems: "center",
+      width: '100%',
     },
     addBtnText: {
       color: theme.primary,
       fontSize: 14,
-      fontWeight: "700",
+      fontWeight: '700',
+      textAlign: 'center',
     },
-    
+    limitCard: {
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: hexToRgba(theme.primary, 0.24),
+      backgroundColor: hexToRgba(theme.primary, 0.08),
+      padding: 16,
+      gap: 8,
+      marginBottom: 16,
+    },
+    limitTitle: {
+      color: theme.textPrimary,
+      fontSize: 15,
+      fontWeight: '900',
+    },
+    limitText: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      lineHeight: 19,
+    },
+    limitButton: {
+      marginTop: 4,
+      borderRadius: 14,
+      backgroundColor: theme.primary,
+      paddingVertical: 12,
+      alignItems: 'center',
+    },
+    limitButtonText: {
+      color: theme.textOnPrimary,
+      fontSize: 13,
+      fontWeight: '900',
+    },
+
     errorText: {
-      color: "#ff8080",
-      textAlign: "center",
+      color: '#ff8080',
+      textAlign: 'center',
       marginBottom: 15,
-      fontWeight: '600'
+      fontWeight: '600',
     },
   });
 

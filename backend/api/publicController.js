@@ -124,6 +124,7 @@ function sanitizeBarber(barber) {
     _id: barber._id.toString(),
     fullName: barber.fullName,
     photoUrl: barber.photoUrl || null,
+    serviceIds: (barber.serviceIds || []).map((id) => String(id)),
     shift: barber.shift,
     scheduleRange: barber.scheduleRange || null,
     scheduleRanges: barber.scheduleRanges || [],
@@ -139,6 +140,13 @@ function sanitizeBarber(barber) {
     barberTimeBlocks: serializeBarberTimeBlocks(barber.barberTimeBlocks),
     workDays: barber.workDays || [],
   };
+}
+
+function barberSupportsServiceIds(barber, serviceIds = []) {
+  const assignedIds = (barber?.serviceIds || []).map((id) => String(id));
+  if (!assignedIds.length) return true;
+  const assignedSet = new Set(assignedIds);
+  return serviceIds.every((id) => assignedSet.has(String(id)));
 }
 
 function sanitizeAppointment(app) {
@@ -974,6 +982,18 @@ export async function publicCreateAppointment(req, res, next) {
     const normalizedDuration = Number(resolvedServices.totalDuration) || 30;
     const serviceLabel = resolvedServices.serviceLabel;
     const resolvedServicePrice = Number(resolvedServices.totalPrice || 0);
+    const selectedServiceIds = resolvedServices.items
+      .map((item) => String(item.serviceId || ""))
+      .filter(Boolean);
+
+    if (
+      selectedServiceIds.length &&
+      !barberSupportsServiceIds(barber, selectedServiceIds)
+    ) {
+      return res.status(400).json({
+        error: "El profesional seleccionado no realiza uno de los servicios elegidos.",
+      });
+    }
 
     const shopClosure = resolveShopClosureForDate(shop, appointmentDate);
     if (shopClosure) {

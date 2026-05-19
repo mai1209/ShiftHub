@@ -1,5 +1,7 @@
+import mongoose from "mongoose";
 import { BarberModel } from "../models/Barber.js";
 import { AppointmentModel } from "../models/Appointment.js";
+import { ServiceModel } from "../models/Services.js";
 import { UserModel } from "../models/User.js";
 import { getTimeZoneDayRange, getTimeZoneWeekday } from "../utils/timezone.js";
 import {
@@ -23,6 +25,7 @@ import {
   resolveShopClosureForDate,
   serializeShopClosure,
 } from "../utils/shopClosures.js";
+import { isFreeActiveSubscription } from "../utils/subscriptionAccess.js";
 
 function normalizeShift(value) {
   if (value == null) return undefined;
@@ -31,12 +34,47 @@ function normalizeShift(value) {
   return allowed.includes(normalized) ? normalized : undefined;
 }
 
+async function normalizeAssignedServiceIds(rawValue, ownerId) {
+  const rawIds = Array.isArray(rawValue)
+    ? rawValue.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+  const uniqueIds = [...new Set(rawIds)];
+  const invalidId = uniqueIds.find((id) => !mongoose.Types.ObjectId.isValid(id));
+
+  if (invalidId) {
+    const error = new Error("Uno de los servicios asignados no es válido.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!uniqueIds.length) return [];
+
+  const services = await ServiceModel.find({
+    owner: ownerId,
+    _id: { $in: uniqueIds.map((id) => new mongoose.Types.ObjectId(id)) },
+    isActive: true,
+  })
+    .select({ _id: 1 })
+    .lean();
+  const foundIds = new Set(services.map((service) => String(service._id)));
+  const missingId = uniqueIds.find((id) => !foundIds.has(id));
+
+  if (missingId) {
+    const error = new Error("Uno de los servicios asignados ya no está disponible.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return uniqueIds.map((id) => new mongoose.Types.ObjectId(id));
+}
+
 function serializeBarber(doc, accessByBarberId = new Map()) {
   if (!doc) return null;
   const barberId = String(doc._id || "");
   const accessInfo = accessByBarberId.get(barberId) || null;
   return {
     ...doc,
+    serviceIds: (doc.serviceIds || []).map((id) => String(id)),
     scheduleRange: doc.scheduleRange || null,
     scheduleRanges: normalizeScheduleRanges(doc.scheduleRanges),
     dayScheduleOverrides: normalizeDayScheduleOverrides(doc.dayScheduleOverrides),
@@ -111,6 +149,7 @@ export async function createBarber(req, res, next) {
       .toLowerCase();
     const phone = String(req.body?.phone ?? "").trim();
     const photoUrl = String(req.body?.photoUrl ?? "").trim();
+    const serviceIds = await normalizeAssignedServiceIds(req.body?.serviceIds, ownerId);
     const shift = normalizeShift(req.body?.shift);
 
     // 1. CAPTURAMOS LOS DÍAS DESDE EL BODY
@@ -140,6 +179,21 @@ export async function createBarber(req, res, next) {
         .json({ error: "El nombre del barbero es obligatorio" });
     }
 
+    if (isFreeActiveSubscription(req.user?.subscription)) {
+      const activeBarbersCount = await BarberModel.countDocuments({
+        owner: ownerId,
+        isActive: true,
+      });
+
+      if (activeBarbersCount >= 1) {
+        return res.status(403).json({
+          error: "El plan gratis permite cargar 1 solo profesional activo.",
+          code: "PLAN_LIMIT_REACHED",
+          limit: 1,
+        });
+      }
+    }
+
     // 3. PASAMOS workDays AL MODELO
     const barber = await BarberModel.create({
       owner: ownerId,
@@ -147,6 +201,7 @@ export async function createBarber(req, res, next) {
       email: email || undefined,
       phone: phone || undefined,
       photoUrl: photoUrl || undefined,
+      serviceIds,
       shift,
       scheduleRange: scheduleRange,
       scheduleRanges,
@@ -195,6 +250,7 @@ export async function updateBarber(req, res, next) {
       .toLowerCase();
     const phone = String(req.body?.phone ?? "").trim();
     const photoUrl = String(req.body?.photoUrl ?? "").trim();
+    const serviceIds = await normalizeAssignedServiceIds(req.body?.serviceIds, ownerId);
     const shift = normalizeShift(req.body?.shift);
     const rawWorkDays = Array.isArray(req.body?.workDays) ? req.body.workDays : [];
     const cleanWorkDays = Array.from(new Set(rawWorkDays.map(Number))).sort(
@@ -235,6 +291,7 @@ export async function updateBarber(req, res, next) {
         email: email || undefined,
         phone: phone || undefined,
         photoUrl: photoUrl || undefined,
+        serviceIds,
         shift,
         scheduleRange: scheduleRange ?? null,
         scheduleRanges,

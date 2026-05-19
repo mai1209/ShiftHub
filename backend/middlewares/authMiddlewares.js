@@ -1,6 +1,12 @@
 import { verifyAccessToken } from "../token/jwtManager.js";
 import { UserModel } from "../models/User.js";
 import { normalizeAppRole, resolveEffectiveOwnerId } from "../utils/userRoles.js";
+import {
+  buildFreeSubscriptionPatch,
+  hasPaidOperationalAccess,
+  hasProAccess,
+  shouldNormalizeLegacyTrialToFree,
+} from "../utils/subscriptionAccess.js";
 
 export async function requireAuth(req, res, next) {
   try {
@@ -21,9 +27,18 @@ export async function requireAuth(req, res, next) {
       return res.status(401).json({ error: "Usuario no autorizado" });
     }
 
+    if (shouldNormalizeLegacyTrialToFree(user.subscription)) {
+      user.subscription = buildFreeSubscriptionPatch(user.subscription);
+      await UserModel.updateOne(
+        { _id: user._id },
+        { $set: { subscription: user.subscription } },
+      );
+    }
+
     let subscription = {
-      plan: user.subscription?.plan || "basic",
-      status: user.subscription?.status || "trial",
+      ...(user.subscription ?? {}),
+      plan: user.subscription?.plan || "free",
+      status: user.subscription?.status || "active",
     };
 
     if (normalizeAppRole(user.role) === "barber" && user.shopOwnerId) {
@@ -32,7 +47,16 @@ export async function requireAuth(req, res, next) {
         .lean();
 
       if (ownerUser && ownerUser.isActive !== false) {
+        if (shouldNormalizeLegacyTrialToFree(ownerUser.subscription)) {
+          ownerUser.subscription = buildFreeSubscriptionPatch(ownerUser.subscription);
+          await UserModel.updateOne(
+            { _id: ownerUser._id },
+            { $set: { subscription: ownerUser.subscription } },
+          );
+        }
+
         subscription = {
+          ...(ownerUser.subscription ?? {}),
           plan: ownerUser.subscription?.plan || subscription.plan,
           status: ownerUser.subscription?.status || subscription.status,
         };
@@ -65,13 +89,13 @@ export function requireAdminRole(req, res, next) {
 }
 
 export function requireActiveSubscription(req, res, next) {
-  const status = String(req.user?.subscription?.status || "trial").trim();
+  const status = String(req.user?.subscription?.status || "active").trim();
 
   if (status !== "active") {
     return res.status(402).json({
       error: "Esta cuenta no tiene una suscripción activa.",
       code: "SUBSCRIPTION_REQUIRED",
-      subscriptionStatus: status || "trial",
+      subscriptionStatus: status || "active",
     });
   }
 
@@ -79,14 +103,22 @@ export function requireActiveSubscription(req, res, next) {
 }
 
 export function requireProSubscription(req, res, next) {
-  const plan = String(req.user?.subscription?.plan || "").trim();
-  const status = String(req.user?.subscription?.status || "").trim();
-  const hasAccess = (plan === "pro" || plan === "custom") && status === "active";
-
-  if (!hasAccess) {
+  if (!hasProAccess(req.user?.subscription)) {
     return res.status(403).json({
       error: "Esta función está disponible solo para cuentas con plan Pro activo.",
       code: "PLAN_UPGRADE_REQUIRED",
+    });
+  }
+
+  return next();
+}
+
+export function requirePaidOperationalSubscription(req, res, next) {
+  if (!hasPaidOperationalAccess(req.user?.subscription)) {
+    return res.status(403).json({
+      error: "Esta función requiere actualizar tu plan.",
+      code: "PLAN_UPGRADE_REQUIRED",
+      requiredPlan: "basic",
     });
   }
 

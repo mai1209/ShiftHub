@@ -13,8 +13,11 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import {
   AppointmentMetricsResponse,
+  getCurrentUser,
   fetchAppointmentMetrics,
 } from '../services/api';
+import { hasProPlanAccess } from '../services/planAccess';
+import LockedFeatureScreen from '../components/LockedFeatureScreen';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
 import {
@@ -129,12 +132,17 @@ function MetricsScreen({ navigation, route }: Props) {
   const [metrics, setMetrics] = useState<AppointmentMetricsResponse | null>(
     null,
   );
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
   const loadMetrics = useCallback(
     async (isRefresh = false) => {
       try {
         if (!isRefresh) setLoading(true);
         setError('');
+        const currentUser = await getCurrentUser();
+        const canUseFeature = hasProPlanAccess(currentUser?.user);
+        setHasAccess(canUseFeature);
+        if (!canUseFeature) return;
         const response = await fetchAppointmentMetrics({
           barberId,
           year: now.getFullYear(),
@@ -157,6 +165,17 @@ function MetricsScreen({ navigation, route }: Props) {
       loadMetrics(false);
     }, [loadMetrics]),
   );
+
+  if (hasAccess === false) {
+    return (
+      <LockedFeatureScreen
+        theme={theme}
+        navigation={navigation}
+        title="Métricas bloqueadas"
+        body="Las métricas del profesional están disponibles con plan Pro."
+      />
+    );
+  }
 
   const periodLabel =
     metrics?.period.label ||

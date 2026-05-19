@@ -32,7 +32,7 @@ import {
   getUserProfile,
   subscribeToUserProfile,
 } from '../services/authStorage';
-import { hasProPlanAccess } from '../services/planAccess';
+import { hasProPlanAccess, isFreePlan } from '../services/planAccess';
 import ProFeatureModal from '../components/ProFeatureModal';
 import {
   getCurrentUser,
@@ -54,7 +54,7 @@ import {
   Link2,
   CircleDashed,
 } from 'lucide-react-native';
-import { PRO_PLAN_URL, PUBLIC_WEB_BASE_URL } from '../utils/publicLinks';
+import { PUBLIC_WEB_BASE_URL } from '../utils/publicLinks';
 
 const SHOP_TZ = 'America/Argentina/Cordoba';
 
@@ -169,6 +169,7 @@ function Home({ navigation }: Props) {
     loading: true,
     serviceCount: 0,
     barberCount: 0,
+    isFreePlan: false,
     paymentReady: false,
     paymentLabel: 'Revisá tus métodos de cobro',
   });
@@ -218,6 +219,14 @@ function Home({ navigation }: Props) {
     Alert.alert('¡Copiado!', 'El link de turnos se copió al portapapeles.');
   }, [shareLink]);
 
+  const handleOpenSubscriptionSettings = useCallback(() => {
+    setProModalVariant(null);
+    navigation.navigate(isIOS ? 'Subscription-Settings' : 'Plans');
+  }, [isIOS, navigation]);
+
+  const freeBarberLimitReached =
+    setupSummary.isFreePlan && setupSummary.barberCount >= 1;
+
   const onboardingItems = useMemo(
     () => [
       {
@@ -236,9 +245,13 @@ function Home({ navigation }: Props) {
       },
       {
         key: 'barbers',
-        title: `Sumá tus ${businessCopy.staffPlural}`,
+        title: freeBarberLimitReached
+          ? `Límite de ${businessCopy.staffPlural}`
+          : `Sumá tus ${businessCopy.staffPlural}`,
         description:
-          setupSummary.barberCount > 0
+          freeBarberLimitReached
+            ? `El plan gratis permite 1 ${businessCopy.staffSingular} activo. Actualizá para sumar más.`
+            : setupSummary.barberCount > 0
             ? `${setupSummary.barberCount} ${
                 setupSummary.barberCount === 1
                   ? businessCopy.staffSingular
@@ -246,9 +259,13 @@ function Home({ navigation }: Props) {
               } cargado${setupSummary.barberCount === 1 ? '' : 's'}.`
             : 'Creá al menos un perfil con horarios para empezar a tomar turnos.',
         complete: setupSummary.barberCount > 0,
-        actionLabel: businessCopy.staffPluralCapitalized,
+        actionLabel: freeBarberLimitReached
+          ? 'Upgrade'
+          : businessCopy.staffPluralCapitalized,
         icon: Users,
-        onPress: () => navigation.navigate('List-Barber'),
+        onPress: freeBarberLimitReached
+          ? handleOpenSubscriptionSettings
+          : () => navigation.navigate('List-Barber'),
       },
       {
         key: 'payments',
@@ -275,6 +292,9 @@ function Home({ navigation }: Props) {
       businessCopy.staffPlural,
       businessCopy.staffPluralCapitalized,
       businessCopy.staffSingular,
+      freeBarberLimitReached,
+      handleCopyLink,
+      handleOpenSubscriptionSettings,
       navigation,
       setupSummary.serviceCount,
       setupSummary.barberCount,
@@ -360,6 +380,7 @@ function Home({ navigation }: Props) {
         loading: false,
         serviceCount: servicesRes?.services?.length ?? 0,
         barberCount: barbersRes?.barbers?.length ?? 0,
+        isFreePlan: isFreePlan(currentUserRes?.user),
         paymentReady: cashEnabled || mercadoPagoConnected,
         paymentLabel,
       });
@@ -401,6 +422,7 @@ function Home({ navigation }: Props) {
         const advanceEnabled = Boolean(paymentSettings.advancePaymentEnabled);
         setSetupSummary(current => ({
           ...current,
+          isFreePlan: isFreePlan(storedUser),
           paymentReady: cashEnabled || mercadoPagoConnected,
           paymentLabel:
             mercadoPagoConnected && advanceEnabled
@@ -449,6 +471,7 @@ function Home({ navigation }: Props) {
       const advanceEnabled = Boolean(paymentSettings.advancePaymentEnabled);
       setSetupSummary(current => ({
         ...current,
+        isFreePlan: isFreePlan(user),
         paymentReady: cashEnabled || mercadoPagoConnected,
         paymentLabel:
           mercadoPagoConnected && advanceEnabled
@@ -467,19 +490,6 @@ function Home({ navigation }: Props) {
   const handleCloseProModal = useCallback(() => {
     setProModalVariant(null);
   }, []);
-
-  const handleOpenSubscriptionSettings = useCallback(async () => {
-    setProModalVariant(null);
-    if (Platform.OS === 'ios') {
-      navigation.navigate('Subscription-Settings');
-      return;
-    }
-    try {
-      await Linking.openURL(PRO_PLAN_URL);
-    } catch (_error) {
-      Alert.alert('No pudimos abrir el sitio de planes', PRO_PLAN_URL);
-    }
-  }, [navigation]);
 
   useFocusEffect(
     useCallback(() => {

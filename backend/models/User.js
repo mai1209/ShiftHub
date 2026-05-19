@@ -162,18 +162,18 @@ const subscriptionSchema = new mongoose.Schema(
   {
     plan: {
       type: String,
-      enum: ["basic", "pro", "custom"],
-      default: "basic",
+      enum: ["free", "basic", "pro", "custom"],
+      default: "free",
     },
     status: {
       type: String,
       enum: ["trial", "active", "past_due", "cancelled"],
-      default: "trial",
+      default: "active",
     },
     billingCycle: {
       type: String,
       enum: ["monthly", "yearly", "custom", null],
-      default: "monthly",
+      default: null,
     },
     renewalMode: {
       type: String,
@@ -291,7 +291,7 @@ const subscriptionSchema = new mongoose.Schema(
     },
     pendingPlan: {
       type: String,
-      enum: ["basic", "pro", "custom", null],
+      enum: ["free", "basic", "pro", "custom", null],
       default: null,
     },
     mercadoPagoPreferenceId: {
@@ -453,6 +453,12 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
+    },
+    registrationSource: {
+      type: String,
+      enum: ["web", "mobile", null],
+      default: null,
+      index: true,
     },
     isActive: {
       type: Boolean,

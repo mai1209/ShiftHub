@@ -41,12 +41,13 @@ import type { RootStackParamList } from '../navigation/StackNavigation';
 import { hasProPlanAccess } from '../services/planAccess';
 import { resolveUserRole } from '../services/subscriptionAccess';
 import ProFeatureModal from '../components/ProFeatureModal';
-import { PRO_PLAN_URL } from '../utils/publicLinks';
 import {
   Pencil,
   BarChart2,
   Plus,
   Clock,
+  Timer,
+  CalendarOff,
   Scissors,
   User,
 } from 'lucide-react-native';
@@ -235,17 +236,9 @@ function BarberDashboard({ route, navigation }: Props) {
     setShowProModal(false);
   }, []);
 
-  const handleOpenSubscriptionSettings = useCallback(async () => {
+  const handleOpenSubscriptionSettings = useCallback(() => {
     setShowProModal(false);
-    if (Platform.OS === 'ios') {
-      navigation.navigate('Subscription-Settings');
-      return;
-    }
-    try {
-      await Linking.openURL(PRO_PLAN_URL);
-    } catch (_error) {
-      Alert.alert('No pudimos abrir el sitio de planes', PRO_PLAN_URL);
-    }
+    navigation.navigate(Platform.OS === 'ios' ? 'Subscription-Settings' : 'Plans');
   }, [navigation]);
 
   const isToday = useMemo(() => isSameDay(date, new Date()), [date]);
@@ -366,6 +359,29 @@ function BarberDashboard({ route, navigation }: Props) {
       },
       selfEdit: isBarberUser,
     });
+  };
+
+  const handleOpenProfileSection = (
+    advancedSection: 'buffer' | 'closedDays' | 'timeBlocks',
+  ) => {
+    if (!canSelfEditProfile) {
+      Alert.alert(
+        'Perfil bloqueado',
+        `El administrador desactivó la edición del perfil del ${businessCopy.staffSingular}.`,
+      );
+      return;
+    }
+
+    if (barberProfile) {
+      navigation.navigate('Register-Employed', {
+        barber: barberProfile,
+        selfEdit: isBarberUser,
+        advancedSection,
+      });
+      return;
+    }
+
+    handleEditProfile();
   };
 
   const datePanResponder = useMemo(
@@ -750,6 +766,41 @@ function BarberDashboard({ route, navigation }: Props) {
                 </Pressable>
               ) : null}
             </View>
+
+            {canSelfEditProfile ? (
+              <View style={styles.profileQuickActions}>
+                <Pressable
+                  onPress={() => handleOpenProfileSection('buffer')}
+                  style={({ pressed }) => [
+                    styles.profileQuickButton,
+                    pressed && { backgroundColor: hexToRgba(theme.primary, 0.2) },
+                  ]}
+                >
+                  <Timer size={15} color={theme.primary} />
+                  <Text style={styles.profileQuickButtonText}>Buffer</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => handleOpenProfileSection('closedDays')}
+                  style={({ pressed }) => [
+                    styles.profileQuickButton,
+                    pressed && { backgroundColor: hexToRgba(theme.primary, 0.2) },
+                  ]}
+                >
+                  <CalendarOff size={15} color={theme.primary} />
+                  <Text style={styles.profileQuickButtonText}>Días</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => handleOpenProfileSection('timeBlocks')}
+                  style={({ pressed }) => [
+                    styles.profileQuickButton,
+                    pressed && { backgroundColor: hexToRgba(theme.primary, 0.2) },
+                  ]}
+                >
+                  <Clock size={15} color={theme.primary} />
+                  <Text style={styles.profileQuickButtonText}>Bloqueos</Text>
+                </Pressable>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -893,6 +944,29 @@ const makeStyles = (theme: Theme) =>
       letterSpacing: 1,
     },
     secondaryActionsRow: { flexDirection: 'row', gap: 10 },
+    profileQuickActions: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    profileQuickButton: {
+      flex: 1,
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: hexToRgba(theme.primary, 0.08),
+      borderWidth: 1,
+      borderColor: hexToRgba(theme.primary, 0.2),
+      paddingVertical: 10,
+      paddingHorizontal: 8,
+      borderRadius: 14,
+      gap: 6,
+    },
+    profileQuickButtonText: {
+      color: theme.primary,
+      fontWeight: '800',
+      fontSize: 12,
+    },
     secondaryActionBtn: {
       flex: 1,
       flexDirection: 'row',

@@ -15,8 +15,11 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   CurrentMonthOverviewResponse,
   MonthOverviewBarber,
+  getCurrentUser,
   fetchOwnerMetricsOverview,
 } from '../services/api';
+import { hasProPlanAccess } from '../services/planAccess';
+import LockedFeatureScreen from '../components/LockedFeatureScreen';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
 import {
@@ -82,12 +85,17 @@ function OwnerMetricsScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState<CurrentMonthOverviewResponse | null>(null);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
   const loadData = useCallback(
     async (isRefresh = false) => {
       try {
         if (!isRefresh) setLoading(true);
         setError('');
+        const currentUser = await getCurrentUser();
+        const canUseFeature = hasProPlanAccess(currentUser?.user);
+        setHasAccess(canUseFeature);
+        if (!canUseFeature) return;
         const response = await fetchOwnerMetricsOverview({
           year: now.getFullYear(),
           month: selectedMonth,
@@ -109,6 +117,17 @@ function OwnerMetricsScreen({ navigation }: Props) {
       loadData(false);
     }, [loadData]),
   );
+
+  if (hasAccess === false) {
+    return (
+      <LockedFeatureScreen
+        theme={theme}
+        navigation={navigation}
+        title="Métricas globales bloqueadas"
+        body="Las métricas globales del negocio están disponibles con plan Pro."
+      />
+    );
+  }
 
   const periodLabel =
     data?.period.label ||

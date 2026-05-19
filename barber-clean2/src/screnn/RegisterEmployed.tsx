@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   StyleSheet,
   Text,
@@ -14,12 +20,15 @@ import {
   ActivityIndicator,
   Modal,
   Image,
+  Switch,
 } from 'react-native';
 import { CalendarDays } from 'lucide-react-native';
 import { launchImageLibrary } from 'react-native-image-picker';
 import {
   Barber,
   createBarber,
+  fetchServices,
+  ServiceOption,
   updateBarber,
 } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
@@ -28,7 +37,10 @@ import DateSelectModal from '../components/DateSelectModal';
 
 const hexToRgba = (hex: string, alpha: number) => {
   const sanitized = hex.replace('#', '');
-  const bigint = parseInt(sanitized.length === 3 ? sanitized.repeat(2) : sanitized, 16);
+  const bigint = parseInt(
+    sanitized.length === 3 ? sanitized.repeat(2) : sanitized,
+    16,
+  );
   const r = (bigint >> 16) & 255;
   const g = (bigint >> 8) & 255;
   const b = bigint & 255;
@@ -41,6 +53,7 @@ type Props = {
     params?: {
       barber?: Barber;
       selfEdit?: boolean;
+      advancedSection?: 'buffer' | 'closedDays' | 'timeBlocks';
     };
   };
 };
@@ -125,7 +138,7 @@ type ActivePicker =
 function resolveActiveDayOverride(
   overrides: DayScheduleOverride[],
   day: number | null,
-  targetDate: string,
+  _targetDate: string,
 ) {
   if (day == null) return null;
   return (
@@ -171,7 +184,7 @@ const formatLastAccessLabel = (value?: string | null) => {
       hour: '2-digit',
       minute: '2-digit',
     });
-  } catch (_error) {
+  } catch {
     return 'Sin dato';
   }
 };
@@ -198,12 +211,29 @@ function RegisterEmployed({ navigation, route }: Props) {
   const { theme, businessCopy } = useTheme();
   const routeBarber = route?.params?.barber ?? null;
   const selfEdit = Boolean(route?.params?.selfEdit);
+  const advancedSection = route?.params?.advancedSection ?? null;
   const [barberToEdit, setBarberToEdit] = useState<Barber | null>(routeBarber);
   const isEditing = Boolean(barberToEdit?._id);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [servicePickerVisible, setServicePickerVisible] = useState(false);
+  const [overrideDayPickerVisible, setOverrideDayPickerVisible] =
+    useState(false);
+  const [overrideEnabled, setOverrideEnabled] = useState(false);
+  const [bufferSectionOpen, setBufferSectionOpen] = useState(
+    advancedSection === 'buffer',
+  );
+  const [closedDaysSectionOpen, setClosedDaysSectionOpen] = useState(
+    advancedSection === 'closedDays',
+  );
+  const [timeBlocksSectionOpen, setTimeBlocksSectionOpen] = useState(
+    advancedSection === 'timeBlocks',
+  );
 
   // Horario corrido
   const [startMinutes, setStartMinutes] = useState(9 * 60);
@@ -220,35 +250,71 @@ function RegisterEmployed({ navigation, route }: Props) {
   const [loading, setLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
-  const [dayScheduleOverrides, setDayScheduleOverrides] = useState<DayScheduleOverride[]>([]);
-  const [barberClosedDays, setBarberClosedDays] = useState<BarberClosedDay[]>([]);
-  const [bookingBufferMinutesInput, setBookingBufferMinutesInput] = useState('0');
-  const [barberTimeBlocks, setBarberTimeBlocks] = useState<BarberTimeBlock[]>([]);
+  const [dayScheduleOverrides, setDayScheduleOverrides] = useState<
+    DayScheduleOverride[]
+  >([]);
+  const [barberClosedDays, setBarberClosedDays] = useState<BarberClosedDay[]>(
+    [],
+  );
+  const [bookingBufferMinutesInput, setBookingBufferMinutesInput] =
+    useState('0');
+  const [barberTimeBlocks, setBarberTimeBlocks] = useState<BarberTimeBlock[]>(
+    [],
+  );
   const [closedDateInput, setClosedDateInput] = useState('');
   const [closedMessageInput, setClosedMessageInput] = useState('');
-  const [isClosedDateModalVisible, setIsClosedDateModalVisible] = useState(false);
+  const [isClosedDateModalVisible, setIsClosedDateModalVisible] =
+    useState(false);
   const [blockDateInput, setBlockDateInput] = useState('');
   const [blockStartMinutes, setBlockStartMinutes] = useState(9 * 60);
   const [blockEndMinutes, setBlockEndMinutes] = useState(10 * 60);
   const [blockMessageInput, setBlockMessageInput] = useState('');
   const [isBlockDateModalVisible, setIsBlockDateModalVisible] = useState(false);
-  const [selectedOverrideDay, setSelectedOverrideDay] = useState<number | null>(null);
+  const [selectedOverrideDay, setSelectedOverrideDay] = useState<number | null>(
+    null,
+  );
   const [multiEditMode, setMultiEditMode] = useState(false);
   const [multiEditDays, setMultiEditDays] = useState<number[]>([]);
+  const [hasPendingScheduleSave, setHasPendingScheduleSave] = useState(false);
   const todayDateLabel = useMemo(() => getTodayDateLabel(), []);
   const selectedDaysRef = useRef<number[]>([]);
   const dayScheduleOverridesRef = useRef<DayScheduleOverride[]>([]);
   const barberClosedDaysRef = useRef<BarberClosedDay[]>([]);
   const barberTimeBlocksRef = useRef<BarberTimeBlock[]>([]);
+  const hasPendingScheduleSaveRef = useRef(false);
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const isAdvancedSectionMode = Boolean(advancedSection);
+
+  const markSpecialSchedulePendingSave = useCallback(() => {
+    hasPendingScheduleSaveRef.current = true;
+    setHasPendingScheduleSave(true);
+  }, []);
+
+  useEffect(() => {
+    if (advancedSection === 'buffer') {
+      setBufferSectionOpen(true);
+      return;
+    }
+    if (advancedSection === 'closedDays') {
+      setClosedDaysSectionOpen(true);
+      return;
+    }
+    if (advancedSection === 'timeBlocks') {
+      setTimeBlocksSectionOpen(true);
+    }
+  }, [advancedSection]);
 
   useEffect(() => {
     if (!barberToEdit) return;
+
+    hasPendingScheduleSaveRef.current = false;
+    setHasPendingScheduleSave(false);
 
     setFullName(barberToEdit.fullName ?? '');
     setEmail(barberToEdit.email ?? '');
     setPhone(barberToEdit.phone ?? '');
     setPhotoUrl(barberToEdit.photoUrl ?? '');
+    setSelectedServiceIds((barberToEdit.serviceIds || []).map(String));
     setSelectedDays((barberToEdit.workDays || []).map(Number));
     selectedDaysRef.current = (barberToEdit.workDays || []).map(Number);
     setDayScheduleOverrides(barberToEdit.dayScheduleOverrides || []);
@@ -273,14 +339,16 @@ function RegisterEmployed({ navigation, route }: Props) {
         message: normalizeTimeBlockMessage(item.message),
       }))
       .filter(item => item.date && item.start && item.end)
-      .sort((a, b) =>
-        a.date.localeCompare(b.date) || a.start.localeCompare(b.start),
+      .sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) || a.start.localeCompare(b.start),
       );
     setBarberTimeBlocks(nextTimeBlocks);
     barberTimeBlocksRef.current = nextTimeBlocks;
 
     const hasSplitShift =
-      Array.isArray(barberToEdit.scheduleRanges) && barberToEdit.scheduleRanges.length > 0;
+      Array.isArray(barberToEdit.scheduleRanges) &&
+      barberToEdit.scheduleRanges.length > 0;
 
     setSplitShift(hasSplitShift);
 
@@ -307,6 +375,48 @@ function RegisterEmployed({ navigation, route }: Props) {
   }, [routeBarber]);
 
   useEffect(() => {
+    const unsubscribe = navigation.addListener?.(
+      'beforeRemove',
+      (event: any) => {
+        if (!hasPendingScheduleSaveRef.current) return;
+
+        event.preventDefault();
+        Alert.alert(
+          'Falta guardar cambios',
+          'El horario especial ya quedó cargado en esta pantalla, pero todavía no se aplicó. Tocá Guardar cambios antes de salir.',
+          [{ text: 'Entendido' }],
+        );
+      },
+    );
+
+    return unsubscribe;
+  }, [navigation]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    (async () => {
+      try {
+        setServicesLoading(true);
+        const response = await fetchServices();
+        if (isMounted) {
+          setServices(response?.services ?? []);
+        }
+      } catch {
+        if (isMounted) {
+          setServices([]);
+        }
+      } finally {
+        if (isMounted) setServicesLoading(false);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
     selectedDaysRef.current = selectedDays;
     setDayScheduleOverrides(prev => {
       const next = prev.filter(item => selectedDays.includes(Number(item.day)));
@@ -319,37 +429,48 @@ function RegisterEmployed({ navigation, route }: Props) {
       return;
     }
 
-    setSelectedOverrideDay(prev =>
-      prev != null && selectedDays.includes(prev) ? prev : selectedDays[0],
-    );
-  }, [selectedDays]);
-
-  const upsertClosedDay = useCallback((date: string, message: string) => {
-    const normalizedDate = normalizeClosedDayDate(date);
-    if (!normalizedDate) {
-      Alert.alert('Fecha inválida', 'Usá el formato YYYY-MM-DD.');
+    // Only auto-select an override day when override switch is enabled
+    if (!overrideEnabled) {
+      setSelectedOverrideDay(null);
       return;
     }
 
-    const normalizedMessage = normalizeClosedDayMessage(message);
-    const nextState = [...barberClosedDaysRef.current]
-      .filter(item => item.date !== normalizedDate)
-      .concat({
-        date: normalizedDate,
-        message:
-          normalizedMessage ||
-          `Este ${businessCopy.staffSingular} no atenderá ese día. Elegí otro profesional o seleccioná otra fecha.`,
-      })
-      .sort((a, b) => a.date.localeCompare(b.date));
+    setSelectedOverrideDay(prev =>
+      prev != null && selectedDays.includes(prev) ? prev : selectedDays[0],
+    );
+  }, [selectedDays, overrideEnabled]);
 
-    barberClosedDaysRef.current = nextState;
-    setBarberClosedDays(nextState);
-    setClosedDateInput('');
-    setClosedMessageInput('');
-  }, [businessCopy.staffSingular]);
+  const upsertClosedDay = useCallback(
+    (date: string, message: string) => {
+      const normalizedDate = normalizeClosedDayDate(date);
+      if (!normalizedDate) {
+        Alert.alert('Fecha inválida', 'Usá el formato YYYY-MM-DD.');
+        return;
+      }
+
+      const normalizedMessage = normalizeClosedDayMessage(message);
+      const nextState = [...barberClosedDaysRef.current]
+        .filter(item => item.date !== normalizedDate)
+        .concat({
+          date: normalizedDate,
+          message:
+            normalizedMessage ||
+            `Este ${businessCopy.staffSingular} no atenderá ese día. Elegí otro profesional o seleccioná otra fecha.`,
+        })
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      barberClosedDaysRef.current = nextState;
+      setBarberClosedDays(nextState);
+      setClosedDateInput('');
+      setClosedMessageInput('');
+    },
+    [businessCopy.staffSingular],
+  );
 
   const removeClosedDay = useCallback((date: string) => {
-    const nextState = barberClosedDaysRef.current.filter(item => item.date !== date);
+    const nextState = barberClosedDaysRef.current.filter(
+      item => item.date !== date,
+    );
     barberClosedDaysRef.current = nextState;
     setBarberClosedDays(nextState);
   }, []);
@@ -363,12 +484,21 @@ function RegisterEmployed({ navigation, route }: Props) {
     ) => {
       const normalizedDate = normalizeClosedDayDate(date);
       if (!normalizedDate) {
-        Alert.alert('Fecha inválida', 'Elegí una fecha válida para el bloqueo.');
+        Alert.alert(
+          'Fecha inválida',
+          'Elegí una fecha válida para el bloqueo.',
+        );
         return;
       }
 
-      if (!Number.isFinite(startMinutesValue) || !Number.isFinite(endMinutesValue)) {
-        Alert.alert('Horario inválido', 'Elegí una hora de inicio y fin válida.');
+      if (
+        !Number.isFinite(startMinutesValue) ||
+        !Number.isFinite(endMinutesValue)
+      ) {
+        Alert.alert(
+          'Horario inválido',
+          'Elegí una hora de inicio y fin válida.',
+        );
         return;
       }
 
@@ -432,14 +562,43 @@ function RegisterEmployed({ navigation, route }: Props) {
   }, [selectedDays]);
 
   const toggleDay = (id: number) => {
-    setSelectedDays(prev =>
-      {
-        const next = prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id];
-        selectedDaysRef.current = next;
-        return next;
-      },
+    setSelectedDays(prev => {
+      const next = prev.includes(id)
+        ? prev.filter(d => d !== id)
+        : [...prev, id];
+      selectedDaysRef.current = next;
+      return next;
+    });
+  };
+
+  const toggleService = (serviceId: string) => {
+    setSelectedServiceIds(prev =>
+      prev.includes(serviceId)
+        ? prev.filter(id => id !== serviceId)
+        : [...prev, serviceId],
     );
   };
+
+  const selectedServicesLabel = useMemo(() => {
+    if (!selectedServiceIds.length) return 'Todos los servicios';
+    const names = selectedServiceIds
+      .map(id => services.find(service => service._id === id)?.name)
+      .filter(Boolean);
+
+    if (!names.length)
+      return `${selectedServiceIds.length} servicios seleccionados`;
+    if (names.length <= 2) return names.join(', ');
+    return `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
+  }, [selectedServiceIds, services]);
+
+  const screenTitle = useMemo(() => {
+    if (advancedSection === 'buffer') return 'Buffer entre turnos';
+    if (advancedSection === 'closedDays') return 'Días no disponibles';
+    if (advancedSection === 'timeBlocks') return 'Bloqueos por horario';
+    return isEditing
+      ? 'Editar perfil'
+      : `Nuevo ${businessCopy.staffSingularCapitalized}`;
+  }, [advancedSection, businessCopy.staffSingularCapitalized, isEditing]);
 
   const formattedRange = useMemo(
     () => `${formatMinutes(startMinutes)} - ${formatMinutes(endMinutes)}`,
@@ -460,6 +619,11 @@ function RegisterEmployed({ navigation, route }: Props) {
     if (!editingOverrideDays.length) return '';
     return editingOverrideDays.map(day => DAY_NAMES[day]).join(', ');
   }, [editingOverrideDays]);
+
+  const specialDaysInputLabel = useMemo(() => {
+    if (!editingOverrideDays.length) return 'Elegí uno o varios días';
+    return editingOverrideDaysLabel;
+  }, [editingOverrideDays.length, editingOverrideDaysLabel]);
 
   const baseDayOverride = useMemo<DayScheduleOverride>(
     () =>
@@ -518,9 +682,17 @@ function RegisterEmployed({ navigation, route }: Props) {
   );
 
   const overrideSingleRange = useMemo(() => {
-    const fallback = parseScheduleRange(baseDayOverride.scheduleRange, startMinutes, endMinutes);
+    const fallback = parseScheduleRange(
+      baseDayOverride.scheduleRange,
+      startMinutes,
+      endMinutes,
+    );
     if (!selectedOverrideConfig?.scheduleRange) return fallback;
-    return parseScheduleRange(selectedOverrideConfig.scheduleRange, fallback[0], fallback[1]);
+    return parseScheduleRange(
+      selectedOverrideConfig.scheduleRange,
+      fallback[0],
+      fallback[1],
+    );
   }, [selectedOverrideConfig, baseDayOverride, startMinutes, endMinutes]);
 
   const overrideMorningRange = useMemo(() => {
@@ -640,8 +812,8 @@ function RegisterEmployed({ navigation, route }: Props) {
       scheduleRange: next.useBase
         ? null
         : next.scheduleRanges?.length
-          ? null
-          : next.scheduleRange ?? null,
+        ? null
+        : next.scheduleRange ?? null,
       scheduleRanges: next.useBase ? [] : next.scheduleRanges ?? [],
     };
   };
@@ -709,24 +881,11 @@ function RegisterEmployed({ navigation, route }: Props) {
     });
   };
 
-  const removeDayOverride = (day: number) => {
-    setDayScheduleOverrides(prev => {
-      const nextState = prev.filter(item => Number(item.day) !== day);
-      dayScheduleOverridesRef.current = nextState;
-      return nextState;
-    });
-  };
-
-  const toggleMultiEditDay = (day: number) => {
-    setMultiEditDays(prev =>
-      prev.includes(day) ? prev.filter(item => item !== day) : [...prev, day],
-    );
-  };
-
   const applyOverrideToEditingDays = (
     next: Omit<DayScheduleOverride, 'day'>,
   ) => {
     if (!editingOverrideDays.length) return;
+    markSpecialSchedulePendingSave();
     if (editingOverrideDays.length === 1) {
       upsertDayOverride(editingOverrideDays[0], next);
       return;
@@ -736,54 +895,13 @@ function RegisterEmployed({ navigation, route }: Props) {
 
   const removeOverridesFromEditingDays = () => {
     if (!editingOverrideDays.length) return;
+    markSpecialSchedulePendingSave();
     setDayScheduleOverrides(prev => {
       const nextState = prev.filter(
         item => !editingOverrideDays.includes(Number(item.day)),
       );
       dayScheduleOverridesRef.current = nextState;
       return nextState;
-    });
-  };
-
-  const enableSelectedDayOverride = () => {
-    if (!editingOverrideDays.length) return;
-    applyOverrideToEditingDays({
-      scheduleRange: baseDayOverride.scheduleRange ?? null,
-      scheduleRanges: baseDayOverride.scheduleRanges ?? [],
-    });
-  };
-
-  const toggleSelectedDayOverrideMode = () => {
-    if (!editingOverrideDays.length) return;
-    if (!selectedOverrideHasCustomSchedule) {
-      enableSelectedDayOverride();
-      return;
-    }
-
-    if (selectedOverrideIsSplit) {
-      applyOverrideToEditingDays({
-        scheduleRange: `${formatMinutes(overrideMorningRange[0])} - ${formatMinutes(
-          overrideAfternoonRange[1],
-        )}`,
-        scheduleRanges: [],
-      });
-      return;
-    }
-
-    applyOverrideToEditingDays({
-      scheduleRange: null,
-      scheduleRanges: [
-        {
-          label: 'mañana',
-          start: formatMinutes(morningStart),
-          end: formatMinutes(morningEnd),
-        },
-        {
-          label: 'tarde',
-          start: formatMinutes(afternoonStart),
-          end: formatMinutes(afternoonEnd),
-        },
-      ],
     });
   };
 
@@ -820,9 +938,9 @@ function RegisterEmployed({ navigation, route }: Props) {
       case 'overrideEnd':
         if (editingOverrideDays.length) {
           applyOverrideToEditingDays({
-            scheduleRange: `${formatMinutes(overrideSingleRange[0])} - ${formatMinutes(
-              minutes,
-            )}`,
+            scheduleRange: `${formatMinutes(
+              overrideSingleRange[0],
+            )} - ${formatMinutes(minutes)}`,
             scheduleRanges: [],
           });
         }
@@ -916,109 +1034,150 @@ function RegisterEmployed({ navigation, route }: Props) {
     setActivePicker(null);
   };
 
-  const handleSubmit = async () => {
+  const buildBarberPayload = () => {
     if (!fullName.trim()) {
       Alert.alert(
         'Dato requerido',
         `Por favor ingresa el nombre del ${businessCopy.staffSingular}.`,
       );
-      return;
+      return null;
     }
     if (selectedDays.length === 0) {
       Alert.alert('Dato requerido', 'Selecciona al menos un día de trabajo.');
-      return;
+      return null;
     }
 
+    const parsedBookingBufferMinutes = Number(bookingBufferMinutesInput || '0');
+    if (
+      !Number.isFinite(parsedBookingBufferMinutes) ||
+      parsedBookingBufferMinutes < 0 ||
+      parsedBookingBufferMinutes > 120
+    ) {
+      Alert.alert(
+        'Buffer inválido',
+        `El buffer general del ${businessCopy.staffSingular} tiene que estar entre 0 y 120 minutos.`,
+      );
+      return null;
+    }
+
+    const cleanDays = Array.from(new Set(selectedDaysRef.current)).sort(
+      (a, b) => a - b,
+    );
+    const cleanOverrides = dayScheduleOverridesRef.current
+      .filter(item => cleanDays.includes(Number(item.day)))
+      .map(item => ({
+        day: Number(item.day),
+        validFrom: item.validFrom ?? todayDateLabel,
+        useBase: Boolean(item.useBase),
+        scheduleRange: item.scheduleRange ?? null,
+        scheduleRanges: item.scheduleRanges ?? [],
+      }))
+      .sort(
+        (a, b) =>
+          a.day - b.day ||
+          normalizeOverrideValidFrom(a.validFrom).localeCompare(
+            normalizeOverrideValidFrom(b.validFrom),
+          ),
+      );
+    const cleanClosedDays = barberClosedDaysRef.current
+      .map(item => ({
+        date: normalizeClosedDayDate(item.date),
+        message:
+          normalizeClosedDayMessage(item.message) ||
+          `Este ${businessCopy.staffSingular} no atenderá ese día. Elegí otro profesional o seleccioná otra fecha.`,
+      }))
+      .filter(item => item.date)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const cleanTimeBlocks = barberTimeBlocksRef.current
+      .map(item => ({
+        date: normalizeClosedDayDate(item.date),
+        start: normalizeTimeBlockTime(item.start),
+        end: normalizeTimeBlockTime(item.end),
+        message:
+          normalizeTimeBlockMessage(item.message) ||
+          'Este horario no está disponible para reservas.',
+      }))
+      .filter(
+        item => item.date && item.start && item.end && item.end > item.start,
+      )
+      .sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) || a.start.localeCompare(b.start),
+      );
+
+    return {
+      fullName: fullName.trim(),
+      email: email.trim() || undefined,
+      phone: phone.trim() || undefined,
+      photoUrl: photoUrl.trim() || undefined,
+      serviceIds: selectedServiceIds,
+      scheduleRange: !splitShift ? formattedRange : undefined,
+      scheduleRanges: splitShift
+        ? [
+            {
+              label: 'mañana',
+              start: formatMinutes(morningStart),
+              end: formatMinutes(morningEnd),
+            },
+            {
+              label: 'tarde',
+              start: formatMinutes(afternoonStart),
+              end: formatMinutes(afternoonEnd),
+            },
+          ]
+        : [],
+      bookingBufferMinutes: parsedBookingBufferMinutes,
+      barberTimeBlocks: cleanTimeBlocks,
+      barberClosedDays: cleanClosedDays,
+      dayScheduleOverrides: cleanOverrides,
+      workDays: cleanDays,
+      isActive: true,
+    };
+  };
+
+  const saveCurrentBarber = async () => {
+    const payload = buildBarberPayload();
+    if (!payload) return null;
+
+    let savedBarber: Barber;
+
+    if (isEditing && barberToEdit?._id) {
+      const response = await updateBarber(barberToEdit._id, payload);
+      savedBarber = response.barber;
+    } else {
+      const response = await createBarber(payload);
+      savedBarber = response.barber;
+    }
+
+    hasPendingScheduleSaveRef.current = false;
+    setHasPendingScheduleSave(false);
+    setBarberToEdit(savedBarber);
+    return savedBarber;
+  };
+
+  const openUpgrade = useCallback(() => {
+    navigation.navigate(Platform.OS === 'ios' ? 'Subscription-Settings' : 'Plans');
+  }, [navigation]);
+
+  const showBarberLimitUpgrade = useCallback(
+    (message?: string) => {
+      Alert.alert(
+        'Límite del plan gratis',
+        message || `El plan gratis permite 1 ${businessCopy.staffSingular} activo.`,
+        [
+          { text: 'Ahora no', style: 'cancel' },
+          { text: 'Ver planes', onPress: openUpgrade },
+        ],
+      );
+    },
+    [businessCopy.staffSingular, openUpgrade],
+  );
+
+  const handleSubmit = async () => {
     try {
       setLoading(true);
-      const parsedBookingBufferMinutes = Number(bookingBufferMinutesInput || '0');
-      if (
-        !Number.isFinite(parsedBookingBufferMinutes) ||
-        parsedBookingBufferMinutes < 0 ||
-        parsedBookingBufferMinutes > 120
-      ) {
-        Alert.alert(
-          'Buffer inválido',
-          `El buffer general del ${businessCopy.staffSingular} tiene que estar entre 0 y 120 minutos.`,
-        );
-        return;
-      }
-      const cleanDays = Array.from(new Set(selectedDaysRef.current)).sort((a, b) => a - b);
-      const cleanOverrides = dayScheduleOverridesRef.current
-        .filter(item => cleanDays.includes(Number(item.day)))
-        .map(item => ({
-          day: Number(item.day),
-          validFrom: item.validFrom ?? todayDateLabel,
-          useBase: Boolean(item.useBase),
-          scheduleRange: item.scheduleRange ?? null,
-          scheduleRanges: item.scheduleRanges ?? [],
-        }))
-        .sort(
-          (a, b) =>
-            a.day - b.day ||
-            normalizeOverrideValidFrom(a.validFrom).localeCompare(
-              normalizeOverrideValidFrom(b.validFrom),
-            ),
-        );
-      const cleanClosedDays = barberClosedDaysRef.current
-        .map(item => ({
-          date: normalizeClosedDayDate(item.date),
-          message:
-            normalizeClosedDayMessage(item.message) ||
-            `Este ${businessCopy.staffSingular} no atenderá ese día. Elegí otro profesional o seleccioná otra fecha.`,
-        }))
-        .filter(item => item.date)
-        .sort((a, b) => a.date.localeCompare(b.date));
-      const cleanTimeBlocks = barberTimeBlocksRef.current
-        .map(item => ({
-          date: normalizeClosedDayDate(item.date),
-          start: normalizeTimeBlockTime(item.start),
-          end: normalizeTimeBlockTime(item.end),
-          message:
-            normalizeTimeBlockMessage(item.message) ||
-            'Este horario no está disponible para reservas.',
-        }))
-        .filter(item => item.date && item.start && item.end && item.end > item.start)
-        .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
-
-      const payload = {
-        fullName: fullName.trim(),
-        email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
-        photoUrl: photoUrl.trim() || undefined,
-        scheduleRange: !splitShift ? formattedRange : undefined,
-        scheduleRanges: splitShift
-          ? [
-              {
-                label: 'mañana',
-                start: formatMinutes(morningStart),
-                end: formatMinutes(morningEnd),
-              },
-              {
-                label: 'tarde',
-                start: formatMinutes(afternoonStart),
-                end: formatMinutes(afternoonEnd),
-              },
-            ]
-          : [],
-        bookingBufferMinutes: parsedBookingBufferMinutes,
-        barberTimeBlocks: cleanTimeBlocks,
-        barberClosedDays: cleanClosedDays,
-        dayScheduleOverrides: cleanOverrides,
-        workDays: cleanDays,
-        isActive: true,
-      };
-
-      let savedBarber: Barber;
-
-      if (isEditing && barberToEdit?._id) {
-        const response = await updateBarber(barberToEdit._id, payload);
-        savedBarber = response.barber;
-      } else {
-        const response = await createBarber(payload);
-        savedBarber = response.barber;
-      }
-
+      const savedBarber = await saveCurrentBarber();
+      if (!savedBarber) return;
       const successMessage = isEditing
         ? `Los cambios del ${businessCopy.staffSingular} ya quedaron guardados.`
         : `${businessCopy.staffSingularCapitalized} registrado correctamente.`;
@@ -1041,7 +1200,34 @@ function RegisterEmployed({ navigation, route }: Props) {
         },
       ]);
     } catch (err: any) {
+      if (err?.code === 'PLAN_LIMIT_REACHED') {
+        showBarberLimitUpgrade(err?.message);
+        return;
+      }
       Alert.alert('Error', err?.message || 'No se pudo guardar el registro.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleManageAccess = async () => {
+    try {
+      setLoading(true);
+      const savedBarber = await saveCurrentBarber();
+      if (!savedBarber) return;
+      navigation.navigate('Barber-Access', {
+        barber: savedBarber,
+        returnLabel: 'Seguir completando el formulario',
+      });
+    } catch (err: any) {
+      if (err?.code === 'PLAN_LIMIT_REACHED') {
+        showBarberLimitUpgrade(err?.message);
+        return;
+      }
+      Alert.alert(
+        'Error',
+        err?.message || 'No se pudo abrir la gestión de acceso.',
+      );
     } finally {
       setLoading(false);
     }
@@ -1061,7 +1247,10 @@ function RegisterEmployed({ navigation, route }: Props) {
       if (result.didCancel) return;
 
       if (result.errorCode) {
-        Alert.alert('Error', result.errorMessage || 'No se pudo abrir la galería.');
+        Alert.alert(
+          'Error',
+          result.errorMessage || 'No se pudo abrir la galería.',
+        );
         return;
       }
 
@@ -1092,445 +1281,457 @@ function RegisterEmployed({ navigation, route }: Props) {
           >
             <View style={styles.header}>
               <Text style={styles.headerSubtitle}>ADMINISTRACIÓN</Text>
-              <Text style={styles.headerTitle}>
-                {isEditing
-                  ? 'Editar perfil'
-                  : `Nuevo ${businessCopy.staffSingularCapitalized}`}
-              </Text>
+              <Text style={styles.headerTitle}>{screenTitle}</Text>
             </View>
 
             <View style={styles.mainCard}>
               {/* INFO PERSONAL */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Información Personal</Text>
-                <View style={styles.photoPreviewWrap}>
-                  <Pressable
-                    style={styles.photoPreviewCircle}
-                    onPress={handlePickPhoto}
-                  >
-                    {photoUrl.trim() ? (
-                      <Image
-                        source={{ uri: photoUrl.trim() }}
-                        style={styles.photoPreviewImage}
-                      />
-                    ) : (
-                      <Text style={styles.photoPreviewInitial}>
-                        {fullName.trim().charAt(0).toUpperCase() ||
-                          businessCopy.staffSingularCapitalized.charAt(0)}
-                      </Text>
-                    )}
-                  </Pressable>
-                  <Pressable onPress={handlePickPhoto}>
-                    <Text style={styles.photoPreviewHint}>
-                      {photoUrl.trim() ? 'Cambiar foto' : 'Tocar para elegir foto'}
-                    </Text>
-                  </Pressable>
-                  {photoUrl.trim() ? (
-                    <Pressable onPress={() => setPhotoUrl('')}>
-                      <Text style={styles.photoRemoveText}>Quitar foto</Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-                <TextInput
-                  style={[
-                    styles.input,
-                    focusedField === 'name' && styles.inputFocused,
-                  ]}
-                  placeholder="Nombre y Apellido"
-                  placeholderTextColor={theme.placeholder}
-                  value={fullName}
-                  onChangeText={setFullName}
-                  onFocus={() => setFocusedField('name')}
-                  onBlur={() => setFocusedField(null)}
-                />
-                <TextInput
-                  style={[
-                    styles.input,
-                    focusedField === 'email' && styles.inputFocused,
-                  ]}
-                  placeholder="Email"
-                  placeholderTextColor={theme.placeholder}
-                  keyboardType="email-address"
-                  value={email}
-                  onChangeText={setEmail}
-                  onFocus={() => setFocusedField('email')}
-                  onBlur={() => setFocusedField(null)}
-                />
-                <TextInput
-                  style={[
-                    styles.input,
-                    focusedField === 'phone' && styles.inputFocused,
-                  ]}
-                  placeholder="Tu Teléfono (WhatsApp)"
-                  placeholderTextColor={theme.placeholder}
-                  keyboardType="phone-pad"
-                  value={phone}
-                  onChangeText={text =>
-                    setPhone(text.replace(/[^0-9+\s\-]/g, ''))
-                  }
-                  onFocus={() => setFocusedField('phone')}
-                  onBlur={() => setFocusedField(null)}
-                />
-              </View>
-
-              {!selfEdit ? (
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>
-                  {`Acceso del ${businessCopy.staffSingular} a la app`}
-                </Text>
-              
-                {isEditing ? (
-                  <>
-                    <View style={styles.accessSummaryCard}>
-                      <Text style={styles.sectionHelperMuted}>
-                        Estado: {resolveAccessStateLabel(barberToEdit?.loginAccess)}
-                      </Text>
-                      <Text style={styles.sectionHelperMuted}>
-                        Último acceso:{' '}
-                        {formatLastAccessLabel(barberToEdit?.loginAccess?.lastLoginAt)}
-                      </Text>
-                      <Text style={styles.sectionHelperMuted}>
-                        Email:{' '}
-                        {barberToEdit?.loginAccess?.email?.trim() || 'Sin acceso creado'}
-                      </Text>
-                    </View>
+              {!isAdvancedSectionMode ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Información Personal</Text>
+                  <View style={styles.photoPreviewWrap}>
                     <Pressable
-                      onPress={() => {
-                        if (!barberToEdit) return;
-                        navigation.navigate('Barber-Access', { barber: barberToEdit });
-                      }}
-                      style={({ pressed }) => [
-                        styles.accessManageButton,
-                        pressed && styles.accessManageButtonPressed,
-                      ]}
+                      style={styles.photoPreviewCircle}
+                      onPress={handlePickPhoto}
                     >
-                      <Text style={styles.accessManageButtonText}>
-                        {`Gestionar acceso del ${businessCopy.staffSingular}`}
+                      {photoUrl.trim() ? (
+                        <Image
+                          source={{ uri: photoUrl.trim() }}
+                          style={styles.photoPreviewImage}
+                        />
+                      ) : (
+                        <Text style={styles.photoPreviewInitial}>
+                          {fullName.trim().charAt(0).toUpperCase() ||
+                            businessCopy.staffSingularCapitalized.charAt(0)}
+                        </Text>
+                      )}
+                    </Pressable>
+                    <Pressable onPress={handlePickPhoto}>
+                      <Text style={styles.photoPreviewHint}>
+                        {photoUrl.trim()
+                          ? 'Cambiar foto'
+                          : 'Tocar para elegir foto'}
                       </Text>
                     </Pressable>
-                  </>
-                ) : (
-                  <Text style={styles.sectionHelperMuted}>
-                    {`Guardá primero el ${businessCopy.staffSingular}. Después podés crearle el acceso desde la pantalla de gestión.`}
+                    {photoUrl.trim() ? (
+                      <Pressable onPress={() => setPhotoUrl('')}>
+                        <Text style={styles.photoRemoveText}>Quitar foto</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      focusedField === 'name' && styles.inputFocused,
+                    ]}
+                    placeholder="Nombre y Apellido"
+                    placeholderTextColor={theme.placeholder}
+                    value={fullName}
+                    onChangeText={setFullName}
+                    onFocus={() => setFocusedField('name')}
+                    onBlur={() => setFocusedField(null)}
+                  />
+                  <TextInput
+                    style={[
+                      styles.input,
+                      focusedField === 'email' && styles.inputFocused,
+                    ]}
+                    placeholder="Email"
+                    placeholderTextColor={theme.placeholder}
+                    keyboardType="email-address"
+                    value={email}
+                    onChangeText={setEmail}
+                    onFocus={() => setFocusedField('email')}
+                    onBlur={() => setFocusedField(null)}
+                  />
+                  <TextInput
+                    style={[
+                      styles.input,
+                      focusedField === 'phone' && styles.inputFocused,
+                    ]}
+                    placeholder="Tu Teléfono (WhatsApp)"
+                    placeholderTextColor={theme.placeholder}
+                    keyboardType="phone-pad"
+                    value={phone}
+                    onChangeText={text =>
+                      setPhone(text.replace(/[^0-9+\s\-]/g, ''))
+                    }
+                    onFocus={() => setFocusedField('phone')}
+                    onBlur={() => setFocusedField(null)}
+                  />
+                </View>
+              ) : null}
+
+              {!isAdvancedSectionMode ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>
+                    Selecciona un servicio
                   </Text>
-                )}
-              </View>
+
+                  {servicesLoading ? (
+                    <ActivityIndicator
+                      color={theme.primary}
+                      style={styles.inlineLoader}
+                    />
+                  ) : services.length ? (
+                    <Pressable
+                      style={styles.serviceSelectInput}
+                      onPress={() => setServicePickerVisible(true)}
+                    >
+                      <View style={styles.serviceSelectBody}>
+                        <Text style={styles.serviceSelectLabel}>
+                          Servicios asignados
+                        </Text>
+                        <Text
+                          style={styles.serviceSelectValue}
+                          numberOfLines={1}
+                        >
+                          {selectedServicesLabel}
+                        </Text>
+                      </View>
+                      <Text style={styles.serviceSelectChevron}>▾</Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={styles.sectionHelperMuted}>
+                      Todavía no hay servicios cargados. Cargalos desde Ajustes
+                      para poder asignarlos por profesional.
+                    </Text>
+                  )}
+                </View>
               ) : null}
 
               {/* DÍAS */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Días de atención</Text>
-                <View style={styles.daysRow}>
-                  {DAYS_OF_WEEK.map(day => {
-                    const active = selectedDays.includes(day.id);
-                    return (
-                      <Pressable
-                        key={day.id}
-                        onPress={() => toggleDay(day.id)}
-                        style={[
-                          styles.dayCircle,
-                          active && styles.dayCircleActive,
-                        ]}
-                      >
-                        <Text
+              {!isAdvancedSectionMode ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>
+                    Selecciona los días de atención
+                  </Text>
+                  <View style={styles.daysRow}>
+                    {DAYS_OF_WEEK.map(day => {
+                      const active = selectedDays.includes(day.id);
+                      return (
+                        <Pressable
+                          key={day.id}
+                          onPress={() => toggleDay(day.id)}
                           style={[
-                            styles.dayText,
-                            active && styles.dayTextActive,
+                            styles.dayCircle,
+                            active && styles.dayCircleActive,
                           ]}
-                        >
-                          {day.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* RANGO HORARIO */}
-              <View style={styles.section}>
-                {/* Header con toggle */}
-                <View style={styles.shiftHeader}>
-                  <Text style={styles.sectionLabel}>Rango horario</Text>
-                  <Pressable
-                    style={[
-                      styles.splitToggle,
-                      splitShift && styles.splitToggleActive,
-                    ]}
-                    onPress={() => setSplitShift(prev => !prev)}
-                  >
-                    <Text
-                      style={[
-                        styles.splitToggleText,
-                        splitShift && styles.splitToggleTextActive,
-                      ]}
-                    >
-                       Doble Jornada
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {!splitShift ? (
-                  // HORARIO CORRIDO
-                  <View style={styles.timeRow}>
-                    <Pressable
-                      style={styles.timeCard}
-                      onPress={() => setActivePicker('start')}
-                    >
-                      <Text style={styles.timeLabel}>Inicio</Text>
-                      <Text style={styles.timeValue}>
-                        {formatMinutesAmPm(startMinutes)}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.timeCard}
-                      onPress={() => setActivePicker('end')}
-                    >
-                      <Text style={styles.timeLabel}>Fin</Text>
-                      <Text style={styles.timeValue}>
-                        {formatMinutesAmPm(endMinutes)}
-                      </Text>
-                    </Pressable>
-                  </View>
-                ) : (
-                  // TURNO CORTADO
-                  <>
-                    <View style={styles.shiftBlock}>
-                      <Text style={styles.shiftLabel}>☀️ Mañana</Text>
-                      <View style={styles.timeRow}>
-                        <Pressable
-                          style={styles.timeCard}
-                          onPress={() => setActivePicker('morningStart')}
-                        >
-                          <Text style={styles.timeLabel}>Inicio</Text>
-                          <Text style={styles.timeValue}>
-                            {formatMinutesAmPm(morningStart)}
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.timeCard}
-                          onPress={() => setActivePicker('morningEnd')}
-                        >
-                          <Text style={styles.timeLabel}>Fin</Text>
-                          <Text style={styles.timeValue}>
-                            {formatMinutesAmPm(morningEnd)}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    </View>
-
-                    <View style={styles.shiftDivider} />
-
-                    <View style={styles.shiftBlock}>
-                      <Text style={styles.shiftLabel}>🌙 Tarde</Text>
-                      <View style={styles.timeRow}>
-                        <Pressable
-                          style={styles.timeCard}
-                          onPress={() => setActivePicker('afternoonStart')}
-                        >
-                          <Text style={styles.timeLabel}>Inicio</Text>
-                          <Text style={styles.timeValue}>
-                            {formatMinutesAmPm(afternoonStart)}
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          style={styles.timeCard}
-                          onPress={() => setActivePicker('afternoonEnd')}
-                        >
-                          <Text style={styles.timeLabel}>Fin</Text>
-                          <Text style={styles.timeValue}>
-                            {formatMinutesAmPm(afternoonEnd)}
-                          </Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  </>
-                )}
-              </View>
-
-              <View style={styles.section}>
-                <View style={styles.overrideHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.sectionLabel}>Horario especial por día</Text>
-                    <Text style={styles.overrideHeaderText}>
-                      Si un día trabaja distinto, podés personalizarlo sin tocar el horario base.
-                    </Text>
-                    <Text style={styles.overrideHeaderSubtext}>
-                      Los cambios nuevos se aplican desde hoy y no modifican fechas anteriores.
-                    </Text>
-                  </View>
-                </View>
-
-                {selectedDays.length ? (
-                  <>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.overrideDaysRow}
-                    >
-                      {selectedDays.map(day => {
-                        const active = multiEditMode
-                          ? multiEditDays.includes(day)
-                          : selectedOverrideDay === day;
-                        const activeOverride = resolveActiveDayOverride(
-                          dayScheduleOverrides,
-                          day,
-                          todayDateLabel,
-                        );
-                        const hasCustom = Boolean(
-                          activeOverride && !activeOverride.useBase,
-                        );
-                        return (
-                          <Pressable
-                            key={day}
-                            onPress={() =>
-                              multiEditMode
-                                ? toggleMultiEditDay(day)
-                                : setSelectedOverrideDay(day)
-                            }
-                            style={[
-                              styles.overrideDayChip,
-                              active && styles.overrideDayChipActive,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.overrideDayChipText,
-                                active && styles.overrideDayChipTextActive,
-                              ]}
-                            >
-                              {DAY_NAMES[day]}
-                            </Text>
-                            {hasCustom ? (
-                              <Text style={styles.overrideDayChipMeta}>Personalizado</Text>
-                            ) : (
-                              <Text style={styles.overrideDayChipMeta}>Base</Text>
-                            )}
-                          </Pressable>
-                        );
-                      })}
-                    </ScrollView>
-
-                    <View style={styles.bulkApplyCard}>
-                      <View style={styles.bulkApplyHeader}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.bulkApplyTitle}>
-                            {multiEditMode ? 'Editando varios días' : 'Editar un solo día'}
-                          </Text>
-                          <Text style={styles.bulkApplyHint}>
-                            {multiEditMode
-                              ? 'Marcá los días y cualquier cambio se aplica a todos juntos.'
-                              : 'Tocá un día para editarlo solo, o activá edición múltiple.'}
-                          </Text>
-                        </View>
-                        <Pressable
-                          style={[
-                            styles.bulkApplyToggle,
-                            multiEditMode && styles.bulkApplyToggleActive,
-                          ]}
-                          onPress={() => {
-                            setMultiEditMode(prev => {
-                              const next = !prev;
-                              if (next) {
-                                setMultiEditDays(
-                                  selectedOverrideDay != null ? [selectedOverrideDay] : [],
-                                );
-                              } else {
-                                setMultiEditDays([]);
-                              }
-                              return next;
-                            });
-                          }}
                         >
                           <Text
                             style={[
-                              styles.bulkApplyToggleText,
-                              multiEditMode && styles.bulkApplyToggleTextActive,
+                              styles.dayText,
+                              active && styles.dayTextActive,
                             ]}
                           >
-                            {multiEditMode ? 'Editar uno' : 'Editar varios'}
+                            {day.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
+              {!isAdvancedSectionMode ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Elegí el horario</Text>
+                  <View
+                    style={[styles.scheduleModeRow, { alignItems: 'center' }]}
+                  >
+                    <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                      <View
+                        style={[
+                          {
+                            flexDirection: 'row',
+                            borderRadius: 16,
+                            overflow: 'hidden',
+                          },
+                        ]}
+                      >
+                        <Pressable
+                          onPress={() => setSplitShift(false)}
+                          style={({ pressed }) => [
+                            styles.scheduleModeButton,
+                            !splitShift && styles.scheduleModeButtonActive,
+                            {
+                              borderTopRightRadius: 0,
+                              borderBottomRightRadius: 0,
+                            },
+                            pressed && { opacity: 0.85 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.scheduleModeText,
+                              !splitShift && styles.scheduleModeTextActive,
+                              { fontSize: 13 },
+                            ]}
+                          >
+                            Horario corrido
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => setSplitShift(true)}
+                          style={({ pressed }) => [
+                            styles.scheduleModeButton,
+                            splitShift && styles.scheduleModeButtonActive,
+                            {
+                              borderTopLeftRadius: 0,
+                              borderBottomLeftRadius: 0,
+                            },
+                            pressed && { opacity: 0.85 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.scheduleModeText,
+                              splitShift && styles.scheduleModeTextActive,
+                              { fontSize: 13 },
+                            ]}
+                          >
+                            Doble jornada
                           </Text>
                         </Pressable>
                       </View>
                     </View>
+                  </View>
 
-                    {previewOverrideDay != null ? (
-                      <View style={styles.overrideCard}>
-                        <View style={styles.overrideSelectionSummary}>
-                          <Text style={styles.overrideSelectionSummaryLabel}>
-                            {multiEditMode ? 'Días editando' : 'Día editando'}
-                          </Text>
-                          <Text style={styles.overrideSelectionSummaryValue}>
-                            {editingOverrideDaysLabel}
-                          </Text>
-                        </View>
-                        <View style={styles.overrideCardTop}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.overrideCardTitle}>
-                              {multiEditMode
-                                ? `${multiEditDays.length} día(s) seleccionados`
-                                : DAY_NAMES[previewOverrideDay]}
-                            </Text>
-                            <Text style={styles.overrideCardHint}>
-                              {multiEditMode
-                                ? 'Los cambios que hagas acá se aplican a todos los días marcados.'
-                                : selectedOverrideHasCustomSchedule
-                                  ? 'Este día usa un horario distinto al base.'
-                                  : 'Este día usa el horario base actual.'}
-                            </Text>
-                          </View>
+                  {!splitShift ? (
+                    <View style={styles.timeRow}>
+                      <Pressable
+                        style={styles.timeCard}
+                        onPress={() => setActivePicker('start')}
+                      >
+                        <Text style={styles.timeLabel}>Inicio</Text>
+                        <Text style={styles.timeValue}>
+                          {formatMinutesAmPm(startMinutes)}
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={styles.timeCard}
+                        onPress={() => setActivePicker('end')}
+                      >
+                        <Text style={styles.timeLabel}>Fin</Text>
+                        <Text style={styles.timeValue}>
+                          {formatMinutesAmPm(endMinutes)}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.shiftBlock}>
+                        <Text style={styles.shiftLabel}>Mañana</Text>
+                        <View style={styles.timeRow}>
                           <Pressable
-                            style={[
-                              styles.overrideToggle,
-                              selectedOverrideHasCustomSchedule &&
-                                styles.overrideToggleActive,
-                            ]}
-                            onPress={() =>
-                              selectedOverrideHasCustomSchedule
-                                ? removeOverridesFromEditingDays()
-                                : enableSelectedDayOverride()
-                            }
+                            style={styles.timeCard}
+                            onPress={() => setActivePicker('morningStart')}
                           >
-                            <Text
-                              style={[
-                                styles.overrideToggleText,
-                                selectedOverrideHasCustomSchedule &&
-                                  styles.overrideToggleTextActive,
-                              ]}
-                            >
-                              {selectedOverrideHasCustomSchedule
-                                ? 'Usando horario especial'
-                                : 'Usar horario especial'}
+                            <Text style={styles.timeLabel}>Inicio</Text>
+                            <Text style={styles.timeValue}>
+                              {formatMinutesAmPm(morningStart)}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.timeCard}
+                            onPress={() => setActivePicker('morningEnd')}
+                          >
+                            <Text style={styles.timeLabel}>Fin</Text>
+                            <Text style={styles.timeValue}>
+                              {formatMinutesAmPm(morningEnd)}
                             </Text>
                           </Pressable>
                         </View>
+                      </View>
 
-                        {selectedOverrideHasCustomSchedule ? (
-                          <>
+                      <View style={styles.shiftDivider} />
+
+                      <View style={styles.shiftBlock}>
+                        <Text style={styles.shiftLabel}>Tarde</Text>
+                        <View style={styles.timeRow}>
+                          <Pressable
+                            style={styles.timeCard}
+                            onPress={() => setActivePicker('afternoonStart')}
+                          >
+                            <Text style={styles.timeLabel}>Inicio</Text>
+                            <Text style={styles.timeValue}>
+                              {formatMinutesAmPm(afternoonStart)}
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={styles.timeCard}
+                            onPress={() => setActivePicker('afternoonEnd')}
+                          >
+                            <Text style={styles.timeLabel}>Fin</Text>
+                            <Text style={styles.timeValue}>
+                              {formatMinutesAmPm(afternoonEnd)}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    </>
+                  )}
+                </View>
+              ) : null}
+
+              {!isAdvancedSectionMode ? (
+                <View style={styles.section}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <Text style={styles.sectionLabel}>
+                      Trabajas un día diferente?
+                    </Text>
+                    <View
+                      style={[
+                        { borderRadius: 18 },
+                        overrideEnabled
+                          ? {}
+                          : styles.overrideSwitchWrapDisabled,
+                      ]}
+                    >
+                      <Switch
+                        value={overrideEnabled}
+                        onValueChange={(val: boolean) => {
+                          setOverrideEnabled(val);
+                          if (!val) {
+                            // closing override: clear selection
+                            setSelectedOverrideDay(null);
+                            setOverrideDayPickerVisible(false);
+                          } else {
+                            // enabling override: if there are selectedDays, prepare a default
+                            if (
+                              !editingOverrideDays.length &&
+                              selectedDays.length
+                            ) {
+                              setSelectedOverrideDay(selectedDays[0]);
+                            }
+                            setOverrideDayPickerVisible(true);
+                          }
+                        }}
+                        trackColor={{ false: '#767577', true: theme.primary }}
+                        thumbColor={
+                          overrideEnabled ? theme.textOnPrimary : '#f4f3f4'
+                        }
+                      />
+                    </View>
+                  </View>
+
+                  {overrideEnabled && selectedDays.length ? (
+                    <>
+                      <Pressable
+                        style={styles.serviceSelectInput}
+                        onPress={() => {
+                          if (!overrideEnabled) return; // only open when switch enabled
+                          if (
+                            !editingOverrideDays.length &&
+                            selectedDays.length
+                          ) {
+                            setSelectedOverrideDay(selectedDays[0]);
+                            setMultiEditMode(false);
+                          }
+                          setOverrideDayPickerVisible(true);
+                        }}
+                      >
+                        <View style={styles.serviceSelectBody}>
+                          <Text style={styles.serviceSelectLabel}>
+                            Días de la semana
+                          </Text>
+                          <Text
+                            style={styles.serviceSelectValue}
+                            numberOfLines={1}
+                          >
+                            {specialDaysInputLabel}
+                          </Text>
+                        </View>
+                        <Text style={styles.serviceSelectChevron}>▾</Text>
+                      </Pressable>
+
+                      {editingOverrideDays.length ? (
+                        <View style={styles.overrideCard}>
+                          <Text style={styles.specialScheduleTitle}>
+                            Ahora elegí tu horario:
+                          </Text>
+                          <View style={[{ flexDirection: 'row', borderRadius: 16, overflow: 'hidden' }]}>
                             <Pressable
-                              style={[
-                                styles.splitToggle,
-                                selectedOverrideIsSplit && styles.splitToggleActive,
+                              onPress={() =>
+                                applyOverrideToEditingDays({
+                                  scheduleRange: `${formatMinutes(
+                                    overrideSingleRange[0],
+                                  )} - ${formatMinutes(
+                                    overrideSingleRange[1],
+                                  )}`,
+                                  scheduleRanges: [],
+                                })
+                              }
+                              style={({ pressed }) => [
+                                styles.scheduleModeButton,
+                                selectedOverrideHasCustomSchedule && !selectedOverrideIsSplit && styles.scheduleModeButtonActive,
+                                { borderTopRightRadius: 0, borderBottomRightRadius: 0 },
+                                pressed && { opacity: 0.85 },
                               ]}
-                              onPress={toggleSelectedDayOverrideMode}
                             >
                               <Text
                                 style={[
-                                  styles.splitToggleText,
-                                  selectedOverrideIsSplit &&
-                                    styles.splitToggleTextActive,
+                                  styles.scheduleModeText,
+                                  selectedOverrideHasCustomSchedule && !selectedOverrideIsSplit && styles.scheduleModeTextActive,
+                                  { fontSize: 13 },
                                 ]}
                               >
-                                {selectedOverrideIsSplit
-                                  ? 'Usando horario cortado'
-                                  : 'Usar horario cortado'}
+                                Horario corrido
                               </Text>
                             </Pressable>
 
-                            {!selectedOverrideIsSplit ? (
-                              <View style={[styles.timeRow, { marginTop: 12 }]}>
+                            <Pressable
+                              onPress={() =>
+                                applyOverrideToEditingDays({
+                                  scheduleRange: null,
+                                  scheduleRanges: [
+                                    {
+                                      label: 'mañana',
+                                      start: formatMinutes(overrideMorningRange[0]),
+                                      end: formatMinutes(overrideMorningRange[1]),
+                                    },
+                                    {
+                                      label: 'tarde',
+                                      start: formatMinutes(overrideAfternoonRange[0]),
+                                      end: formatMinutes(overrideAfternoonRange[1]),
+                                    },
+                                  ],
+                                })
+                              }
+                              style={({ pressed }) => [
+                                styles.scheduleModeButton,
+                                selectedOverrideHasCustomSchedule && selectedOverrideIsSplit && styles.scheduleModeButtonActive,
+                                { borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
+                                pressed && { opacity: 0.85 },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.scheduleModeText,
+                                  selectedOverrideHasCustomSchedule && selectedOverrideIsSplit && styles.scheduleModeTextActive,
+                                  { fontSize: 13 },
+                                ]}
+                              >
+                                Doble jornada
+                              </Text>
+                            </Pressable>
+                          </View>
+
+                          {selectedOverrideHasCustomSchedule ? (
+                            !selectedOverrideIsSplit ? (
+                              <View style={styles.timeRow}>
                                 <Pressable
                                   style={styles.timeCard}
-                                  onPress={() => setActivePicker('overrideStart')}
+                                  onPress={() =>
+                                    setActivePicker('overrideStart')
+                                  }
                                 >
                                   <Text style={styles.timeLabel}>Inicio</Text>
                                   <Text style={styles.timeValue}>
@@ -1549,8 +1750,8 @@ function RegisterEmployed({ navigation, route }: Props) {
                               </View>
                             ) : (
                               <>
-                                <View style={[styles.shiftBlock, { marginTop: 12 }]}>
-                                  <Text style={styles.shiftLabel}>☀️ Mañana</Text>
+                                <View style={styles.shiftBlock}>
+                                  <Text style={styles.shiftLabel}>Mañana</Text>
                                   <View style={styles.timeRow}>
                                     <Pressable
                                       style={styles.timeCard}
@@ -1558,9 +1759,13 @@ function RegisterEmployed({ navigation, route }: Props) {
                                         setActivePicker('overrideMorningStart')
                                       }
                                     >
-                                      <Text style={styles.timeLabel}>Inicio</Text>
+                                      <Text style={styles.timeLabel}>
+                                        Inicio
+                                      </Text>
                                       <Text style={styles.timeValue}>
-                                        {formatMinutesAmPm(overrideMorningRange[0])}
+                                        {formatMinutesAmPm(
+                                          overrideMorningRange[0],
+                                        )}
                                       </Text>
                                     </Pressable>
                                     <Pressable
@@ -1571,26 +1776,32 @@ function RegisterEmployed({ navigation, route }: Props) {
                                     >
                                       <Text style={styles.timeLabel}>Fin</Text>
                                       <Text style={styles.timeValue}>
-                                        {formatMinutesAmPm(overrideMorningRange[1])}
+                                        {formatMinutesAmPm(
+                                          overrideMorningRange[1],
+                                        )}
                                       </Text>
                                     </Pressable>
                                   </View>
                                 </View>
-
                                 <View style={styles.shiftDivider} />
-
                                 <View style={styles.shiftBlock}>
-                                  <Text style={styles.shiftLabel}>🌙 Tarde</Text>
+                                  <Text style={styles.shiftLabel}>Tarde</Text>
                                   <View style={styles.timeRow}>
                                     <Pressable
                                       style={styles.timeCard}
                                       onPress={() =>
-                                        setActivePicker('overrideAfternoonStart')
+                                        setActivePicker(
+                                          'overrideAfternoonStart',
+                                        )
                                       }
                                     >
-                                      <Text style={styles.timeLabel}>Inicio</Text>
+                                      <Text style={styles.timeLabel}>
+                                        Inicio
+                                      </Text>
                                       <Text style={styles.timeValue}>
-                                        {formatMinutesAmPm(overrideAfternoonRange[0])}
+                                        {formatMinutesAmPm(
+                                          overrideAfternoonRange[0],
+                                        )}
                                       </Text>
                                     </Pressable>
                                     <Pressable
@@ -1601,255 +1812,425 @@ function RegisterEmployed({ navigation, route }: Props) {
                                     >
                                       <Text style={styles.timeLabel}>Fin</Text>
                                       <Text style={styles.timeValue}>
-                                        {formatMinutesAmPm(overrideAfternoonRange[1])}
+                                        {formatMinutesAmPm(
+                                          overrideAfternoonRange[1],
+                                        )}
                                       </Text>
                                     </Pressable>
                                   </View>
                                 </View>
                               </>
-                            )}
-                          </>
-                        ) : null}
-                      </View>
-                    ) : null}
-                  </>
-                ) : (
-                  <Text style={styles.overrideEmptyText}>
-                    Primero elegí al menos un día de atención para habilitar horarios especiales.
-                  </Text>
-                )}
-              </View>
+                            )
+                          ) : null}
 
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>
-                  {`Buffer general del ${businessCopy.staffSingular}`}
-                </Text>
-                <Text style={styles.closedDaysHint}>
-                  {`Si este ${businessCopy.staffSingular} necesita tiempo fijo para limpiar o descansar entre turnos, cargalo acá como minutos extra.`}
-                </Text>
-                <TextInput
-                  style={[styles.input, { marginTop: 12 }]}
-                  placeholder="0"
-                  placeholderTextColor={theme.placeholder}
-                  keyboardType="numeric"
-                  value={bookingBufferMinutesInput}
-                  onChangeText={setBookingBufferMinutesInput}
-                />
-              </View>
-
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>
-                  {`Días no disponibles del ${businessCopy.staffSingular}`}
-                </Text>
-                <Text style={styles.closedDaysHint}>
-                  {`Si ${businessCopy.theBusiness} abre pero este ${businessCopy.staffSingular} falta, cargá la fecha acá para bloquear nuevos turnos y el motivo de falta.`}
-                </Text>
-
-                <View style={styles.closedDaysQuickRow}>
-                  <Pressable
-                    style={styles.closedDaysQuickChip}
-                    onPress={() => setClosedDateInput(todayDateLabel)}
-                  >
-                    <Text style={styles.closedDaysQuickChipText}>Hoy</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.closedDaysQuickChip}
-                    onPress={() => {
-                      const nextDate = new Date(`${todayDateLabel}T12:00:00`);
-                      nextDate.setDate(nextDate.getDate() + 1);
-                      const yyyy = nextDate.getFullYear();
-                      const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
-                      const dd = String(nextDate.getDate()).padStart(2, '0');
-                      setClosedDateInput(`${yyyy}-${mm}-${dd}`);
-                    }}
-                  >
-                    <Text style={styles.closedDaysQuickChipText}>Mañana</Text>
-                  </Pressable>
-                </View>
-
-                <Pressable
-                  style={styles.closedDateInput}
-                  onPress={() => setIsClosedDateModalVisible(true)}
-                >
-                  <View style={styles.closedDateInputIcon}>
-                    <CalendarDays size={16} color={theme.primary} />
-                  </View>
-                  <View style={styles.closedDateInputBody}>
-                    <Text style={styles.closedDateInputValue}>
-                      {closedDateInput
-                        ? formatClosedDayLabel(closedDateInput)
-                        : 'Elegir fecha'}
-                    </Text>
-                    <Text style={styles.closedDateInputMeta}>
-                      {closedDateInput || 'Tocá para abrir el calendario'}
-                    </Text>
-                  </View>
-                </Pressable>
-                <TextInput
-                  style={[styles.input, styles.closedDaysMessageInput]}
-                  placeholder="Motivo o mensaje para mostrar en la reserva"
-                  placeholderTextColor={theme.placeholder}
-                  value={closedMessageInput}
-                  onChangeText={setClosedMessageInput}
-                  multiline
-                />
-
-                <Pressable
-                  style={styles.closedDaysSaveButton}
-                  onPress={() => upsertClosedDay(closedDateInput, closedMessageInput)}
-                >
-                  <Text style={styles.closedDaysSaveButtonText}>Agregar día no disponible</Text>
-                </Pressable>
-
-                {barberClosedDays.length ? (
-                  <View style={styles.closedDaysList}>
-                    {barberClosedDays.map(item => (
-                      <View key={item.date} style={styles.closedDayItem}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.closedDayItemTitle}>
-                            {formatClosedDayLabel(item.date)}
-                          </Text>
-                          <Text style={styles.closedDayItemDate}>{item.date}</Text>
-                          <Text style={styles.closedDayItemMessage}>
-                            {item.message ||
-                              `Este ${businessCopy.staffSingular} no atenderá ese día. Elegí otro profesional o seleccioná otra fecha.`}
-                          </Text>
+                          {selectedOverrideHasCustomSchedule ? (
+                            <>
+                              <View style={styles.specialScheduleSavedBanner}>
+                                <Text style={styles.specialScheduleSavedIcon}>
+                                  ✓
+                                </Text>
+                                <Text style={styles.specialScheduleSavedText}>
+                                  {hasPendingScheduleSave
+                                    ? 'Horario especial cargado. Para aplicarlo, tocá Guardar cambios.'
+                                    : 'Horario especial cargado.'}
+                                </Text>
+                              </View>
+                              <Pressable
+                                style={styles.clearSpecialScheduleButton}
+                                onPress={removeOverridesFromEditingDays}
+                              >
+                                <Text style={styles.clearSpecialScheduleText}>
+                                  Ocultar horario especial
+                                </Text>
+                              </Pressable>
+                            </>
+                          ) : null}
                         </View>
+                      ) : null}
+                    </>
+                  ) : (
+                    <Text style={styles.overrideEmptyText}>
+                      Activá el switch para definir un horario distinto en un
+                      día.{' '}
+                    </Text>
+                  )}
+                </View>
+              ) : null}
+
+              {isEditing &&
+              (!advancedSection || advancedSection === 'buffer') ? (
+                <View style={styles.section}>
+                  <Pressable
+                    style={styles.collapsibleHeader}
+                    onPress={() => setBufferSectionOpen(open => !open)}
+                  >
+                    <View style={styles.collapsibleHeaderTextWrap}>
+                      <Text style={styles.collapsibleTitle}>
+                        {`Buffer general del ${businessCopy.staffSingular}`}
+                      </Text>
+                      <Text style={styles.collapsibleMeta}>
+                        {`${Math.max(
+                          0,
+                          Number(bookingBufferMinutesInput) || 0,
+                        )} min entre turnos`}
+                      </Text>
+                    </View>
+                    <Text style={styles.collapsibleArrow}>
+                      {bufferSectionOpen ? '▴' : '▾'}
+                    </Text>
+                  </Pressable>
+                  {bufferSectionOpen ? (
+                    <View style={styles.collapsibleBody}>
+                      <Text style={styles.closedDaysHint}>
+                        {`Si este ${businessCopy.staffSingular} necesita tiempo fijo para limpiar o descansar entre turnos, cargalo acá como minutos extra.`}
+                      </Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="0"
+                        placeholderTextColor={theme.placeholder}
+                        keyboardType="numeric"
+                        value={bookingBufferMinutesInput}
+                        onChangeText={setBookingBufferMinutesInput}
+                      />
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {isEditing &&
+              (!advancedSection || advancedSection === 'closedDays') ? (
+                <View style={styles.section}>
+                  <Pressable
+                    style={styles.collapsibleHeader}
+                    onPress={() => setClosedDaysSectionOpen(open => !open)}
+                  >
+                    <View style={styles.collapsibleHeaderTextWrap}>
+                      <Text style={styles.collapsibleTitle}>
+                        {`Días no disponibles del ${businessCopy.staffSingular}`}
+                      </Text>
+                      <Text style={styles.collapsibleMeta}>
+                        {barberClosedDays.length
+                          ? `${barberClosedDays.length} fecha(s) cargadas`
+                          : 'Opcional'}
+                      </Text>
+                    </View>
+                    <Text style={styles.collapsibleArrow}>
+                      {closedDaysSectionOpen ? '▴' : '▾'}
+                    </Text>
+                  </Pressable>
+                  {closedDaysSectionOpen ? (
+                    <View style={styles.collapsibleBody}>
+                      <Text style={styles.closedDaysHint}>
+                        {`Si ${businessCopy.theBusiness} abre pero este ${businessCopy.staffSingular} falta, cargá la fecha acá para bloquear nuevos turnos y el motivo de falta.`}
+                      </Text>
+
+                      <View style={styles.closedDaysQuickRow}>
                         <Pressable
-                          style={styles.closedDayDeleteButton}
-                          onPress={() => removeClosedDay(item.date)}
+                          style={styles.closedDaysQuickChip}
+                          onPress={() => setClosedDateInput(todayDateLabel)}
                         >
-                          <Text style={styles.closedDayDeleteButtonText}>Quitar</Text>
+                          <Text style={styles.closedDaysQuickChipText}>
+                            Hoy
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.closedDaysQuickChip}
+                          onPress={() => {
+                            const nextDate = new Date(
+                              `${todayDateLabel}T12:00:00`,
+                            );
+                            nextDate.setDate(nextDate.getDate() + 1);
+                            const yyyy = nextDate.getFullYear();
+                            const mm = String(nextDate.getMonth() + 1).padStart(
+                              2,
+                              '0',
+                            );
+                            const dd = String(nextDate.getDate()).padStart(
+                              2,
+                              '0',
+                            );
+                            setClosedDateInput(`${yyyy}-${mm}-${dd}`);
+                          }}
+                        >
+                          <Text style={styles.closedDaysQuickChipText}>
+                            Mañana
+                          </Text>
                         </Pressable>
                       </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text style={styles.closedDaysEmptyText}>
-                    {`No hay fechas bloqueadas para este ${businessCopy.staffSingular}.`}
-                  </Text>
-                )}
-              </View>
 
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Bloqueos por horario</Text>
-                <Text style={styles.closedDaysHint}>
-                  Usalo para cortar solo un tramo del día. Ejemplo: descanso, enfermedad o salida anticipada.
-                </Text>
-
-                <View style={styles.closedDaysQuickRow}>
-                  <Pressable
-                    style={styles.closedDaysQuickChip}
-                    onPress={() => setBlockDateInput(todayDateLabel)}
-                  >
-                    <Text style={styles.closedDaysQuickChipText}>Hoy</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.closedDaysQuickChip}
-                    onPress={() => setIsBlockDateModalVisible(true)}
-                  >
-                    <Text style={styles.closedDaysQuickChipText}>Elegir fecha</Text>
-                  </Pressable>
-                </View>
-
-                <Pressable
-                  style={styles.closedDateInput}
-                  onPress={() => setIsBlockDateModalVisible(true)}
-                >
-                  <View style={styles.closedDateInputIcon}>
-                    <CalendarDays size={16} color={theme.primary} />
-                  </View>
-                  <View style={styles.closedDateInputBody}>
-                    <Text style={styles.closedDateInputValue}>
-                      {blockDateInput ? formatClosedDayLabel(blockDateInput) : 'Elegir fecha'}
-                    </Text>
-                    <Text style={styles.closedDateInputMeta}>
-                      {blockDateInput || 'Tocá para abrir el calendario'}
-                    </Text>
-                  </View>
-                </Pressable>
-
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <View style={{ flex: 1, gap: 8 }}>
-                    <Text style={styles.sectionLabel}>Desde</Text>
-                    <Pressable
-                      style={styles.input}
-                      onPress={() => setActivePicker('blockStart')}
-                    >
-                      <Text style={styles.closedDateInputValue}>
-                        {formatMinutes(blockStartMinutes)}
-                      </Text>
-                    </Pressable>
-                  </View>
-                  <View style={{ flex: 1, gap: 8 }}>
-                    <Text style={styles.sectionLabel}>Hasta</Text>
-                    <Pressable
-                      style={styles.input}
-                      onPress={() => setActivePicker('blockEnd')}
-                    >
-                      <Text style={styles.closedDateInputValue}>
-                        {formatMinutes(blockEndMinutes)}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
-
-                <TextInput
-                  style={[styles.input, styles.closedDaysMessageInput]}
-                  placeholder="Motivo o mensaje para mostrar en la reserva"
-                  placeholderTextColor={theme.placeholder}
-                  value={blockMessageInput}
-                  onChangeText={setBlockMessageInput}
-                  multiline
-                />
-
-                <Pressable
-                  style={styles.closedDaysSaveButton}
-                  onPress={() =>
-                    upsertTimeBlock(
-                      blockDateInput,
-                      blockStartMinutes,
-                      blockEndMinutes,
-                      blockMessageInput,
-                    )
-                  }
-                >
-                  <Text style={styles.closedDaysSaveButtonText}>Agregar bloqueo horario</Text>
-                </Pressable>
-
-                {barberTimeBlocks.length ? (
-                  <View style={styles.closedDaysList}>
-                    {barberTimeBlocks.map(item => (
-                      <View
-                        key={`${item.date}-${item.start}-${item.end}`}
-                        style={styles.closedDayItem}
+                      <Pressable
+                        style={styles.closedDateInput}
+                        onPress={() => setIsClosedDateModalVisible(true)}
                       >
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.closedDayItemTitle}>
-                            {formatClosedDayLabel(item.date)}
+                        <View style={styles.closedDateInputIcon}>
+                          <CalendarDays size={16} color={theme.primary} />
+                        </View>
+                        <View style={styles.closedDateInputBody}>
+                          <Text style={styles.closedDateInputValue}>
+                            {closedDateInput
+                              ? formatClosedDayLabel(closedDateInput)
+                              : 'Elegir fecha'}
                           </Text>
-                          <Text style={styles.closedDayItemDate}>
-                            {item.date} · {item.start} - {item.end}
-                          </Text>
-                          <Text style={styles.closedDayItemMessage}>
-                            {item.message || 'Este horario no está disponible para reservas.'}
+                          <Text style={styles.closedDateInputMeta}>
+                            {closedDateInput || 'Tocá para abrir el calendario'}
                           </Text>
                         </View>
+                      </Pressable>
+                      <TextInput
+                        style={[styles.input, styles.closedDaysMessageInput]}
+                        placeholder="Motivo o mensaje para mostrar en la reserva"
+                        placeholderTextColor={theme.placeholder}
+                        value={closedMessageInput}
+                        onChangeText={setClosedMessageInput}
+                        multiline
+                      />
+
+                      <Pressable
+                        style={styles.closedDaysSaveButton}
+                        onPress={() =>
+                          upsertClosedDay(closedDateInput, closedMessageInput)
+                        }
+                      >
+                        <Text style={styles.closedDaysSaveButtonText}>
+                          Agregar día no disponible
+                        </Text>
+                      </Pressable>
+
+                      {barberClosedDays.length ? (
+                        <View style={styles.closedDaysList}>
+                          {barberClosedDays.map(item => (
+                            <View key={item.date} style={styles.closedDayItem}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.closedDayItemTitle}>
+                                  {formatClosedDayLabel(item.date)}
+                                </Text>
+                                <Text style={styles.closedDayItemDate}>
+                                  {item.date}
+                                </Text>
+                                <Text style={styles.closedDayItemMessage}>
+                                  {item.message ||
+                                    `Este ${businessCopy.staffSingular} no atenderá ese día. Elegí otro profesional o seleccioná otra fecha.`}
+                                </Text>
+                              </View>
+                              <Pressable
+                                style={styles.closedDayDeleteButton}
+                                onPress={() => removeClosedDay(item.date)}
+                              >
+                                <Text style={styles.closedDayDeleteButtonText}>
+                                  Quitar
+                                </Text>
+                              </Pressable>
+                            </View>
+                          ))}
+                        </View>
+                      ) : (
+                        <Text style={styles.closedDaysEmptyText}>
+                          {`No hay fechas bloqueadas para este ${businessCopy.staffSingular}.`}
+                        </Text>
+                      )}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {isEditing &&
+              (!advancedSection || advancedSection === 'timeBlocks') ? (
+                <View style={styles.section}>
+                  <Pressable
+                    style={styles.collapsibleHeader}
+                    onPress={() => setTimeBlocksSectionOpen(open => !open)}
+                  >
+                    <View style={styles.collapsibleHeaderTextWrap}>
+                      <Text style={styles.collapsibleTitle}>
+                        Bloqueos por horario
+                      </Text>
+                      <Text style={styles.collapsibleMeta}>
+                        {barberTimeBlocks.length
+                          ? `${barberTimeBlocks.length} bloqueo(s) cargados`
+                          : 'Opcional'}
+                      </Text>
+                    </View>
+                    <Text style={styles.collapsibleArrow}>
+                      {timeBlocksSectionOpen ? '▴' : '▾'}
+                    </Text>
+                  </Pressable>
+                  {timeBlocksSectionOpen ? (
+                    <View style={styles.collapsibleBody}>
+                      <Text style={styles.closedDaysHint}>
+                        Usalo para cortar solo un tramo del día. Ejemplo:
+                        descanso, enfermedad o salida anticipada.
+                      </Text>
+
+                      <View style={styles.closedDaysQuickRow}>
                         <Pressable
-                          style={styles.closedDayDeleteButton}
-                          onPress={() => removeTimeBlock(item)}
+                          style={styles.closedDaysQuickChip}
+                          onPress={() => setBlockDateInput(todayDateLabel)}
                         >
-                          <Text style={styles.closedDayDeleteButtonText}>Quitar</Text>
+                          <Text style={styles.closedDaysQuickChipText}>
+                            Hoy
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          style={styles.closedDaysQuickChip}
+                          onPress={() => setIsBlockDateModalVisible(true)}
+                        >
+                          <Text style={styles.closedDaysQuickChipText}>
+                            Elegir fecha
+                          </Text>
                         </Pressable>
                       </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text style={styles.closedDaysEmptyText}>
-                    {`No hay bloqueos parciales cargados para este ${businessCopy.staffSingular}.`}
+
+                      <Pressable
+                        style={styles.closedDateInput}
+                        onPress={() => setIsBlockDateModalVisible(true)}
+                      >
+                        <View style={styles.closedDateInputIcon}>
+                          <CalendarDays size={16} color={theme.primary} />
+                        </View>
+                        <View style={styles.closedDateInputBody}>
+                          <Text style={styles.closedDateInputValue}>
+                            {blockDateInput
+                              ? formatClosedDayLabel(blockDateInput)
+                              : 'Elegir fecha'}
+                          </Text>
+                          <Text style={styles.closedDateInputMeta}>
+                            {blockDateInput || 'Tocá para abrir el calendario'}
+                          </Text>
+                        </View>
+                      </Pressable>
+
+                      <View style={{ flexDirection: 'row', gap: 10 }}>
+                        <View style={{ flex: 1, gap: 8 }}>
+                          <Text style={styles.sectionLabel}>Desde</Text>
+                          <Pressable
+                            style={styles.input}
+                            onPress={() => setActivePicker('blockStart')}
+                          >
+                            <Text style={styles.closedDateInputValue}>
+                              {formatMinutes(blockStartMinutes)}
+                            </Text>
+                          </Pressable>
+                        </View>
+                        <View style={{ flex: 1, gap: 8 }}>
+                          <Text style={styles.sectionLabel}>Hasta</Text>
+                          <Pressable
+                            style={styles.input}
+                            onPress={() => setActivePicker('blockEnd')}
+                          >
+                            <Text style={styles.closedDateInputValue}>
+                              {formatMinutes(blockEndMinutes)}
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
+
+                      <TextInput
+                        style={[styles.input, styles.closedDaysMessageInput]}
+                        placeholder="Motivo o mensaje para mostrar en la reserva"
+                        placeholderTextColor={theme.placeholder}
+                        value={blockMessageInput}
+                        onChangeText={setBlockMessageInput}
+                        multiline
+                      />
+
+                      <Pressable
+                        style={styles.closedDaysSaveButton}
+                        onPress={() =>
+                          upsertTimeBlock(
+                            blockDateInput,
+                            blockStartMinutes,
+                            blockEndMinutes,
+                            blockMessageInput,
+                          )
+                        }
+                      >
+                        <Text style={styles.closedDaysSaveButtonText}>
+                          Agregar bloqueo horario
+                        </Text>
+                      </Pressable>
+
+                      {barberTimeBlocks.length ? (
+                        <View style={styles.closedDaysList}>
+                          {barberTimeBlocks.map(item => (
+                            <View
+                              key={`${item.date}-${item.start}-${item.end}`}
+                              style={styles.closedDayItem}
+                            >
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.closedDayItemTitle}>
+                                  {formatClosedDayLabel(item.date)}
+                                </Text>
+                                <Text style={styles.closedDayItemDate}>
+                                  {item.date} · {item.start} - {item.end}
+                                </Text>
+                                <Text style={styles.closedDayItemMessage}>
+                                  {item.message ||
+                                    'Este horario no está disponible para reservas.'}
+                                </Text>
+                              </View>
+                              <Pressable
+                                style={styles.closedDayDeleteButton}
+                                onPress={() => removeTimeBlock(item)}
+                              >
+                                <Text style={styles.closedDayDeleteButtonText}>
+                                  Quitar
+                                </Text>
+                              </Pressable>
+                            </View>
+                          ))}
+                        </View>
+                      ) : (
+                        <Text style={styles.closedDaysEmptyText}>
+                          {`No hay bloqueos parciales cargados para este ${businessCopy.staffSingular}.`}
+                        </Text>
+                      )}
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {!selfEdit && !isAdvancedSectionMode ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>
+                    {`Acceso del ${businessCopy.staffSingular} a la app`}
                   </Text>
-                )}
-              </View>
+                  <Text style={styles.sectionHelperMuted}>
+                    {`Gestiona el acceso del ${businessCopy.staffSingular}  para que pueda iniciar sesión en la app.`}
+                  </Text>
+
+                  {isEditing ? (
+                    <>
+                      <Pressable
+                        onPress={handleManageAccess}
+                        disabled={loading}
+                        style={({ pressed }) => [
+                          styles.accessManageButton,
+                          pressed && styles.accessManageButtonPressed,
+                          loading && styles.accessManageButtonDisabled,
+                        ]}
+                      >
+                        <Text style={styles.accessManageButtonText}>
+                          {`Gestión acceso del ${businessCopy.staffSingular}`}
+                        </Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <Pressable
+                      onPress={handleManageAccess}
+                      disabled={loading}
+                      style={({ pressed }) => [
+                        styles.accessManageButton,
+                        pressed && styles.accessManageButtonPressed,
+                        loading && styles.accessManageButtonDisabled,
+                      ]}
+                    >
+                      <Text style={styles.accessManageButtonText}>
+                        {`Gestión acceso del ${businessCopy.staffSingular}`}
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+              ) : null}
 
               {/* SUBMIT */}
               <View style={{ marginTop: 10 }}>
@@ -1889,7 +2270,7 @@ function RegisterEmployed({ navigation, route }: Props) {
         title="Elegir fecha no disponible"
         theme={theme}
         onClose={() => setIsClosedDateModalVisible(false)}
-        onConfirm={(date) => {
+        onConfirm={date => {
           setClosedDateInput(date);
           setIsClosedDateModalVisible(false);
         }}
@@ -1900,11 +2281,164 @@ function RegisterEmployed({ navigation, route }: Props) {
         title="Elegir fecha del bloqueo"
         theme={theme}
         onClose={() => setIsBlockDateModalVisible(false)}
-        onConfirm={(date) => {
+        onConfirm={date => {
           setBlockDateInput(date);
           setIsBlockDateModalVisible(false);
         }}
       />
+      <Modal
+        transparent
+        visible={overrideDayPickerVisible}
+        animationType="slide"
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Días con horario especial</Text>
+              <Pressable onPress={() => setOverrideDayPickerVisible(false)}>
+                <Text style={{ color: theme.primary, fontWeight: 'bold' }}>
+                  CERRAR
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={styles.servicePickerHint}>
+              Elegí uno o varios días que trabajan diferente al horario
+              principal.
+            </Text>
+            {selectedDays.map(day => {
+              const activeDays = multiEditMode
+                ? multiEditDays
+                : selectedOverrideDay != null
+                ? [selectedOverrideDay]
+                : [];
+              const active = activeDays.includes(day);
+
+              return (
+                <Pressable
+                  key={day}
+                  style={[
+                    styles.servicePickerRow,
+                    active && styles.servicePickerRowActive,
+                  ]}
+                  onPress={() => {
+                    const nextDays = active
+                      ? activeDays.filter(item => item !== day)
+                      : [...activeDays, day];
+
+                    if (nextDays.length <= 1) {
+                      setMultiEditMode(false);
+                      setSelectedOverrideDay(nextDays[0] ?? null);
+                      setMultiEditDays([]);
+                    } else {
+                      setMultiEditMode(true);
+                      setSelectedOverrideDay(nextDays[0]);
+                      setMultiEditDays(nextDays);
+                    }
+                  }}
+                >
+                  <View style={styles.servicePickerTextWrap}>
+                    <Text style={styles.servicePickerTitle}>
+                      {DAY_NAMES[day]}
+                    </Text>
+                    <Text style={styles.servicePickerMeta}>
+                      {resolveActiveDayOverride(
+                        dayScheduleOverrides,
+                        day,
+                        todayDateLabel,
+                      )
+                        ? 'Ya tiene horario especial'
+                        : 'Sin horario especial'}
+                    </Text>
+                  </View>
+                  <Text style={styles.servicePickerCheck}>
+                    {active ? '✓' : ''}
+                  </Text>
+                </Pressable>
+              );
+            })}
+            <Pressable
+              style={styles.modalBtn}
+              onPress={() => setOverrideDayPickerVisible(false)}
+            >
+              <Text style={styles.modalBtnText}>Listo</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal transparent visible={servicePickerVisible} animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>Servicios que realiza</Text>
+              <Pressable onPress={() => setServicePickerVisible(false)}>
+                <Text style={{ color: theme.primary, fontWeight: 'bold' }}>
+                  CERRAR
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={styles.servicePickerHint}>
+              Dejá todo vacío si atiende todos los servicios del local.
+            </Text>
+            <Pressable
+              style={[
+                styles.servicePickerRow,
+                !selectedServiceIds.length && styles.servicePickerRowActive,
+              ]}
+              onPress={() => setSelectedServiceIds([])}
+            >
+              <View>
+                <Text style={styles.servicePickerTitle}>
+                  Todos los servicios
+                </Text>
+                <Text style={styles.servicePickerMeta}>
+                  Disponible para cualquier turno
+                </Text>
+              </View>
+              <Text style={styles.servicePickerCheck}>
+                {!selectedServiceIds.length ? '✓' : ''}
+              </Text>
+            </Pressable>
+            <ScrollView style={styles.servicePickerList}>
+              {services.map(service => {
+                const active = selectedServiceIds.includes(service._id);
+                return (
+                  <Pressable
+                    key={service._id}
+                    onPress={() => toggleService(service._id)}
+                    style={[
+                      styles.servicePickerRow,
+                      active && styles.servicePickerRowActive,
+                    ]}
+                  >
+                    <View style={styles.servicePickerTextWrap}>
+                      <Text style={styles.servicePickerTitle}>
+                        {service.name}
+                      </Text>
+                      <Text style={styles.servicePickerMeta}>
+                        {service.durationMinutes} min
+                        {Number(service.price || 0) > 0
+                          ? ` · $${Number(service.price || 0).toLocaleString(
+                              'es-AR',
+                            )}`
+                          : ''}
+                      </Text>
+                    </View>
+                    <Text style={styles.servicePickerCheck}>
+                      {active ? '✓' : ''}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Pressable
+              style={styles.modalBtn}
+              onPress={() => setServicePickerVisible(false)}
+            >
+              <Text style={styles.modalBtnText}>Listo</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -2089,12 +2623,12 @@ function pickerPartsToMinutes({
   return hours24 * 60 + minute;
 }
 
-function parseTimeToMinutes(value: string | undefined | null, fallback: number) {
+function parseTimeToMinutes(
+  value: string | undefined | null,
+  fallback: number,
+) {
   if (!value) return fallback;
-  const [hour, minute] = String(value)
-    .trim()
-    .split(':')
-    .map(Number);
+  const [hour, minute] = String(value).trim().split(':').map(Number);
 
   if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
     return fallback;
@@ -2103,7 +2637,11 @@ function parseTimeToMinutes(value: string | undefined | null, fallback: number) 
   return hour * 60 + minute;
 }
 
-function parseScheduleRange(value: string | undefined | null, fallbackStart: number, fallbackEnd: number) {
+function parseScheduleRange(
+  value: string | undefined | null,
+  fallbackStart: number,
+  fallbackEnd: number,
+) {
   if (!value) return [fallbackStart, fallbackEnd] as const;
   const parts = String(value).split('-');
   if (parts.length < 2) return [fallbackStart, fallbackEnd] as const;
@@ -2133,7 +2671,12 @@ const createStyles = (theme: Theme) =>
       fontWeight: '700',
       letterSpacing: 2,
     },
-    headerTitle: { color: theme.textPrimary, fontSize: 32, fontWeight: '800', marginTop: 5 },
+    headerTitle: {
+      color: theme.textPrimary,
+      fontSize: 32,
+      fontWeight: '800',
+      marginTop: 5,
+    },
     mainCard: {
       marginHorizontal: 15,
       backgroundColor: theme.card,
@@ -2145,15 +2688,50 @@ const createStyles = (theme: Theme) =>
     },
     section: { gap: 12 },
     sectionLabel: {
-      color: '#1C1C1C1',
+      color: '#FF1493',
       fontSize: 11,
       fontWeight: '700',
       textTransform: 'uppercase',
       marginLeft: 4,
-      textDecorationLine: 'underline',
       textDecorationColor: '#1C1C1C1',
     },
- 
+    collapsibleHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.input,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    collapsibleHeaderTextWrap: {
+      flex: 1,
+      gap: 4,
+    },
+    collapsibleTitle: {
+      color: '#FF1493',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    collapsibleMeta: {
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    collapsibleArrow: {
+      color: theme.primary,
+      fontSize: 20,
+      fontWeight: '900',
+      lineHeight: 22,
+    },
+    collapsibleBody: {
+      gap: 12,
+      paddingTop: 2,
+    },
+
     sectionHelperMuted: {
       color: theme.textMuted,
       fontSize: 12,
@@ -2182,10 +2760,96 @@ const createStyles = (theme: Theme) =>
     accessManageButtonPressed: {
       opacity: 0.82,
     },
+    accessManageButtonDisabled: {
+      opacity: 0.58,
+    },
     accessManageButtonText: {
       color: theme.primary,
       fontSize: 13,
       fontWeight: '800',
+    },
+    inlineLoader: {
+      alignSelf: 'flex-start',
+      marginLeft: 4,
+    },
+    serviceSelectInput: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.input,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      gap: 12,
+    },
+    serviceSelectBody: {
+      flex: 1,
+      gap: 3,
+    },
+    serviceSelectLabel: {
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: '800',
+      textTransform: 'uppercase',
+      letterSpacing: 0.7,
+    },
+    serviceSelectValue: {
+      color: theme.textPrimary,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    serviceSelectChevron: {
+      color: theme.primary,
+      fontSize: 18,
+      fontWeight: '900',
+    },
+    servicePickerHint: {
+      color: theme.textMuted,
+      fontSize: 13,
+      lineHeight: 19,
+    },
+    servicePickerList: {
+      maxHeight: 360,
+    },
+    servicePickerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.input,
+      paddingHorizontal: 14,
+      paddingVertical: 13,
+      marginTop: 10,
+    },
+    servicePickerRowActive: {
+      borderColor: theme.primary,
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+    },
+    servicePickerTextWrap: {
+      flex: 1,
+    },
+    servicePickerTitle: {
+      color: theme.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    servicePickerMeta: {
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+      marginTop: 3,
+    },
+    servicePickerCheck: {
+      color: theme.primary,
+      fontSize: 18,
+      fontWeight: '900',
+      minWidth: 22,
+      textAlign: 'right',
     },
     input: {
       backgroundColor: theme.input,
@@ -2243,7 +2907,10 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: theme.border,
     },
-    dayCircleActive: { backgroundColor: theme.primary, borderColor: theme.primary },
+    dayCircleActive: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
     dayText: { color: theme.textMuted, fontSize: 13, fontWeight: '700' },
     dayTextActive: { color: theme.textOnPrimary },
     timeRow: { flexDirection: 'row', gap: 12 },
@@ -2255,8 +2922,17 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: theme.border,
     },
-    timeLabel: { color: theme.textMuted, fontSize: 11, textTransform: 'uppercase' },
-    timeValue: { color: theme.textPrimary, fontSize: 18, fontWeight: '700', marginTop: 4 },
+    timeLabel: {
+      color: theme.textMuted,
+      fontSize: 11,
+      textTransform: 'uppercase',
+    },
+    timeValue: {
+      color: theme.textPrimary,
+      fontSize: 18,
+      fontWeight: '700',
+      marginTop: 4,
+    },
 
     // TURNO CORTADO
     shiftHeader: {
@@ -2278,6 +2954,13 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.primary,
       borderColor: theme.primary,
     },
+    overrideSwitchWrapDisabled: {
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 2,
+      backgroundColor: theme.input,
+      borderRadius: 18,
+    },
     splitToggleText: {
       color: theme.textPrimary,
       fontSize: 13,
@@ -2285,6 +2968,34 @@ const createStyles = (theme: Theme) =>
       textAlign: 'center',
     },
     splitToggleTextActive: { color: theme.textOnPrimary },
+    scheduleModeRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    scheduleModeButton: {
+      flex: 1,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.input,
+      paddingVertical: 14,
+      paddingHorizontal: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scheduleModeButtonActive: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primary,
+    },
+    scheduleModeText: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      fontWeight: '900',
+      textAlign: 'center',
+    },
+    scheduleModeTextActive: {
+      color: theme.textOnPrimary,
+    },
     shiftBlock: { gap: 8 },
     shiftLabel: {
       color: theme.primary,
@@ -2293,7 +3004,11 @@ const createStyles = (theme: Theme) =>
       textTransform: 'uppercase',
       letterSpacing: 1,
     },
-    shiftDivider: { height: 1, backgroundColor: theme.border, marginVertical: 4 },
+    shiftDivider: {
+      height: 1,
+      backgroundColor: theme.border,
+      marginVertical: 4,
+    },
     overrideHeader: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -2375,6 +3090,49 @@ const createStyles = (theme: Theme) =>
       color: theme.textPrimary,
       fontSize: 14,
       fontWeight: '700',
+    },
+    specialScheduleTitle: {
+      color: theme.textPrimary,
+      fontSize: 15,
+      fontWeight: '900',
+      marginBottom: 2,
+    },
+    specialScheduleSavedBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: hexToRgba('#16A34A', 0.28),
+      backgroundColor: hexToRgba('#16A34A', 0.12),
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    specialScheduleSavedIcon: {
+      color: '#16A34A',
+      fontSize: 16,
+      fontWeight: '900',
+    },
+    specialScheduleSavedText: {
+      flex: 1,
+      color: theme.textPrimary,
+      fontSize: 12,
+      fontWeight: '800',
+      lineHeight: 17,
+    },
+    clearSpecialScheduleButton: {
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.input,
+      paddingVertical: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    clearSpecialScheduleText: {
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '900',
     },
     bulkApplyCard: {
       borderRadius: 18,
@@ -2473,7 +3231,7 @@ const createStyles = (theme: Theme) =>
     overrideCardHint: {
       color: theme.textMuted,
       fontSize: 12,
-      lineHeight:17,
+      lineHeight: 17,
       marginTop: 4,
     },
     overrideToggle: {
@@ -2637,7 +3395,11 @@ const createStyles = (theme: Theme) =>
       paddingVertical: 18,
       alignItems: 'center',
     },
-    submitBtnText: { color: theme.textOnPrimary, fontSize: 16, fontWeight: '800' },
+    submitBtnText: {
+      color: theme.textOnPrimary,
+      fontSize: 16,
+      fontWeight: '800',
+    },
     modalBackdrop: {
       flex: 1,
       backgroundColor: theme.overlay,
@@ -2746,8 +3508,13 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.primary,
       borderRadius: 16,
       alignItems: 'center',
+      marginTop: 12,
     },
-    modalBtnText: { color: theme.textOnPrimary, fontWeight: '800', fontSize: 16 },
+    modalBtnText: {
+      color: theme.textOnPrimary,
+      fontWeight: '800',
+      fontSize: 16,
+    },
   });
 
 export default RegisterEmployed;

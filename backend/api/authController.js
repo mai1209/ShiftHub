@@ -43,6 +43,10 @@ import {
   isValidBusinessType,
   normalizeBusinessType,
 } from "../utils/businessTypes.js";
+import {
+  buildFreeSubscriptionPatch,
+  shouldNormalizeLegacyTrialToFree,
+} from "../utils/subscriptionAccess.js";
 
 const PASSWORD_RESET_EXPIRY_MS = 15 * 60 * 1000;
 const SUBSCRIPTION_CURRENCY_ID = String(
@@ -624,7 +628,7 @@ function sanitizeSubscriptionInput(input) {
 
   if (Object.prototype.hasOwnProperty.call(input, "plan")) {
     const plan = String(input.plan ?? "").trim();
-    if (!["basic", "pro", "custom"].includes(plan)) {
+    if (!["free", "basic", "pro", "custom"].includes(plan)) {
       throw new Error("El plan no es válido.");
     }
     updates.plan = plan;
@@ -1083,7 +1087,18 @@ async function buildAvailableSlug(baseValue) {
   return candidate;
 }
 
+function normalizeRegistrationSource(value) {
+  return String(value ?? "").trim().toLowerCase() === "mobile" ? "mobile" : "web";
+}
+
 async function buildAuthUserResponse(userDoc) {
+  if (shouldNormalizeLegacyTrialToFree(userDoc?.subscription)) {
+    userDoc.subscription = buildFreeSubscriptionPatch(userDoc.subscription);
+    if (typeof userDoc.save === "function") {
+      await userDoc.save();
+    }
+  }
+
   const userResponse = serializeAuthUser(userDoc);
   userResponse.businessType = normalizeBusinessType(userResponse.businessType);
   userResponse.businessTypeLabel = getBusinessTypeLabel(userResponse.businessType);
@@ -1103,6 +1118,7 @@ async function buildAuthUserResponse(userDoc) {
       publicProfile: 1,
       barberProfileSettings: 1,
       businessType: 1,
+      registrationSource: 1,
     })
     .lean();
 
@@ -1131,6 +1147,10 @@ async function buildAuthUserResponse(userDoc) {
     userResponse.businessTypeLabel = getBusinessTypeLabel(ownerDoc.businessType);
   }
 
+  if (ownerDoc?.registrationSource) {
+    userResponse.registrationSource = ownerDoc.registrationSource;
+  }
+
   return userResponse;
 }
 
@@ -1142,6 +1162,7 @@ export async function registerUser(req, res, next) {
     const businessTypeRaw = String(req.body?.businessType ?? "").trim().toLowerCase();
     const requestedSlugRaw = String(req.body?.shopSlug ?? "").trim();
     const requestedSlug = requestedSlugRaw ? normalizeSlugCandidate(requestedSlugRaw) : "";
+    const registrationSource = normalizeRegistrationSource(req.body?.registrationSource);
 
     if (!fullName || !email || !password) {
       return res.status(400).json({ error: "fullName, email y password son obligatorios" });
@@ -1181,10 +1202,12 @@ export async function registerUser(req, res, next) {
       shopSlug,
       email,
       passwordHash,
+      registrationSource,
       subscription: {
-        plan: "basic",
-        status: "trial",
-        billingCycle: "monthly",
+        plan: "free",
+        status: "active",
+        billingCycle: null,
+        renewalMode: "manual",
         startedAt: new Date(),
       },
       // no aceptar role desde el cliente
@@ -1571,6 +1594,7 @@ export async function upsertBarberAccess(req, res, next) {
       role: "barber",
       barberId,
       shopOwnerId: ownerId,
+      registrationSource: ownerDoc?.registrationSource || null,
       subscription: {
         plan: "basic",
         status: "active",
@@ -2378,9 +2402,10 @@ export async function listSubscriptionUsers(req, res, next) {
         isActive: Boolean(user.isActive),
         createdAt: user.createdAt,
         subscription: user.subscription ?? {
-          plan: "basic",
-          status: "trial",
-          billingCycle: "monthly",
+          plan: "free",
+          status: "active",
+          billingCycle: null,
+          renewalMode: "manual",
           startedAt: null,
           expiresAt: null,
         },

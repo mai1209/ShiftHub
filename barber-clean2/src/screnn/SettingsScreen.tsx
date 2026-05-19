@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   Alert,
   Linking,
@@ -17,6 +18,7 @@ import {
   CreditCard,
   Crown,
   KeyRound,
+  Lock,
   LogOut,
   Mail,
   MapPin,
@@ -31,9 +33,12 @@ import {
   getUserProfile,
   removeToken,
   removeUserProfile,
+  saveUserProfile,
   subscribeToUserProfile,
 } from '../services/authStorage';
+import { getCurrentUser } from '../services/api';
 import { resolveUserRole } from '../services/subscriptionAccess';
+import { hasBasicPlanAccess, hasProPlanAccess } from '../services/planAccess';
 import {
   PRIVACY_POLICY_URL,
   SUPPORT_EMAIL,
@@ -49,6 +54,7 @@ type MenuItemProps = {
   onPress: () => void;
   danger?: boolean;
   styles: any; // Pasamos los estilos para que MenuItem los reconozca
+  locked?: boolean;
 };
 
 function MenuItem({
@@ -59,6 +65,7 @@ function MenuItem({
   theme,
   danger = false,
   styles,
+  locked = false,
 }: MenuItemProps) {
   return (
     <Pressable
@@ -80,7 +87,11 @@ function MenuItem({
         </Text>
         <Text style={styles.itemDescription}>{description}</Text>
       </View>
-      <ChevronRight size={18} color={theme?.textMuted || '#6E7585'} />
+      {locked ? (
+        <Lock size={18} color={theme?.textMuted || '#6E7585'} />
+      ) : (
+        <ChevronRight size={18} color={theme?.textMuted || '#6E7585'} />
+      )}
     </Pressable>
   );
 }
@@ -111,7 +122,31 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
     };
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      getCurrentUser()
+        .then(response => {
+          if (!active || !response?.user) return;
+          setCurrentUser(response.user);
+          return saveUserProfile(response.user);
+        })
+        .catch(() => {});
+
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
   const isBarberUser = resolveUserRole(currentUser) === 'barber';
+  const hasBasicAccess = hasBasicPlanAccess(currentUser);
+  const hasProAccess = hasProPlanAccess(currentUser);
+
+  const openUpgrade = () => {
+    navigation.navigate(isIOS ? 'Subscription-Settings' : 'Plans');
+  };
 
   const handleLogout = async () => {
     Alert.alert(
@@ -199,11 +234,20 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             <View style={styles.separator} />
             <MenuItem
               icon={KeyRound}
-              label={`Habilitar editar perfil ${businessCopy.staffSingular}`}
-              description={`Activá o desactivá si el ${businessCopy.staffSingular} puede cambiar su propio perfil.`}
-              onPress={() => navigation.navigate('Barber-Profile-Settings')}
+              label={`Permitir que el ${businessCopy.staffSingular} edite su perfil `}
+              description={
+                hasBasicAccess
+                  ? `Activá o desactivá si el ${businessCopy.staffSingular} puede cambiar su propio perfil.`
+                  : 'Disponible desde el plan Básico.'
+              }
+              onPress={() =>
+                hasBasicAccess
+                  ? navigation.navigate('Barber-Profile-Settings')
+                  : openUpgrade()
+              }
               theme={theme}
               styles={styles}
+              locked={!hasBasicAccess}
             />
             <View style={styles.separator} />
             <MenuItem
@@ -218,10 +262,19 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             <MenuItem
               icon={MapPin}
               label="Perfil público del negocio"
-              description="Dirección, mapa, reseñas, Instagram y Linktree visibles en la web de turnos."
-              onPress={() => navigation.navigate('Public-Profile-Settings')}
+              description={
+                hasBasicAccess
+                  ? 'Dirección, mapa, reseñas, Instagram y Linktree visibles en la web de turnos.'
+                  : 'Disponible desde el plan Básico.'
+              }
+              onPress={() =>
+                hasBasicAccess
+                  ? navigation.navigate('Public-Profile-Settings')
+                  : openUpgrade()
+              }
               theme={theme}
               styles={styles}
+              locked={!hasBasicAccess}
             />
           </>
         ) : null}
@@ -270,19 +323,33 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             <MenuItem
               icon={MessageCircle}
               label="Promociones por WhatsApp"
-              description="Escribí un mensaje y abrí WhatsApp para clientes que ya reservaron."
-              onPress={() => navigation.navigate('WhatsApp-Campaigns')}
+              description={
+                hasBasicAccess
+                  ? 'Escribí un mensaje y abrí WhatsApp para clientes que ya reservaron.'
+                  : 'Disponible desde el plan Básico.'
+              }
+              onPress={() =>
+                hasBasicAccess ? navigation.navigate('WhatsApp-Campaigns') : openUpgrade()
+              }
               theme={theme}
               styles={styles}
+              locked={!hasBasicAccess}
             />
             <View style={styles.separator} />
             <MenuItem
               icon={Users}
               label="Historial de clientes"
-              description="Revisá visitas, últimos servicios, pagos y exportá el historial."
-              onPress={() => navigation.navigate('Customer-History')}
+              description={
+                hasProAccess
+                  ? 'Revisá visitas, últimos servicios, pagos y exportá el historial.'
+                  : 'Disponible con plan Pro.'
+              }
+              onPress={() =>
+                hasProAccess ? navigation.navigate('Customer-History') : openUpgrade()
+              }
               theme={theme}
               styles={styles}
+              locked={!hasProAccess}
             />
           </View>
         </>

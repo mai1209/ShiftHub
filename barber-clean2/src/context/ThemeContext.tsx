@@ -68,8 +68,33 @@ type ThemeSeed = {
   logo: any;
 };
 
+const DEFAULT_PRIMARY = '#111111';
+const DEFAULT_SECONDARY = '#1F2937';
+const DEFAULT_GRADIENT = ['#FFFFFF', '#F8FAFC', '#EEF2F7', '#E2E8F0'];
+const LEGACY_DEFAULT_PRIMARY = '#39E01F';
+const LEGACY_DEFAULT_SECONDARY = '#F3A63B';
+const LEGACY_DEFAULT_GRADIENT = ['#FFFFFF', '#F7FFF1', '#E6FFC6', '#FFD08A'];
+
 function normalizeThemeMode(value: unknown): ThemeMode | null {
   return value === 'light' || value === 'dark' ? value : null;
+}
+
+function normalizeLegacyDefaultColor(value: string | null | undefined, fallback: string) {
+  if (!value) return fallback;
+  return value.toUpperCase() === LEGACY_DEFAULT_PRIMARY ? DEFAULT_PRIMARY : value;
+}
+
+function normalizeLegacyDefaultSecondary(value: string | null | undefined, fallback: string) {
+  if (!value) return fallback;
+  return value.toUpperCase() === LEGACY_DEFAULT_SECONDARY ? DEFAULT_SECONDARY : value;
+}
+
+function normalizeLegacyDefaultGradient(value: string[] | null | undefined, fallback: string[]) {
+  if (!Array.isArray(value) || value.length !== 4) return fallback;
+  const isLegacyDefault = value.every(
+    (color, index) => color.toUpperCase() === LEGACY_DEFAULT_GRADIENT[index],
+  );
+  return isLegacyDefault ? DEFAULT_GRADIENT : value;
 }
 
 function getReadableTextColor(hexColor: string) {
@@ -111,16 +136,15 @@ export function buildThemeFromConfig(
     'light';
   const mode = requestedMode === 'dark' ? 'light' : requestedMode;
 
-  const gradientColors =
-    Array.isArray(customTheme?.gradientColors) &&
-    customTheme.gradientColors.length === 4
-      ? customTheme.gradientColors
-      : presetTheme.gradientColors;
+  const gradientColors = normalizeLegacyDefaultGradient(
+    customTheme?.gradientColors,
+    presetTheme.gradientColors,
+  );
 
   return enrichTheme({
     mode,
-    primary: customTheme?.primary || presetTheme.primary,
-    secondary: customTheme?.secondary || presetTheme.secondary,
+    primary: normalizeLegacyDefaultColor(customTheme?.primary, presetTheme.primary),
+    secondary: normalizeLegacyDefaultSecondary(customTheme?.secondary, presetTheme.secondary),
     background: presetTheme.background,
     card: customTheme?.card || presetTheme.card,
     gradientColors,
@@ -132,11 +156,11 @@ export function buildThemeFromConfig(
 
 const DEFAULT_THEME: Theme = {
   mode: 'light',
-  primary: '#111111',
-  secondary: '#1F2937',
+  primary: DEFAULT_PRIMARY,
+  secondary: DEFAULT_SECONDARY,
   background: 'transparent',
   card: '#FFFFFF',
-  gradientColors: ['#FFFFFF', '#F8FAFC', '#EEF2F7', '#E2E8F0'],
+  gradientColors: DEFAULT_GRADIENT,
   logo: require('../assets/logo.png'),
   surfaceAlt: '#F3F4F6',
   input: '#FFFFFF',

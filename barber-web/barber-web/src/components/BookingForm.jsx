@@ -528,6 +528,20 @@ function BookingForm({ shopSlug, onNotFound }) {
     [selectedServices],
   );
 
+  const compatibleBarbers = useMemo(() => {
+    const ids = selectedServices.map((service) => String(service._id));
+    if (!ids.length) return barbers;
+
+    return barbers.filter((barber) => {
+      const assignedIds = Array.isArray(barber.serviceIds)
+        ? barber.serviceIds.map(String).filter(Boolean)
+        : [];
+      if (!assignedIds.length) return true;
+      const assignedSet = new Set(assignedIds);
+      return ids.every((id) => assignedSet.has(id));
+    });
+  }, [barbers, selectedServices]);
+
   const resolvedBarberSchedule = useMemo(
     () =>
       selectedBarberSchedule ||
@@ -893,6 +907,19 @@ function BookingForm({ shopSlug, onNotFound }) {
       setSelectedSlot(null);
     }
   }, [isSlotDisabled, selectedSlot]);
+
+  useEffect(() => {
+    if (!compatibleBarbers.length) {
+      setSelectedBarber(null);
+      setSelectedSlot(null);
+      return;
+    }
+
+    if (!compatibleBarbers.some((barber) => barber._id === selectedBarber)) {
+      setSelectedBarber(compatibleBarbers[0]._id);
+      setSelectedSlot(null);
+    }
+  }, [compatibleBarbers, selectedBarber]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1321,12 +1348,14 @@ function BookingForm({ shopSlug, onNotFound }) {
             {`Elegí tu ${businessCopy.staffSingularCapitalized}`}
           </label>
           <div className={styles.barberGrid}>
-            {barbers.length === 0 ? (
+            {compatibleBarbers.length === 0 ? (
               <p style={{ color: "#666", fontSize: 14 }}>
-                {`No hay ${businessCopy.staffPlural} disponibles.`}
+                {selectedServices.length
+                  ? `No hay ${businessCopy.staffPlural} disponibles para ese servicio.`
+                  : `No hay ${businessCopy.staffPlural} disponibles.`}
               </p>
             ) : (
-              barbers.map((b) => (
+              compatibleBarbers.map((b) => (
                 <button
                   type="button"
                   key={b._id}

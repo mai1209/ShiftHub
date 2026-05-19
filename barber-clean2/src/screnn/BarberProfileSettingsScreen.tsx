@@ -16,6 +16,8 @@ import {
 import { saveUserProfile } from '../services/authStorage';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
+import { hasBasicPlanAccess } from '../services/planAccess';
+import LockedFeatureScreen from '../components/LockedFeatureScreen';
 
 const hexToRgba = (hex: string, alpha: number) => {
   const sanitized = hex.replace('#', '');
@@ -29,11 +31,12 @@ const hexToRgba = (hex: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-export default function BarberProfileSettingsScreen() {
+export default function BarberProfileSettingsScreen({ navigation }: { navigation: any }) {
   const { theme, businessCopy } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
   const [form, setForm] = useState<BarberProfileSettings>({
     barberSelfEditEnabled: true,
   });
@@ -45,6 +48,7 @@ export default function BarberProfileSettingsScreen() {
       try {
         const res = await getCurrentUser();
         if (!active) return;
+        setHasAccess(hasBasicPlanAccess(res?.user));
         const settings = res?.user?.barberProfileSettings ?? {};
         setForm({
           barberSelfEditEnabled: settings.barberSelfEditEnabled !== false,
@@ -94,6 +98,17 @@ export default function BarberProfileSettingsScreen() {
       <View style={[styles.screen, styles.centered]}>
         <ActivityIndicator color={theme.primary} size="large" />
       </View>
+    );
+  }
+
+  if (!hasAccess) {
+    return (
+      <LockedFeatureScreen
+        theme={theme}
+        navigation={navigation}
+        title={`Edición del ${businessCopy.staffSingular} bloqueada`}
+        body={`Permitir que el ${businessCopy.staffSingular} edite su propio perfil está disponible desde el plan Básico.`}
+      />
     );
   }
 

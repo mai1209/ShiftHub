@@ -39,6 +39,7 @@ import {
   requireActiveSubscription,
   requireAdminRole,
   requireAuth,
+  requirePaidOperationalSubscription,
 } from "../middlewares/authMiddlewares.js";
 import { requireAdminPanelSecret } from "../middlewares/adminPanelMiddleware.js";
 
@@ -63,10 +64,10 @@ router.post("/subscription/checkout", requireAuth, createSubscriptionCheckout);
 router.post("/subscription/platform/sync", requireAuth, syncStoreSubscription);
 router.put("/password", requireAuth, updatePassword);
 router.put("/theme", requireAuth, requireActiveSubscription, updateThemeConfig);
-router.put("/public-profile", requireAuth, requireActiveSubscription, updatePublicProfile);
+router.put("/public-profile", requireAuth, requireActiveSubscription, requirePaidOperationalSubscription, updatePublicProfile);
 router.put("/payment-settings", requireAuth, requireActiveSubscription, updatePaymentSettings);
 router.put("/notification-settings", requireAuth, requireActiveSubscription, updateNotificationSettings);
-router.put("/barber-profile-settings", requireAuth, requireActiveSubscription, requireAdminRole, updateBarberProfileSettings);
+router.put("/barber-profile-settings", requireAuth, requireActiveSubscription, requirePaidOperationalSubscription, requireAdminRole, updateBarberProfileSettings);
 router.put("/shop-closed-days", requireAuth, requireActiveSubscription, updateShopClosedDays);
 router.put("/subscription-settings", requireAuth, updateOwnSubscriptionSettings);
 router.post("/barber-access", requireAuth, requireActiveSubscription, requireAdminRole, upsertBarberAccess);

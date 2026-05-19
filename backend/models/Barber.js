@@ -29,6 +29,15 @@ const barberSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    serviceIds: {
+      type: [
+        {
+          type: mongoose.Types.ObjectId,
+          ref: "Service",
+        },
+      ],
+      default: [],
+    },
        // ← AGREGAR ESTE CAMPO
     scheduleRange: {
       type: String,
@@ -112,6 +121,7 @@ const barberSchema = new mongoose.Schema(
 );
 
 barberSchema.index({ owner: 1, isActive: 1, createdAt: 1 });
+barberSchema.index({ owner: 1, serviceIds: 1, isActive: 1 });
 
 export const BarberModel =
   mongoose.models.Barber ?? mongoose.model("Barber", barberSchema);
