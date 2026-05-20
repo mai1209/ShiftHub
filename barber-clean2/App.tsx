@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ActivityIndicator, Alert, Platform, View } from 'react-native'; 
+import { ActivityIndicator, Alert, View } from 'react-native';
 import { DefaultTheme, NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import messaging from '@react-native-firebase/messaging';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -41,12 +41,33 @@ export default function App() {
   >('Login');
   const [sessionReady, setSessionReady] = useState(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const currentUserId = currentUser?._id;
 
   useEffect(() => {
     return subscribeToUserProfile(user => {
       setCurrentUser(user);
     });
   }, []);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const storedPushToken = await AsyncStorage.getItem('@push_token');
+        if (!cancelled && storedPushToken) {
+          await savePushTokenApi(storedPushToken);
+        }
+      } catch (err: any) {
+        console.log('No se pudo sincronizar el push token:', err?.message);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId]);
 
   useEffect(() => {
     let isMounted = true;

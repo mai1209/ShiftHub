@@ -37,10 +37,18 @@ const minutesToLabel = (totalMinutes) => {
 };
 
 const SLOT_INTERVAL_MINUTES = 30;
-const CATCH_UP_SLOT_INTERVAL_MINUTES = 5;
-const MAX_CATCH_UP_SLOTS = 3;
 const DEFAULT_BOOKING_BANNER = "/logoBarber.png";
 const DEFAULT_BOOKING_LOGO = "/logoBarber.png";
+
+const getEntityId = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    return String(value._id || value.id || value.serviceId || "");
+  }
+  return String(value);
+};
+
 const WEB_STYLE_PRESETS = {
   dark: {
     "--page-bg": "linear-gradient(180deg, #06070a 0%, #120812 100%)",
@@ -364,9 +372,6 @@ const labelToMinutes = (label) => {
   return hours * 60 + minutes;
 };
 
-const roundUpToInterval = (minutes, interval) =>
-  Math.ceil(minutes / interval) * interval;
-
 const parseTimeFragment = (fragment) => {
   if (!fragment) return null;
   const match = fragment.trim().match(/(\d{1,2})(?::(\d{2}))?/);
@@ -524,17 +529,17 @@ function BookingForm({ shopSlug, onNotFound }) {
   );
 
   const selectedServiceIds = useMemo(
-    () => new Set(selectedServices.map((service) => service._id)),
+    () => new Set(selectedServices.map((service) => getEntityId(service)).filter(Boolean)),
     [selectedServices],
   );
 
   const compatibleBarbers = useMemo(() => {
-    const ids = selectedServices.map((service) => String(service._id));
+    const ids = selectedServices.map((service) => getEntityId(service)).filter(Boolean);
     if (!ids.length) return barbers;
 
     return barbers.filter((barber) => {
       const assignedIds = Array.isArray(barber.serviceIds)
-        ? barber.serviceIds.map(String).filter(Boolean)
+        ? barber.serviceIds.map(getEntityId).filter(Boolean)
         : [];
       if (!assignedIds.length) return true;
       const assignedSet = new Set(assignedIds);
@@ -555,8 +560,6 @@ function BookingForm({ shopSlug, onNotFound }) {
     if (!workDays.includes(currentDayOfWeek)) return [];
 
     const step = currentDuration;
-    const isToday = selectedDate.toDateString() === new Date().toDateString();
-
     const buildSlots = (startStr, endStr) => {
       const parse = (t) => {
         const [h, m] = t.trim().split(":").map(Number);
@@ -568,29 +571,6 @@ function BookingForm({ shopSlug, onNotFound }) {
       for (let m = start; m <= end; m += step) {
         if (m + step > end) break;
         slotSet.add(minutesToLabel(m));
-      }
-
-      if (isToday) {
-        const now = new Date();
-        const nowMinutes = now.getHours() * 60 + now.getMinutes();
-        const firstCatchUp = Math.max(
-          start,
-          roundUpToInterval(nowMinutes + 1, CATCH_UP_SLOT_INTERVAL_MINUTES),
-        );
-        const nextRegularSlot = roundUpToInterval(
-          Math.max(nowMinutes + 1 - start, 0),
-          step,
-        ) + start;
-        let added = 0;
-
-        for (
-          let m = firstCatchUp;
-          m < nextRegularSlot && m + step <= end && added < MAX_CATCH_UP_SLOTS;
-          m += CATCH_UP_SLOT_INTERVAL_MINUTES
-        ) {
-          slotSet.add(minutesToLabel(m));
-          added += 1;
-        }
       }
 
       return Array.from(slotSet).sort(
@@ -961,7 +941,7 @@ function BookingForm({ shopSlug, onNotFound }) {
         customerName: customerName.trim(),
         service: serviceName,
         serviceItems: selectedServices.map((item) => ({
-          serviceId: item._id,
+          serviceId: getEntityId(item),
           name: item.name,
           durationMinutes: item.durationMinutes,
           price: item.price,

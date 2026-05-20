@@ -2379,37 +2379,147 @@ export async function listSubscriptionUsers(req, res, next) {
         email: 1,
         shopSlug: 1,
         role: 1,
+        barberId: 1,
+        shopOwnerId: 1,
         isActive: 1,
         createdAt: 1,
         subscription: 1,
       })
       .lean();
 
-    const filtered = users.filter((user) => {
+    const ownerUsers = users.filter((user) => user.role !== "barber" || !user.shopOwnerId);
+    const ownerIds = ownerUsers.map((user) => user._id);
+    const barbers = await BarberModel.find({ owner: { $in: ownerIds } })
+      .sort({ createdAt: -1 })
+      .select({
+        owner: 1,
+        fullName: 1,
+        email: 1,
+        phone: 1,
+        isActive: 1,
+        createdAt: 1,
+      })
+      .lean();
+
+    const usersByOwnerId = new Map();
+    users.forEach((user) => {
+      const ownerId = user.shopOwnerId ? String(user.shopOwnerId) : String(user._id);
+      const current = usersByOwnerId.get(ownerId) || [];
+      current.push(user);
+      usersByOwnerId.set(ownerId, current);
+    });
+
+    const barbersByOwnerId = new Map();
+    barbers.forEach((barber) => {
+      const ownerId = String(barber.owner);
+      const current = barbersByOwnerId.get(ownerId) || [];
+      current.push(barber);
+      barbersByOwnerId.set(ownerId, current);
+    });
+
+    const serializeAdminPanelUser = (user) => ({
+      _id: String(user._id),
+      fullName: user.fullName,
+      email: user.email,
+      shopSlug: user.shopSlug,
+      role: user.role,
+      barberId: user.barberId ? String(user.barberId) : null,
+      shopOwnerId: user.shopOwnerId ? String(user.shopOwnerId) : null,
+      isActive: Boolean(user.isActive),
+      createdAt: user.createdAt,
+      subscription: user.subscription ?? {
+        plan: "free",
+        status: "active",
+        billingCycle: null,
+        renewalMode: "manual",
+        startedAt: null,
+        expiresAt: null,
+      },
+    });
+
+    const shops = ownerUsers.map((owner) => {
+      const ownerId = String(owner._id);
+      const staffUsers = (usersByOwnerId.get(ownerId) || []).filter(
+        (user) => String(user._id) !== ownerId,
+      );
+      const staffByBarberId = new Map(
+        staffUsers
+          .filter((user) => user.barberId)
+          .map((user) => [String(user.barberId), serializeAdminPanelUser(user)]),
+      );
+
+      return {
+        owner: serializeAdminPanelUser(owner),
+        staffUsers: staffUsers.map(serializeAdminPanelUser),
+        barbers: (barbersByOwnerId.get(ownerId) || []).map((barber) => ({
+          _id: String(barber._id),
+          fullName: barber.fullName,
+          email: barber.email,
+          phone: barber.phone,
+          isActive: Boolean(barber.isActive),
+          createdAt: barber.createdAt,
+          accessUser: staffByBarberId.get(String(barber._id)) || null,
+        })),
+      };
+    });
+
+    const filteredShops = shops.filter((shop) => {
       if (!search) return true;
-      return [user.fullName, user.email, user.shopSlug]
+      const searchableValues = [
+        shop.owner.fullName,
+        shop.owner.email,
+        shop.owner.shopSlug,
+        ...shop.staffUsers.flatMap((user) => [user.fullName, user.email, user.shopSlug]),
+        ...shop.barbers.flatMap((barber) => [barber.fullName, barber.email, barber.phone]),
+      ];
+      return searchableValues
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(search));
     });
 
+    const filtered = filteredShops.flatMap((shop) => [
+      shop.owner,
+      ...shop.staffUsers,
+    ]);
+
     return res.json({
-      users: filtered.map((user) => ({
-        _id: String(user._id),
-        fullName: user.fullName,
-        email: user.email,
-        shopSlug: user.shopSlug,
-        role: user.role,
-        isActive: Boolean(user.isActive),
-        createdAt: user.createdAt,
-        subscription: user.subscription ?? {
-          plan: "free",
-          status: "active",
-          billingCycle: null,
-          renewalMode: "manual",
-          startedAt: null,
-          expiresAt: null,
-        },
-      })),
+      users: filtered,
+      shops: filteredShops,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function deleteAdminUser(req, res, next) {
+  try {
+    const userId = String(req.params?.userId ?? "").trim();
+    if (!userId) {
+      return res.status(400).json({ error: "Falta la cuenta a borrar." });
+    }
+
+    const userDoc = await UserModel.findById(userId).lean();
+    if (!userDoc) {
+      return res.status(404).json({ error: "No encontramos esa cuenta." });
+    }
+
+    const ownerId = userDoc.shopOwnerId ? String(userDoc.shopOwnerId) : String(userDoc._id);
+    const deleteFilter =
+      userDoc.role === "barber"
+        ? { _id: userDoc._id }
+        : { $or: [{ _id: userDoc._id }, { shopOwnerId: userDoc._id }] };
+
+    const result = await UserModel.deleteMany(deleteFilter);
+
+    return res.json({
+      message:
+        userDoc.role === "barber"
+          ? "Cuenta de empleado borrada correctamente."
+          : "Cuenta administradora y accesos de empleados borrados correctamente.",
+      deletedCount: result.deletedCount || 0,
+      deletedUserId: String(userDoc._id),
+      ownerId,
+      deletedRole: userDoc.role || "admin",
     });
   } catch (err) {
     return next(err);

@@ -74,6 +74,15 @@ function logPushError(label, error) {
   });
 }
 
+function isInvalidPushTokenError(error) {
+  const code = String(error?.code || error?.errorInfo?.code || "");
+  return [
+    "messaging/invalid-registration-token",
+    "messaging/registration-token-not-registered",
+    "messaging/invalid-argument",
+  ].includes(code);
+}
+
 function normalizeSlug(value) {
   return String(value ?? "")
     .trim()
@@ -118,13 +127,21 @@ function toObjectId(id) {
   return new mongoose.Types.ObjectId(String(id));
 }
 
+function getEntityId(value) {
+  if (!value) return "";
+  if (typeof value === "object") {
+    return String(value._id || value.id || value.serviceId || "");
+  }
+  return String(value);
+}
+
 function sanitizeBarber(barber) {
   if (!barber) return null;
   return {
     _id: barber._id.toString(),
     fullName: barber.fullName,
     photoUrl: barber.photoUrl || null,
-    serviceIds: (barber.serviceIds || []).map((id) => String(id)),
+    serviceIds: (barber.serviceIds || []).map(getEntityId).filter(Boolean),
     shift: barber.shift,
     scheduleRange: barber.scheduleRange || null,
     scheduleRanges: barber.scheduleRanges || [],
@@ -143,10 +160,10 @@ function sanitizeBarber(barber) {
 }
 
 function barberSupportsServiceIds(barber, serviceIds = []) {
-  const assignedIds = (barber?.serviceIds || []).map((id) => String(id));
+  const assignedIds = (barber?.serviceIds || []).map(getEntityId).filter(Boolean);
   if (!assignedIds.length) return true;
   const assignedSet = new Set(assignedIds);
-  return serviceIds.every((id) => assignedSet.has(String(id)));
+  return serviceIds.every((id) => assignedSet.has(getEntityId(id)));
 }
 
 function sanitizeAppointment(app) {
@@ -1118,11 +1135,9 @@ export async function publicCreateAppointment(req, res, next) {
         ownerUser?.notificationSettings?.barberInstantBookingEnabled !== false
           ? String(barberPushTarget?.token || "").trim()
           : "";
-      const targetTokens = Array.from(
-        new Set([ownerToken, barberToken].filter(Boolean)),
-      );
+      const targetTokens = Array.from(new Set([ownerToken, barberToken].filter(Boolean)));
 
-      if (targetTokens.length) {
+      if (targetTokens.length && admin.apps.length) {
         const timeLabel = appointmentDate.toLocaleTimeString("es-AR", {
           hour: "2-digit",
           minute: "2-digit",
@@ -1146,18 +1161,79 @@ export async function publicCreateAppointment(req, res, next) {
                 ? `${customerName} inició ${serviceLabel} con ${barber.fullName} el ${dateLabel} a las ${timeLabel} desde la web. Esperando pago.`
                 : `${customerName} reservó ${serviceLabel} con ${barber.fullName} el ${dateLabel} a las ${timeLabel} desde la web.`,
           },
+          data: {
+            type: "appointment_created",
+            source: "web",
+            appointmentId: appointment._id.toString(),
+            barberId: String(barberId),
+            ownerId: String(ownerId),
+          },
           android: {
             priority: "high",
             notification: { sound: "default" },
           },
           apns: {
-            payload: { aps: { sound: "default" } },
+            headers: {
+              "apns-priority": "10",
+              "apns-push-type": "alert",
+            },
+            payload: {
+              aps: {
+                sound: "default",
+                badge: 1,
+                alert: {
+                  title:
+                    normalizedPaymentMethod === "transfer"
+                      ? "Pago online iniciado"
+                      : "Nuevo Turno (Web)",
+                  body:
+                    normalizedPaymentMethod === "transfer"
+                      ? `${customerName} inició ${serviceLabel} con ${barber.fullName} el ${dateLabel} a las ${timeLabel} desde la web. Esperando pago.`
+                      : `${customerName} reservó ${serviceLabel} con ${barber.fullName} el ${dateLabel} a las ${timeLabel} desde la web.`,
+                },
+              },
+            },
           },
         };
-        const responses = await Promise.all(
-          targetTokens.map((token) => admin.messaging().send({ ...payload, token })),
+        const responses = await Promise.allSettled(
+          targetTokens.map((token) =>
+            admin.messaging().send({ ...payload, token }).then((messageId) => ({
+              token,
+              messageId,
+            })),
+          ),
         );
-        console.log("Push público OK:", responses);
+        const sent = responses.filter((item) => item.status === "fulfilled").length;
+        const failed = responses.filter((item) => item.status === "rejected");
+        if (sent) {
+          console.log("Push público OK:", { sent, total: targetTokens.length });
+        }
+        if (failed.length) {
+          console.warn(
+            "Push público con errores:",
+            failed.map((item) => ({
+              code: item.reason?.code || item.reason?.errorInfo?.code,
+              message: item.reason?.message,
+            })),
+          );
+          const invalidTokens = responses
+            .map((item, index) => ({ item, token: targetTokens[index] }))
+            .filter(({ item }) => item.status === "rejected" && isInvalidPushTokenError(item.reason))
+            .map(({ token }) => token);
+          if (invalidTokens.length) {
+            await UserModel.updateMany(
+              { pushToken: { $in: invalidTokens } },
+              { $unset: { pushToken: "" } },
+            );
+          }
+        }
+      } else if (targetTokens.length && !admin.apps.length) {
+        console.warn("Firebase no está inicializado; no se enviaron push de turno web.");
+      } else {
+        console.warn("No hay pushToken guardado para avisar el turno web.", {
+          ownerId: String(ownerId),
+          barberId: String(barberId),
+        });
       }
     } catch (pushErr) {
       logPushError("⚠️ Error enviando push:", pushErr);

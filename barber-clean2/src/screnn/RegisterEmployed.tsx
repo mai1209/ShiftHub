@@ -278,6 +278,7 @@ function RegisterEmployed({ navigation, route }: Props) {
   const [hasPendingScheduleSave, setHasPendingScheduleSave] = useState(false);
   const todayDateLabel = useMemo(() => getTodayDateLabel(), []);
   const selectedDaysRef = useRef<number[]>([]);
+  const selectedServiceIdsRef = useRef<string[]>([]);
   const dayScheduleOverridesRef = useRef<DayScheduleOverride[]>([]);
   const barberClosedDaysRef = useRef<BarberClosedDay[]>([]);
   const barberTimeBlocksRef = useRef<BarberTimeBlock[]>([]);
@@ -305,7 +306,10 @@ function RegisterEmployed({ navigation, route }: Props) {
   }, [advancedSection]);
 
   useEffect(() => {
-    if (!barberToEdit) return;
+    if (!barberToEdit) {
+      selectedServiceIdsRef.current = [];
+      return;
+    }
 
     hasPendingScheduleSaveRef.current = false;
     setHasPendingScheduleSave(false);
@@ -314,7 +318,9 @@ function RegisterEmployed({ navigation, route }: Props) {
     setEmail(barberToEdit.email ?? '');
     setPhone(barberToEdit.phone ?? '');
     setPhotoUrl(barberToEdit.photoUrl ?? '');
-    setSelectedServiceIds((barberToEdit.serviceIds || []).map(String));
+    const nextServiceIds = (barberToEdit.serviceIds || []).map(String);
+    setSelectedServiceIds(nextServiceIds);
+    selectedServiceIdsRef.current = nextServiceIds;
     setSelectedDays((barberToEdit.workDays || []).map(Number));
     selectedDaysRef.current = (barberToEdit.workDays || []).map(Number);
     setDayScheduleOverrides(barberToEdit.dayScheduleOverrides || []);
@@ -572,11 +578,13 @@ function RegisterEmployed({ navigation, route }: Props) {
   };
 
   const toggleService = (serviceId: string) => {
-    setSelectedServiceIds(prev =>
-      prev.includes(serviceId)
+    setSelectedServiceIds(prev => {
+      const next = prev.includes(serviceId)
         ? prev.filter(id => id !== serviceId)
-        : [...prev, serviceId],
-    );
+        : [...prev, serviceId];
+      selectedServiceIdsRef.current = next;
+      return next;
+    });
   };
 
   const selectedServicesLabel = useMemo(() => {
@@ -1110,7 +1118,7 @@ function RegisterEmployed({ navigation, route }: Props) {
       email: email.trim() || undefined,
       phone: phone.trim() || undefined,
       photoUrl: photoUrl.trim() || undefined,
-      serviceIds: selectedServiceIds,
+      serviceIds: selectedServiceIdsRef.current,
       scheduleRange: !splitShift ? formattedRange : undefined,
       scheduleRanges: splitShift
         ? [
@@ -2384,7 +2392,10 @@ function RegisterEmployed({ navigation, route }: Props) {
                 styles.servicePickerRow,
                 !selectedServiceIds.length && styles.servicePickerRowActive,
               ]}
-              onPress={() => setSelectedServiceIds([])}
+              onPress={() => {
+                selectedServiceIdsRef.current = [];
+                setSelectedServiceIds([]);
+              }}
             >
               <View>
                 <Text style={styles.servicePickerTitle}>

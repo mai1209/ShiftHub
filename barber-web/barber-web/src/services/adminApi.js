@@ -84,6 +84,13 @@ export function updateSubscription({ userId, secret, payload }) {
   });
 }
 
+export function deleteAdminUser({ userId, secret }) {
+  return request(`/admin/users/${userId}`, {
+    method: 'DELETE',
+    secret,
+  });
+}
+
 export function fetchPlanPricing({ secret }) {
   return request('/admin/plan-pricing', { secret });
 }

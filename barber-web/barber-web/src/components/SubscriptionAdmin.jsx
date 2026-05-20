@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   createSubscriptionCoupon,
+  deleteAdminUser,
   deleteSubscriptionCoupon,
   fetchPlanPricing,
   fetchSubscriptionCoupons,
@@ -285,6 +286,8 @@ export default function SubscriptionAdmin() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [users, setUsers] = useState([]);
+  const [shops, setShops] = useState([]);
+  const [expandedShopId, setExpandedShopId] = useState(null);
   const [drafts, setDrafts] = useState({});
   const [pricingDraft, setPricingDraft] = useState({
     basicPriceArs: 25000,
@@ -321,7 +324,7 @@ export default function SubscriptionAdmin() {
     isActive: true,
   });
 
-  const hasUsers = users.length > 0;
+  const hasUsers = shops.length > 0 || users.length > 0;
 
   const getPlanAmount = useCallback(
     (plan, userSubscription = {}) => {
@@ -416,7 +419,10 @@ export default function SubscriptionAdmin() {
         }),
       ]);
       const nextCoupons = couponsResponse.coupons || [];
-      const nextUsers = subscriptionsResponse.users || [];
+      const nextShops = subscriptionsResponse.shops || [];
+      const nextUsers = nextShops.length
+        ? nextShops.map((shop) => shop.owner).filter(Boolean)
+        : subscriptionsResponse.users || [];
       const nextPricingDraft = {
         basicPriceArs: Number(pricingResponse.pricing?.basic?.ars || 25000),
         basicPriceUsdReference: Number(pricingResponse.pricing?.basic?.usdReference || 25),
@@ -424,6 +430,7 @@ export default function SubscriptionAdmin() {
         proPriceUsdReference: Number(pricingResponse.pricing?.pro?.usdReference || 35),
       };
       setCoupons(nextCoupons);
+      setShops(nextShops);
       setUsers(nextUsers);
       setPricingDraft(nextPricingDraft);
       setDrafts(buildDrafts(nextUsers, nextPricingDraft));
@@ -431,6 +438,7 @@ export default function SubscriptionAdmin() {
     } catch (err) {
       setError(err.message || 'No pudimos cargar las cuentas.');
       setUsers([]);
+      setShops([]);
       setHasLoadedOnce(false);
     } finally {
       setLoading(false);
@@ -742,6 +750,22 @@ export default function SubscriptionAdmin() {
             : user,
         ),
       );
+      setShops((current) =>
+        current.map((shop) =>
+          shop.owner?._id === userId
+            ? {
+                ...shop,
+                owner: {
+                  ...shop.owner,
+                  subscription: {
+                    ...shop.owner.subscription,
+                    ...response.user.subscription,
+                  },
+                },
+              }
+            : shop,
+        ),
+      );
       setDrafts((current) => ({
         ...current,
         [userId]: {
@@ -782,6 +806,68 @@ export default function SubscriptionAdmin() {
       setError('');
     } catch (_error) {
       window.prompt('Copiá este link de renovación:', renewalUrl);
+    }
+  };
+
+  const handleDeleteUser = async (user, contextLabel) => {
+    if (!user?._id) return;
+
+    const label = contextLabel || user.fullName || user.email || 'esta cuenta';
+    const confirmed = window.confirm(
+      `Vas a borrar ${label}. Esta acción elimina la cuenta de acceso del panel y no se puede deshacer desde acá.`,
+    );
+
+    if (!confirmed) return;
+
+    if (!secret.trim()) {
+      setError('Ingresá el secret de administración para borrar cuentas.');
+      setSuccess('');
+      return;
+    }
+
+    setSavingUserId(user._id);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await deleteAdminUser({
+        userId: user._id,
+        secret: secret.trim(),
+      });
+
+      if (response.deletedRole === 'barber') {
+        setShops((current) =>
+          current.map((shop) => ({
+            ...shop,
+            staffUsers: (shop.staffUsers || []).filter((staffUser) => staffUser._id !== user._id),
+            barbers: (shop.barbers || []).map((barber) =>
+              barber.accessUser?._id === user._id
+                ? { ...barber, accessUser: null }
+                : barber,
+            ),
+          })),
+        );
+        setUsers((current) => current.filter((item) => item._id !== user._id));
+        setDrafts((current) => {
+          const next = { ...current };
+          delete next[user._id];
+          return next;
+        });
+      } else {
+        setShops((current) => current.filter((shop) => shop.owner?._id !== user._id));
+        setUsers((current) => current.filter((item) => item._id !== user._id));
+        setDrafts((current) => {
+          const next = { ...current };
+          delete next[user._id];
+          return next;
+        });
+      }
+
+      setSuccess(response.message || 'Cuenta borrada correctamente.');
+    } catch (err) {
+      setError(err.message || 'No pudimos borrar la cuenta.');
+    } finally {
+      setSavingUserId(null);
     }
   };
 
@@ -895,6 +981,19 @@ export default function SubscriptionAdmin() {
     selectedYear,
     users,
   ]);
+
+  const visibleShops = useMemo(() => {
+    if (!shops.length) {
+      return visibleUsers.map((user) => ({
+        owner: user,
+        staffUsers: [],
+        barbers: [],
+      }));
+    }
+
+    const visibleOwnerIds = new Set(visibleUsers.map((user) => user._id));
+    return shops.filter((shop) => visibleOwnerIds.has(shop.owner?._id));
+  }, [shops, visibleUsers]);
 
   const summary = useMemo(() => {
     const activeUsers = visibleUsers.filter((user) => user.subscription?.status === 'active');
@@ -1767,9 +1866,20 @@ export default function SubscriptionAdmin() {
               </div>
 
               <section className={styles.list}>
-                {visibleUsers.map((user) => {
+                {visibleShops.map((shop) => {
+                  const user = shop.owner;
+                  if (!user?._id) return null;
                   const draft = drafts[user._id] || {};
                   const hasDiscount = hasSubscriptionDiscount(user.subscription);
+                  const staffUsers = shop.staffUsers || [];
+                  const barbers = shop.barbers || [];
+                  const linkedStaffUserIds = new Set(
+                    barbers.map((barber) => barber.accessUser?._id).filter(Boolean),
+                  );
+                  const unlinkedStaffUsers = staffUsers.filter(
+                    (staffUser) => !linkedStaffUserIds.has(staffUser._id),
+                  );
+                  const expanded = expandedShopId === user._id;
                   const activeCouponDurationBadge = isSubscriptionCouponStillValid(user.subscription)
                     ? getCouponDurationBadge({
                         benefitDurationType: user.subscription?.couponBenefitDurationType,
@@ -1783,6 +1893,9 @@ export default function SubscriptionAdmin() {
                           <h2 className={styles.cardTitle}>{user.fullName}</h2>
                           <p className={styles.cardMeta}>
                             {user.email} · /{user.shopSlug}
+                          </p>
+                          <p className={styles.cardMeta}>
+                            {barbers.length} barberos · {staffUsers.length} cuentas de empleado
                           </p>
                           {hasDiscount ? (
                             <span className={styles.discountBadge}>Plan diferenciado activo</span>
@@ -1816,6 +1929,103 @@ export default function SubscriptionAdmin() {
                           <span>Último pago: {formatDate(user.subscription?.lastPaymentAt)}</span>
                         </div>
                       </div>
+
+                      <div className={styles.shopToggleRow}>
+                        <button
+                          type="button"
+                          className={styles.secondaryInlineButton}
+                          onClick={() =>
+                            setExpandedShopId((current) => (current === user._id ? null : user._id))
+                          }
+                        >
+                          {expanded ? 'Ocultar empleados y barberos' : 'Ver empleados y barberos'}
+                        </button>
+                      </div>
+
+                      {expanded ? (
+                        <div className={styles.staffPanel}>
+                          <div className={styles.staffPanelHeader}>
+                            <div>
+                              <h3>Equipo de /{user.shopSlug || 'sin-slug'}</h3>
+                              <p>
+                                Cuenta admin, perfiles de barbero y accesos de empleados separados por barbería.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              className={styles.deleteInlineButton}
+                              onClick={() => handleDeleteUser(user, `la cuenta admin ${user.email}`)}
+                              disabled={savingUserId === user._id}
+                            >
+                              Borrar cuenta admin
+                            </button>
+                          </div>
+
+                          <div className={styles.staffGrid}>
+                            <article className={styles.staffCard}>
+                              <span className={styles.staffBadge}>Admin</span>
+                              <strong>{user.fullName || 'Sin nombre'}</strong>
+                              <p>{user.email}</p>
+                              <small>Alta: {formatDate(user.createdAt)}</small>
+                            </article>
+
+                            {barbers.map((barber) => (
+                              <article key={barber._id} className={styles.staffCard}>
+                                <span className={styles.staffBadge}>Barbero</span>
+                                <strong>{barber.fullName || 'Sin nombre'}</strong>
+                                <p>{barber.email || barber.phone || 'Sin contacto cargado'}</p>
+                                <small>
+                                  Perfil: {barber.isActive ? 'activo' : 'inactivo'} · Acceso:{' '}
+                                  {barber.accessUser?.email || 'sin cuenta'}
+                                </small>
+                                {barber.accessUser ? (
+                                  <button
+                                    type="button"
+                                    className={styles.deleteInlineButton}
+                                    onClick={() =>
+                                      handleDeleteUser(
+                                        barber.accessUser,
+                                        `la cuenta de empleado ${barber.accessUser.email}`,
+                                      )
+                                    }
+                                    disabled={savingUserId === barber.accessUser._id}
+                                  >
+                                    Borrar cuenta empleado
+                                  </button>
+                                ) : null}
+                              </article>
+                            ))}
+
+                            {unlinkedStaffUsers.map((staffUser) => (
+                              <article key={staffUser._id} className={styles.staffCard}>
+                                <span className={styles.staffBadge}>Empleado</span>
+                                <strong>{staffUser.fullName || 'Sin nombre'}</strong>
+                                <p>{staffUser.email}</p>
+                                <small>
+                                  Cuenta {staffUser.isActive ? 'activa' : 'inactiva'} · sin perfil de barbero vinculado
+                                </small>
+                                <button
+                                  type="button"
+                                  className={styles.deleteInlineButton}
+                                  onClick={() =>
+                                    handleDeleteUser(staffUser, `la cuenta de empleado ${staffUser.email}`)
+                                  }
+                                  disabled={savingUserId === staffUser._id}
+                                >
+                                  Borrar cuenta empleado
+                                </button>
+                              </article>
+                            ))}
+
+                            {!barbers.length && !staffUsers.length ? (
+                              <article className={styles.staffCard}>
+                                <strong>Sin empleados cargados</strong>
+                                <p>Esta barbería todavía no tiene barberos ni accesos asociados.</p>
+                              </article>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
 
                       <div className={styles.controls}>
                         <label className={styles.selectField}>
@@ -1988,6 +2198,14 @@ export default function SubscriptionAdmin() {
                             onClick={() => handleResetCustomPricing(user._id)}
                           >
                             Aplicar precio normal
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.deleteInlineButton}
+                            onClick={() => handleDeleteUser(user, `la cuenta admin ${user.email}`)}
+                            disabled={savingUserId === user._id}
+                          >
+                            Borrar cuenta admin
                           </button>
                           <button
                             className={styles.saveButton}

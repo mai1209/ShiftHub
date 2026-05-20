@@ -34,9 +34,17 @@ function normalizeShift(value) {
   return allowed.includes(normalized) ? normalized : undefined;
 }
 
+function getEntityId(value) {
+  if (!value) return "";
+  if (typeof value === "object") {
+    return String(value._id || value.id || value.serviceId || "");
+  }
+  return String(value);
+}
+
 async function normalizeAssignedServiceIds(rawValue, ownerId) {
   const rawIds = Array.isArray(rawValue)
-    ? rawValue.map((item) => String(item || "").trim()).filter(Boolean)
+    ? rawValue.map((item) => getEntityId(item).trim()).filter(Boolean)
     : [];
   const uniqueIds = [...new Set(rawIds)];
   const invalidId = uniqueIds.find((id) => !mongoose.Types.ObjectId.isValid(id));
@@ -74,7 +82,7 @@ function serializeBarber(doc, accessByBarberId = new Map()) {
   const accessInfo = accessByBarberId.get(barberId) || null;
   return {
     ...doc,
-    serviceIds: (doc.serviceIds || []).map((id) => String(id)),
+    serviceIds: (doc.serviceIds || []).map(getEntityId).filter(Boolean),
     scheduleRange: doc.scheduleRange || null,
     scheduleRanges: normalizeScheduleRanges(doc.scheduleRanges),
     dayScheduleOverrides: normalizeDayScheduleOverrides(doc.dayScheduleOverrides),

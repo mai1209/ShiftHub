@@ -21,6 +21,7 @@ import {
   sendTestMail,
   syncStoreSubscription,
   listSubscriptionUsers,
+  deleteAdminUser,
   updatePaymentSettings,
   updatePassword,
   updateNotificationSettings,
@@ -76,6 +77,7 @@ router.post("/test-mail", requireAuth, requireActiveSubscription, sendTestMail);
 router.post("/save-push-token", requireAuth, savePushToken);
 router.get("/admin/subscriptions", requireAdminPanelSecret, listSubscriptionUsers);
 router.patch("/admin/subscriptions/:userId", requireAdminPanelSecret, updateSubscriptionUser);
+router.delete("/admin/users/:userId", requireAdminPanelSecret, deleteAdminUser);
 router.get("/admin/plan-pricing", requireAdminPanelSecret, getPlanPricingAdmin);
 router.put("/admin/plan-pricing", requireAdminPanelSecret, updatePlanPricingAdmin);
 router.get("/admin/subscription-coupons", requireAdminPanelSecret, listSubscriptionCouponsAdmin);
