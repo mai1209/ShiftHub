@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
@@ -17,7 +17,9 @@ import {
   Clock3,
   Pencil,
   Save,
-  BriefcaseBusiness,
+  ArrowDown,
+  ArrowUp,
+  GripVertical,
   Trash2,
   X,
 } from 'lucide-react-native';
@@ -28,6 +30,7 @@ import {
   createService,
   deleteService,
   fetchServices,
+  reorderServices,
   updateService,
 } from '../services/api';
 
@@ -57,19 +60,31 @@ const formatCurrency = (value: number) =>
 function ServiceSettingsScreen({ navigation }: Props) {
   const { theme } = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
+  const scrollRef = useRef<ScrollView>(null);
+  const servicesRef = useRef<ServiceOption[]>([]);
+  const dragYRef = useRef<Record<string, number>>({});
+  const orderDirtyRef = useRef(false);
 
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
   const [error, setError] = useState('');
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [highlightForm, setHighlightForm] = useState(false);
+  const [reorderMode, setReorderMode] = useState(false);
   const [name, setName] = useState('');
   const [durationMinutes, setDurationMinutes] = useState('30');
   const [price, setPrice] = useState('');
 
+  useEffect(() => {
+    servicesRef.current = services;
+  }, [services]);
+
   const resetForm = () => {
     setEditingServiceId(null);
+    setHighlightForm(false);
     setName('');
     setDurationMinutes('30');
     setPrice('');
@@ -144,6 +159,7 @@ function ServiceSettingsScreen({ navigation }: Props) {
 
   const handleEdit = (service: ServiceOption) => {
     setEditingServiceId(service._id);
+    setHighlightForm(true);
     setName(service.name ?? '');
     setDurationMinutes(String(service.durationMinutes ?? 30));
     setPrice(
@@ -151,7 +167,84 @@ function ServiceSettingsScreen({ navigation }: Props) {
         ? String(service.price)
         : '',
     );
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    });
   };
+
+  const persistServiceOrder = useCallback(
+    async (nextServices: ServiceOption[]) => {
+      try {
+        setSavingOrder(true);
+        const response = await reorderServices(nextServices.map(service => service._id));
+        setServices(response?.services ?? nextServices);
+      } catch (err: any) {
+        Alert.alert(
+          'No se pudo guardar el orden',
+          err?.message ?? 'Recargamos los servicios para evitar inconsistencias.',
+        );
+        await loadServices(true);
+      } finally {
+        setSavingOrder(false);
+      }
+    },
+    [loadServices],
+  );
+
+  const moveServiceLocally = useCallback((serviceId: string, direction: -1 | 1) => {
+      const current = servicesRef.current;
+      const index = current.findIndex(service => service._id === serviceId);
+      const targetIndex = index + direction;
+
+      if (index < 0 || targetIndex < 0 || targetIndex >= current.length) return false;
+
+      const nextServices = [...current];
+      const [moved] = nextServices.splice(index, 1);
+      nextServices.splice(targetIndex, 0, moved);
+      servicesRef.current = nextServices;
+      setServices(nextServices);
+      return true;
+    }, []);
+
+  const moveService = useCallback(
+    async (serviceId: string, direction: -1 | 1) => {
+      if (!moveServiceLocally(serviceId, direction)) return;
+      await persistServiceOrder(servicesRef.current);
+    },
+    [moveServiceLocally, persistServiceOrder],
+  );
+
+  const handleDragMove = useCallback(
+    (serviceId: string, pageY: number) => {
+      if (!reorderMode || savingOrder) return;
+
+      const lastY = dragYRef.current[serviceId] || pageY;
+      const delta = pageY - lastY;
+
+      if (Math.abs(delta) < 58) return;
+
+      const moved = moveServiceLocally(serviceId, delta > 0 ? 1 : -1);
+      if (moved) {
+        dragYRef.current[serviceId] = pageY;
+        orderDirtyRef.current = true;
+      }
+    },
+    [moveServiceLocally, reorderMode, savingOrder],
+  );
+
+  const handleDragRelease = useCallback(async () => {
+    if (!orderDirtyRef.current) return;
+    orderDirtyRef.current = false;
+    await persistServiceOrder(servicesRef.current);
+  }, [persistServiceOrder]);
+
+  const handleStartReorder = useCallback(
+    (serviceId: string, pageY?: number) => {
+      setReorderMode(true);
+      dragYRef.current[serviceId] = pageY || 0;
+    },
+    [],
+  );
 
   const handleDelete = (service: ServiceOption) => {
     Alert.alert(
@@ -182,6 +275,7 @@ function ServiceSettingsScreen({ navigation }: Props) {
   return (
     <View style={styles.screen}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -205,7 +299,12 @@ function ServiceSettingsScreen({ navigation }: Props) {
           </View>
         </View>
 
-        <View style={styles.formCard}>
+        <View
+          style={[
+            styles.formCard,
+            editingServiceId && highlightForm && styles.formCardEditing,
+          ]}
+        >
           <View style={styles.formHeader}>
             <Text style={styles.formTitle}>
               {editingServiceId ? 'Editar servicio' : 'Nuevo servicio'}
@@ -217,6 +316,14 @@ function ServiceSettingsScreen({ navigation }: Props) {
               </Pressable>
             ) : null}
           </View>
+
+          {editingServiceId ? (
+            <View style={styles.editingBanner}>
+              <Text style={styles.editingBannerText}>
+                Estás editando este servicio. Guardá o cancelá para volver a crear uno nuevo.
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.fieldBlock}>
             <Text style={styles.label}>Nombre</Text>
@@ -272,8 +379,23 @@ function ServiceSettingsScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionLabel}>Servicios cargados</Text>
-          <Text style={styles.sectionCount}>{services.length}</Text>
+          <View>
+            <Text style={styles.sectionLabel}>Servicios cargados</Text>
+            <Text style={styles.sectionHint}>
+              Mantené apretada una tarjeta para ordenar.
+            </Text>
+          </View>
+          <View style={styles.sectionCountWrap}>
+            {savingOrder ? (
+              <Text style={styles.savingOrderText}>Guardando orden...</Text>
+            ) : null}
+            <Text style={styles.sectionCount}>{services.length}</Text>
+            {reorderMode ? (
+              <Pressable style={styles.doneReorderButton} onPress={() => setReorderMode(false)}>
+                <Text style={styles.doneReorderText}>Listo</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         {loading ? (
@@ -285,11 +407,34 @@ function ServiceSettingsScreen({ navigation }: Props) {
             <Text style={styles.errorText}>{error}</Text>
           </View>
         ) : services.length ? (
-          services.map(service => (
-            <View key={service._id} style={styles.serviceCard}>
+          services.map((service, index) => (
+            <Pressable
+              key={service._id}
+              style={[
+                styles.serviceCard,
+                reorderMode && styles.serviceCardReorder,
+                editingServiceId === service._id && styles.serviceCardEditing,
+              ]}
+              delayLongPress={260}
+              onStartShouldSetResponder={() => reorderMode}
+              onMoveShouldSetResponder={() => reorderMode}
+              onResponderGrant={event => {
+                dragYRef.current[service._id] = event.nativeEvent.pageY;
+              }}
+              onResponderMove={event => {
+                handleDragMove(service._id, event.nativeEvent.pageY);
+              }}
+              onResponderRelease={handleDragRelease}
+              onPressIn={event => {
+                if (reorderMode) {
+                  dragYRef.current[service._id] = event.nativeEvent.pageY;
+                }
+              }}
+              onLongPress={event => handleStartReorder(service._id, event.nativeEvent.pageY)}
+            >
               <View style={styles.serviceTopRow}>
-                <View style={styles.serviceIconWrap}>
-                  <BriefcaseBusiness size={16} color={theme.primary} />
+                <View style={styles.orderBadge}>
+                  <Text style={styles.orderBadgeText}>{index + 1}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.serviceName}>{service.name}</Text>
@@ -308,6 +453,31 @@ function ServiceSettingsScreen({ navigation }: Props) {
                     </View>
                   </View>
                 </View>
+                {reorderMode ? (
+                  <View style={styles.reorderControls}>
+                    <Pressable
+                      style={[styles.reorderButton, index === 0 && styles.reorderButtonDisabled]}
+                      disabled={index === 0 || savingOrder}
+                      onPress={() => moveService(service._id, -1)}
+                    >
+                      <ArrowUp size={14} color={index === 0 ? '#687181' : theme.textPrimary} />
+                    </Pressable>
+                    <GripVertical size={18} color={theme.textMuted} />
+                    <Pressable
+                      style={[
+                        styles.reorderButton,
+                        index === services.length - 1 && styles.reorderButtonDisabled,
+                      ]}
+                      disabled={index === services.length - 1 || savingOrder}
+                      onPress={() => moveService(service._id, 1)}
+                    >
+                      <ArrowDown
+                        size={14}
+                        color={index === services.length - 1 ? '#687181' : theme.textPrimary}
+                      />
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
 
               <View style={styles.actionsRow}>
@@ -327,7 +497,7 @@ function ServiceSettingsScreen({ navigation }: Props) {
                   <Text style={styles.deleteBtnText}>Eliminar</Text>
                 </Pressable>
               </View>
-            </View>
+            </Pressable>
           ))
         ) : (
           <View style={styles.emptyCard}>
@@ -379,6 +549,13 @@ const makeStyles = (theme: Theme) =>
       padding: 16,
       marginBottom: 18,
     },
+    formCardEditing: {
+      borderColor: theme.primary,
+      shadowColor: theme.primary,
+      shadowOpacity: 0.16,
+      shadowRadius: 16,
+      elevation: 3,
+    },
     formHeader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -389,6 +566,21 @@ const makeStyles = (theme: Theme) =>
       color: theme.textPrimary,
       fontSize: 17,
       fontWeight: '800',
+    },
+    editingBanner: {
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+      borderWidth: 1,
+      borderColor: hexToRgba(theme.primary, 0.32),
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 14,
+    },
+    editingBannerText: {
+      color: theme.textPrimary,
+      fontSize: 12,
+      fontWeight: '700',
+      lineHeight: 17,
     },
     secondaryMiniBtn: {
       flexDirection: 'row',
@@ -458,6 +650,7 @@ const makeStyles = (theme: Theme) =>
       alignItems: 'center',
       justifyContent: 'space-between',
       marginBottom: 10,
+      gap: 12,
     },
     sectionLabel: {
       color: theme.textMuted,
@@ -467,6 +660,33 @@ const makeStyles = (theme: Theme) =>
     },
     sectionCount: {
       color: theme.primary,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    sectionHint: {
+      color: theme.textSecondary,
+      fontSize: 12,
+      marginTop: 3,
+    },
+    sectionCountWrap: {
+      alignItems: 'flex-end',
+      gap: 4,
+    },
+    savingOrderText: {
+      color: theme.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    doneReorderButton: {
+      minHeight: 30,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+      backgroundColor: theme.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    doneReorderText: {
+      color: theme.textOnPrimary,
       fontSize: 12,
       fontWeight: '800',
     },
@@ -494,6 +714,12 @@ const makeStyles = (theme: Theme) =>
       padding: 14,
       marginBottom: 12,
     },
+    serviceCardReorder: {
+      borderColor: hexToRgba(theme.primary, 0.38),
+    },
+    serviceCardEditing: {
+      borderColor: theme.primary,
+    },
     serviceTopRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -506,6 +732,19 @@ const makeStyles = (theme: Theme) =>
       backgroundColor: hexToRgba(theme.primary, 0.12),
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    orderBadge: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    orderBadgeText: {
+      color: theme.primary,
+      fontSize: 13,
+      fontWeight: '900',
     },
     serviceName: {
       color: theme.textPrimary,
@@ -533,6 +772,25 @@ const makeStyles = (theme: Theme) =>
       color: theme.textSecondary,
       fontSize: 12,
       fontWeight: '700',
+    },
+    reorderControls: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginLeft: 4,
+    },
+    reorderButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    reorderButtonDisabled: {
+      opacity: 0.45,
     },
     actionsRow: {
       flexDirection: 'row',

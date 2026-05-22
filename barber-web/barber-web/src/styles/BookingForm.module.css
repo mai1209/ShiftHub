@@ -330,11 +330,25 @@
 .shopContactMeta span {
   display: inline-flex;
   align-items: center;
+  gap: 7px;
   min-height: 30px;
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface-2);
+}
+
+.shopContactMeta .contactIcon {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--pink-strong);
+  font-size: 0.82rem;
+  line-height: 1;
 }
 
 .shopSecondaryLinks {
@@ -347,13 +361,15 @@
 .shopSecondaryLinks a {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
   border-radius: 999px;
   border: 1px solid var(--pink-border);
   background: var(--pink-soft);
   color: var(--text-soft);
-  font-size: 0.75rem;
+  font-size: 1rem;
   font-weight: 800;
   text-decoration: none;
 }

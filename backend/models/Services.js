@@ -5,9 +5,10 @@ const ServiceSchema = new Schema({
   name: { type: String, required: true },
   durationMinutes: { type: Number, required: true, default: 30 },
   price: { type: Number, default: 0 },
+  sortOrder: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
 });
 
-ServiceSchema.index({ owner: 1, isActive: 1, name: 1 });
+ServiceSchema.index({ owner: 1, isActive: 1, sortOrder: 1, name: 1 });
 
 export const ServiceModel = model("Service", ServiceSchema);

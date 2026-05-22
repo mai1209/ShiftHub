@@ -225,6 +225,7 @@ function sanitizeService(service) {
     name: String(service.name || "").trim(),
     durationMinutes: Number(service.durationMinutes || 30),
     price: Number(service.price || 0),
+    sortOrder: Number(service.sortOrder || 0),
     isActive: Boolean(service.isActive ?? true),
   };
 }
@@ -973,7 +974,7 @@ export async function listServices(req, res, next) {
       owner: ownerId,
       isActive: true,
     })
-      .sort({ name: 1 })
+      .sort({ sortOrder: 1, name: 1, _id: 1 })
       .lean();
     return res.json({ services: services.map(sanitizeService) });
   } catch (err) {
@@ -1010,11 +1011,20 @@ export async function createService(req, res, next) {
       return res.status(409).json({ error: "Ya existe un servicio con ese nombre" });
     }
 
+    const lastService = await ServiceModel.findOne({
+      owner: ownerId,
+      isActive: true,
+    })
+      .sort({ sortOrder: -1, createdAt: -1, _id: -1 })
+      .select({ sortOrder: 1 })
+      .lean();
+
     const service = await ServiceModel.create({
       owner: ownerId,
       name,
       durationMinutes,
       price,
+      sortOrder: Number(lastService?.sortOrder || 0) + 1,
       isActive: true,
     });
 
@@ -1095,6 +1105,63 @@ export async function deleteService(req, res, next) {
     }
 
     return res.json({ service: sanitizeService(service) });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function reorderServices(req, res, next) {
+  try {
+    const ownerId = req.user.ownerId || req.user.id;
+    const serviceIds = Array.isArray(req.body?.serviceIds) ? req.body.serviceIds : [];
+    const normalizedIds = serviceIds.map((id) => String(id || "").trim());
+
+    if (!normalizedIds.length || normalizedIds.some((id) => !mongoose.Types.ObjectId.isValid(id))) {
+      return res.status(400).json({ error: "El orden de servicios no es válido." });
+    }
+
+    if (new Set(normalizedIds).size !== normalizedIds.length) {
+      return res.status(400).json({ error: "El orden contiene servicios duplicados." });
+    }
+
+    const services = await ServiceModel.find({
+      owner: ownerId,
+      isActive: true,
+    })
+      .select({ _id: 1 })
+      .lean();
+    const activeServiceIds = services.map((service) => String(service._id));
+
+    if (
+      activeServiceIds.length !== normalizedIds.length ||
+      activeServiceIds.some((id) => !normalizedIds.includes(id))
+    ) {
+      return res.status(400).json({
+        error: "El orden recibido no coincide con los servicios activos.",
+      });
+    }
+
+    await ServiceModel.bulkWrite(
+      normalizedIds.map((serviceId, index) => ({
+        updateOne: {
+          filter: { _id: serviceId, owner: ownerId, isActive: true },
+          update: { $set: { sortOrder: index + 1 } },
+        },
+      })),
+      { ordered: true },
+    );
+
+    const reorderedServices = await ServiceModel.find({
+      owner: ownerId,
+      isActive: true,
+    })
+      .sort({ sortOrder: 1, name: 1, _id: 1 })
+      .lean();
+
+    return res.json({
+      message: "Orden de servicios guardado correctamente.",
+      services: reorderedServices.map(sanitizeService),
+    });
   } catch (err) {
     return next(err);
   }

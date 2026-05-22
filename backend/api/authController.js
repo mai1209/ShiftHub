@@ -1,5 +1,8 @@
 import { UserModel } from "../models/User.js";
 import { BarberModel } from "../models/Barber.js";
+import { AppointmentModel } from "../models/Appointment.js";
+import { ServiceModel } from "../models/Services.js";
+import { ShopModel } from "../models/Shop.js";
 import { SubscriptionCouponModel } from "../models/SubscriptionCoupon.js";
 import { hashPassword, verifyPassword } from "../token/passwordManager.js";
 import { signAccessToken, verifyAccessToken } from "../token/jwtManager.js";
@@ -2372,7 +2375,7 @@ export async function listSubscriptionUsers(req, res, next) {
   try {
     const search = String(req.query?.search ?? "").trim().toLowerCase();
 
-    const users = await UserModel.find({})
+    const users = await UserModel.find({ isActive: { $ne: false } })
       .sort({ createdAt: -1 })
       .select({
         fullName: 1,
@@ -2504,19 +2507,56 @@ export async function deleteAdminUser(req, res, next) {
     }
 
     const ownerId = userDoc.shopOwnerId ? String(userDoc.shopOwnerId) : String(userDoc._id);
-    const deleteFilter =
-      userDoc.role === "barber"
-        ? { _id: userDoc._id }
-        : { $or: [{ _id: userDoc._id }, { shopOwnerId: userDoc._id }] };
+    const deletedCounts = {
+      users: 0,
+      barbers: 0,
+      appointments: 0,
+      services: 0,
+      shops: 0,
+    };
 
-    const result = await UserModel.deleteMany(deleteFilter);
+    if (userDoc.role === "barber") {
+      const barberId = userDoc.barberId || null;
+
+      if (barberId) {
+        const appointmentsResult = await AppointmentModel.deleteMany({
+          owner: ownerId,
+          barber: barberId,
+        });
+        const barberResult = await BarberModel.deleteOne({
+          _id: barberId,
+          owner: ownerId,
+        });
+        deletedCounts.appointments = appointmentsResult.deletedCount || 0;
+        deletedCounts.barbers = barberResult.deletedCount || 0;
+      }
+
+      const userResult = await UserModel.deleteOne({ _id: userDoc._id });
+      deletedCounts.users = userResult.deletedCount || 0;
+    } else {
+      const [usersResult, barbersResult, appointmentsResult, servicesResult, shopsResult] =
+        await Promise.all([
+          UserModel.deleteMany({ $or: [{ _id: userDoc._id }, { shopOwnerId: userDoc._id }] }),
+          BarberModel.deleteMany({ owner: userDoc._id }),
+          AppointmentModel.deleteMany({ owner: userDoc._id }),
+          ServiceModel.deleteMany({ owner: userDoc._id }),
+          ShopModel.deleteMany({ owner: userDoc._id }),
+        ]);
+
+      deletedCounts.users = usersResult.deletedCount || 0;
+      deletedCounts.barbers = barbersResult.deletedCount || 0;
+      deletedCounts.appointments = appointmentsResult.deletedCount || 0;
+      deletedCounts.services = servicesResult.deletedCount || 0;
+      deletedCounts.shops = shopsResult.deletedCount || 0;
+    }
 
     return res.json({
       message:
         userDoc.role === "barber"
-          ? "Cuenta de empleado borrada correctamente."
-          : "Cuenta administradora y accesos de empleados borrados correctamente.",
-      deletedCount: result.deletedCount || 0,
+          ? "Cuenta de empleado/barbero borrada correctamente."
+          : "Barbería, cuenta administradora y datos asociados borrados correctamente.",
+      deletedCount: Object.values(deletedCounts).reduce((total, count) => total + count, 0),
+      deletedCounts,
       deletedUserId: String(userDoc._id),
       ownerId,
       deletedRole: userDoc.role || "admin",
@@ -2543,8 +2583,21 @@ export async function updateSubscriptionUser(req, res, next) {
       return res.status(404).json({ error: "No encontramos esa cuenta." });
     }
 
+    const currentSubscription = userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {};
+    const effectiveRenewalMode = updates.renewalMode || currentSubscription.renewalMode || "manual";
+    const hasExpiresAtUpdate = Object.prototype.hasOwnProperty.call(updates, "expiresAt");
+    const hasRenewalModeUpdate = Object.prototype.hasOwnProperty.call(updates, "renewalMode");
+
+    if (hasExpiresAtUpdate || hasRenewalModeUpdate) {
+      const effectiveExpiresAt = hasExpiresAtUpdate
+        ? updates.expiresAt
+        : currentSubscription.expiresAt || null;
+      updates.nextBillingAt =
+        effectiveRenewalMode === "automatic" && effectiveExpiresAt ? effectiveExpiresAt : null;
+    }
+
     userDoc.subscription = {
-      ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+      ...currentSubscription,
       ...updates,
     };
 

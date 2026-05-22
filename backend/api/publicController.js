@@ -233,6 +233,7 @@ function sanitizeService(service) {
     name: service.name,
     durationMinutes: service.durationMinutes ?? 30,
     price: service.price ?? 0,
+    sortOrder: service.sortOrder ?? 0,
   };
 }
 
@@ -883,7 +884,7 @@ export async function publicListServices(req, res, next) {
     if (!shop) return res.status(404).json({ error: "Barbería no encontrada" });
     const ownerId = toObjectId(shop._id);
     const services = await ServiceModel.find({ owner: ownerId, isActive: true })
-      .sort({ name: 1 })
+      .sort({ sortOrder: 1, name: 1, _id: 1 })
       .lean();
     return res.json({
       shop: sanitizeShop(shop),

@@ -1126,16 +1126,6 @@ function BookingForm({ shopSlug, onNotFound }) {
                 aria-hidden="true"
               />
             </picture>
-            {hasMapLink ? (
-              <a
-                className={styles.mapTopLink}
-                href={googleMapsUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Ver en el mapa
-              </a>
-            ) : null}
             <div className={styles.shopHeroAvatar}>
               <img
                 src={shopProfileSrc}
@@ -1160,31 +1150,41 @@ function BookingForm({ shopSlug, onNotFound }) {
               ) : null}
               {shopAddress || shopPhone ? (
                 <div className={styles.shopContactMeta}>
-                  {shopAddress ? <span>{shopAddress}</span> : null}
-                  {shopPhone ? <span>{shopPhone}</span> : null}
+                  {shopAddress ? (
+                    <span>
+                      <span className={styles.contactIcon} aria-hidden="true">⌖</span>
+                      {shopAddress}
+                    </span>
+                  ) : null}
+                  {shopPhone ? (
+                    <span>
+                      <span className={styles.contactIcon} aria-hidden="true">☎</span>
+                      {shopPhone}
+                    </span>
+                  ) : null}
                 </div>
               ) : null}
             </div>
             {hasMapLink || hasReviewsLink || hasInstagramLink || hasLinktreeLink ? (
               <div className={styles.shopSecondaryLinks}>
                 {hasMapLink ? (
-                  <a href={googleMapsUrl} target="_blank" rel="noreferrer">
-                    Cómo llegar
+                  <a href={googleMapsUrl} target="_blank" rel="noreferrer" aria-label="Cómo llegar" title="Cómo llegar">
+                    <span aria-hidden="true">⌖</span>
                   </a>
                 ) : null}
                 {hasReviewsLink ? (
-                  <a href={googleReviewsUrl} target="_blank" rel="noreferrer">
-                    Ver reseñas
+                  <a href={googleReviewsUrl} target="_blank" rel="noreferrer" aria-label="Ver reseñas" title="Ver reseñas">
+                    <span aria-hidden="true">★</span>
                   </a>
                 ) : null}
                 {hasInstagramLink ? (
-                  <a href={instagramUrl} target="_blank" rel="noreferrer">
-                    Instagram
+                  <a href={instagramUrl} target="_blank" rel="noreferrer" aria-label="Instagram" title="Instagram">
+                    <span aria-hidden="true">◎</span>
                   </a>
                 ) : null}
                 {hasLinktreeLink ? (
-                  <a href={linktreeUrl} target="_blank" rel="noreferrer">
-                    Linktree
+                  <a href={linktreeUrl} target="_blank" rel="noreferrer" aria-label="Linktree" title="Linktree">
+                    <span aria-hidden="true">↗</span>
                   </a>
                 ) : null}
               </div>

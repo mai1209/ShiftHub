@@ -12,6 +12,7 @@ import {
   updateAppointmentStatus,
   listServices,
   createService,
+  reorderServices,
   updateService,
   deleteService,
   deleteAppointment,
@@ -31,6 +32,7 @@ router.use(requireActiveSubscription);
 
 router.get("/services", listServices);
 router.post("/services", createService);
+router.patch("/services/reorder", reorderServices);
 router.put("/services/:serviceId", updateService);
 router.delete("/services/:serviceId", deleteService);
 router.get("/metrics", requireProSubscription, getAppointmentMetrics);

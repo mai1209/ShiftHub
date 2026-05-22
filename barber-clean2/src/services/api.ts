@@ -496,6 +496,7 @@ export type ServiceOption = {
   name: string;
   durationMinutes: number;
   price?: number;
+  sortOrder?: number;
   isActive?: boolean;
 };
 
@@ -652,6 +653,17 @@ export function deleteService(serviceId: string) {
     method: "DELETE",
     auth: true,
   });
+}
+
+export function reorderServices(serviceIds: string[]) {
+  return request<{ message: string; services: ServiceOption[] }>(
+    "/api/appointments/services/reorder",
+    {
+      method: "PATCH",
+      body: { serviceIds },
+      auth: true,
+    },
+  );
 }
 
 export function createBarber(payload: { 
