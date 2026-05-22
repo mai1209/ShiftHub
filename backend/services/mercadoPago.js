@@ -17,6 +17,37 @@ function normalizeBaseUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
 }
 
+function isLocalHttpUrl(url) {
+  return (
+    url.protocol === "http:" &&
+    (url.hostname === "localhost" || url.hostname === "127.0.0.1")
+  );
+}
+
+function isMercadoPagoReturnBaseUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" || isLocalHttpUrl(parsed);
+  } catch (_error) {
+    return false;
+  }
+}
+
+function resolveMercadoPagoBackendPublicBaseUrl() {
+  const { backendBaseUrl, redirectUri } = getMercadoPagoConfig();
+
+  if (isMercadoPagoReturnBaseUrl(backendBaseUrl)) {
+    return backendBaseUrl.replace(/\/+$/, "");
+  }
+
+  const redirectOrigin = new URL(redirectUri).origin;
+  if (isMercadoPagoReturnBaseUrl(redirectOrigin)) {
+    return redirectOrigin.replace(/\/+$/, "");
+  }
+
+  return backendBaseUrl.replace(/\/+$/, "");
+}
+
 function validateMercadoPagoRedirectUri(redirectUri) {
   let parsed;
 
@@ -285,13 +316,11 @@ export function buildMercadoPagoBookingReturnUrls(shopSlug) {
 }
 
 export function buildMercadoPagoWebhookUrl() {
-  const { backendBaseUrl } = getMercadoPagoConfig();
-  return `${backendBaseUrl.replace(/\/+$/, "")}/api/payments/mercadopago/webhook`;
+  return `${resolveMercadoPagoBackendPublicBaseUrl()}/api/payments/mercadopago/webhook`;
 }
 
 export function buildMercadoPagoSubscriptionReturnUrls() {
-  const { backendBaseUrl } = getMercadoPagoConfig();
-  const base = backendBaseUrl.replace(/\/+$/, "");
+  const base = resolveMercadoPagoBackendPublicBaseUrl();
   return {
     success: `${base}/api/payments/subscriptions/return?result=success`,
     pending: `${base}/api/payments/subscriptions/return?result=pending`,
@@ -300,6 +329,5 @@ export function buildMercadoPagoSubscriptionReturnUrls() {
 }
 
 export function buildMercadoPagoSubscriptionWebhookUrl() {
-  const { backendBaseUrl } = getMercadoPagoConfig();
-  return `${backendBaseUrl.replace(/\/+$/, "")}/api/payments/subscriptions/mercadopago/webhook`;
+  return `${resolveMercadoPagoBackendPublicBaseUrl()}/api/payments/subscriptions/mercadopago/webhook`;
 }
