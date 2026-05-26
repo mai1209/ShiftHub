@@ -15,10 +15,10 @@ type ApiError = Error & {
   isNetworkError?: boolean;
 };
 
-const LAN_IP = "192.168.100.51";
+const LAN_IP = "192.168.100.60";
 const ANDROID_EMULATOR_HOST = "10.0.2.2";
 const REQUEST_TIMEOUT_MS = 15000;
-const FORCE_PROD_IN_DEBUG = false; // En desarrollo usamos el backend local para no mezclar datos con producción
+const FORCE_PROD_IN_DEBUG = true; // En desarrollo usamos el backend local para no mezclar datos con producción FALSO LOCAL TRUE PRODUCCION.
 
 const isAndroid = Platform.OS === "android";
 const isAndroidEmulator = Boolean(
@@ -223,6 +223,8 @@ export type PublicProfile = {
   instagramUrl?: string | null;
   linktreeUrl?: string | null;
   googlePlaceId?: string | null;
+  googleRating?: number | null;
+  googleReviewCount?: number | null;
 };
 
 export type PaymentSettings = {
@@ -341,6 +343,31 @@ export function updatePublicProfile(payload: PublicProfile) {
     body: payload,
     auth: true,
   });
+}
+
+export function searchGooglePlaces(query: string) {
+  return request<{
+    results: {
+      placeId: string;
+      name: string;
+      address?: string | null;
+      googleRating?: number | null;
+      googleReviewCount?: number | null;
+    }[];
+  }>(`/api/auth/public-profile/google-places/search?query=${encodeURIComponent(query)}`, {
+    auth: true,
+  });
+}
+
+export function selectGooglePlace(placeId: string) {
+  return request<{ message: string; user: any }>(
+    "/api/auth/public-profile/google-places/select",
+    {
+      method: "POST",
+      body: { placeId },
+      auth: true,
+    },
+  );
 }
 
 export function updatePaymentSettings(payload: PaymentSettings) {

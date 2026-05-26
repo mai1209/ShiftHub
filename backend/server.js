@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import helmet from 'helmet';
 import cors from "cors";
+import { PUBLIC_MEDIA_ROOT, PUBLIC_MEDIA_ROUTE } from "./utils/publicMedia.js";
 import { connectMongo } from "./database/connectMongo.js";
 import authRoutes from "./routes/authRoutes.js";
 import { errorHandler, notFoundHandler } from "./middlewares/errorHandler.js";
@@ -13,7 +14,9 @@ import paymentRoutes from "./routes/paymentRoutes.js";
 const app = express();
 
 // Activamos todas las protecciones escudo de seguridad
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+}));
 
 function getEnvAllowedOrigins() {
   const entries = String(process.env.ALLOWED_WEB_ORIGINS || "")
@@ -123,6 +126,18 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: "8mb" }));
+
+app.use(
+  PUBLIC_MEDIA_ROUTE,
+  express.static(PUBLIC_MEDIA_ROOT, {
+    maxAge: "30d",
+    immutable: true,
+    setHeaders(res) {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      res.setHeader("Cache-Control", "public, max-age=2592000, immutable");
+    },
+  }),
+);
 
 // 1. Middleware de Conexión
 app.use(async (req, res, next) => {

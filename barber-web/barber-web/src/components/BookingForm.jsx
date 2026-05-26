@@ -7,7 +7,9 @@ import {
   fetchBarberAppointments,
   createAppointment,
   fetchShopInfo,
+  fetchShopMedia,
   fetchServices,
+  resolveApiMediaUrl,
   setShopSlug,
 } from "../services/api";
 import {
@@ -36,9 +38,9 @@ const minutesToLabel = (totalMinutes) => {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 };
 
-const SLOT_INTERVAL_MINUTES = 30;
-const DEFAULT_BOOKING_BANNER = "/logoBarber.png";
-const DEFAULT_BOOKING_LOGO = "/logoBarber.png";
+const SLOT_INTERVAL_MINUTES = 15;
+const DEFAULT_BOOKING_BANNER = null;
+const DEFAULT_BOOKING_LOGO = null;
 
 const getEntityId = (value) => {
   if (!value) return "";
@@ -503,7 +505,6 @@ function BookingForm({ shopSlug, onNotFound }) {
       ),
     [selectedServices],
   );
-
   const selectedServiceLabel = useMemo(() => {
     if (!selectedServices.length) return "Seleccionar servicios";
     if (selectedServices.length === 1) return selectedServices[0].name;
@@ -521,6 +522,13 @@ function BookingForm({ shopSlug, onNotFound }) {
   const selectedBarberData = useMemo(
     () => barbers.find((b) => b._id === selectedBarber) ?? null,
     [barbers, selectedBarber],
+  );
+
+  const currentRequiredMinutes = useMemo(
+    () =>
+      currentDuration +
+      Math.max(0, Number(selectedBarberData?.bookingBufferMinutes || 0)),
+    [currentDuration, selectedBarberData],
   );
 
   const paymentOptions = useMemo(
@@ -559,7 +567,7 @@ function BookingForm({ shopSlug, onNotFound }) {
     const currentDayOfWeek = selectedDate.getDay();
     if (!workDays.includes(currentDayOfWeek)) return [];
 
-    const step = currentDuration;
+    const step = SLOT_INTERVAL_MINUTES;
     const buildSlots = (startStr, endStr) => {
       const parse = (t) => {
         const [h, m] = t.trim().split(":").map(Number);
@@ -569,7 +577,7 @@ function BookingForm({ shopSlug, onNotFound }) {
       const end = parse(endStr);
       const slotSet = new Set();
       for (let m = start; m <= end; m += step) {
-        if (m + step > end) break;
+        if (m + currentRequiredMinutes > end) break;
         slotSet.add(minutesToLabel(m));
       }
 
@@ -602,7 +610,7 @@ function BookingForm({ shopSlug, onNotFound }) {
       },
     ];
   }, [
-    currentDuration,
+    currentRequiredMinutes,
     resolvedBarberSchedule,
     selectedBarberData,
     selectedDate,
@@ -620,13 +628,13 @@ function BookingForm({ shopSlug, onNotFound }) {
   );
 
   const desktopBannerSrc =
-    shopInfo?.themeConfig?.bannerDataUrl || DEFAULT_BOOKING_BANNER;
+    resolveApiMediaUrl(shopInfo?.themeConfig?.bannerDataUrl) || DEFAULT_BOOKING_BANNER;
   const mobileBannerSrc =
-    shopInfo?.themeConfig?.mobileBannerDataUrl ||
-    shopInfo?.themeConfig?.bannerDataUrl ||
-    DEFAULT_BOOKING_BANNER;
+    resolveApiMediaUrl(
+      shopInfo?.themeConfig?.mobileBannerDataUrl || shopInfo?.themeConfig?.bannerDataUrl,
+    ) || DEFAULT_BOOKING_BANNER;
   const shopProfileSrc =
-    shopInfo?.themeConfig?.logoDataUrl || DEFAULT_BOOKING_LOGO;
+    resolveApiMediaUrl(shopInfo?.themeConfig?.logoDataUrl) || DEFAULT_BOOKING_LOGO;
   const publicProfile = shopInfo?.publicProfile || {};
   const shopSubtitle = String(publicProfile.subtitle || "").trim();
   const shopAddress = String(publicProfile.address || "").trim();
@@ -635,6 +643,9 @@ function BookingForm({ shopSlug, onNotFound }) {
   const googleReviewsUrl = String(publicProfile.googleReviewsUrl || "").trim();
   const instagramUrl = String(publicProfile.instagramUrl || "").trim();
   const linktreeUrl = String(publicProfile.linktreeUrl || "").trim();
+  const googleRating = Number(publicProfile.googleRating || 0);
+  const googleReviewCount = Number(publicProfile.googleReviewCount || 0);
+  const hasGoogleRating = googleRating > 0;
   const hasMapLink = Boolean(googleMapsUrl);
   const hasReviewsLink = Boolean(googleReviewsUrl);
   const hasInstagramLink = Boolean(instagramUrl);
@@ -694,6 +705,23 @@ function BookingForm({ shopSlug, onNotFound }) {
       try {
         const res = await fetchShopInfo();
         setShopInfo(res?.shop ?? null);
+        fetchShopMedia()
+          .then((mediaRes) => {
+            setShopInfo((current) =>
+              current
+                ? {
+                    ...current,
+                    themeConfig: {
+                      ...(current.themeConfig || {}),
+                      ...(mediaRes?.themeConfig || {}),
+                    },
+                  }
+                : current,
+            );
+          })
+          .catch((mediaError) => {
+            console.warn("No se pudo cargar la media pública:", mediaError?.message || mediaError);
+          });
       } catch (err) {
         console.error(err);
         if (err?.status === 404) {
@@ -856,7 +884,7 @@ function BookingForm({ shopSlug, onNotFound }) {
       }
 
       // Bloquear si está ocupado
-      const endMinutes = startMinutes + currentDuration;
+      const endMinutes = startMinutes + currentRequiredMinutes;
       const overlaps = occupiedRanges.some(
         (range) => range.start < endMinutes && range.end > startMinutes,
       );
@@ -878,7 +906,7 @@ function BookingForm({ shopSlug, onNotFound }) {
 
       return false;
     },
-    [barberTimeBlocks, currentDuration, occupiedRanges, selectedDate],
+    [barberTimeBlocks, currentRequiredMinutes, occupiedRanges, selectedDate],
   );
 
   useEffect(() => {
@@ -1109,7 +1137,13 @@ function BookingForm({ shopSlug, onNotFound }) {
       <nav className={`${style.nav} ${styles.bookingNav}`}>
         <div className={style.navLogo}>
           <span className={`${style.navLogoMark} ${styles.bookingNavLogoMark}`}>
-            <img src={shopProfileSrc} alt={shopInfo?.name || SHIFT_APP_BRAND_NAME} />
+            {shopProfileSrc ? (
+              <img src={shopProfileSrc} alt={shopInfo?.name || SHIFT_APP_BRAND_NAME} />
+            ) : (
+              <span className={styles.logoPlaceholderText}>
+                {(shopInfo?.name || SHIFT_APP_BRAND_NAME).charAt(0)}
+              </span>
+            )}
           </span>
         </div>
       </nav>
@@ -1117,20 +1151,30 @@ function BookingForm({ shopSlug, onNotFound }) {
       <form className={styles.card} onSubmit={handleSubmit}>
         <div className={styles.cardHero}>
           <div className={styles.shopHeroMedia}>
-            <picture className={styles.shopHeroPicture}>
-              <source media="(max-width: 768px)" srcSet={mobileBannerSrc} />
-              <img
-                className={styles.shopHeroBanner}
-                src={desktopBannerSrc}
-                alt=""
-                aria-hidden="true"
-              />
-            </picture>
+            {desktopBannerSrc || mobileBannerSrc ? (
+              <picture className={styles.shopHeroPicture}>
+                {mobileBannerSrc ? <source media="(max-width: 768px)" srcSet={mobileBannerSrc} /> : null}
+                <img
+                  className={styles.shopHeroBanner}
+                  src={desktopBannerSrc || mobileBannerSrc}
+                  alt=""
+                  aria-hidden="true"
+                />
+              </picture>
+            ) : (
+              <div className={styles.shopHeroPlaceholder} aria-hidden="true" />
+            )}
             <div className={styles.shopHeroAvatar}>
-              <img
-                src={shopProfileSrc}
-                alt={shopInfo?.name ? `Logo de ${shopInfo.name}` : "Logo del negocio"}
-              />
+              {shopProfileSrc ? (
+                <img
+                  src={shopProfileSrc}
+                  alt={shopInfo?.name ? `Logo de ${shopInfo.name}` : "Logo del negocio"}
+                />
+              ) : (
+                <span className={styles.heroAvatarPlaceholderText}>
+                  {(shopInfo?.name || businessCopy.businessTypeLabel).charAt(0)}
+                </span>
+              )}
             </div>
           </div>
           <div className={styles.shopHeroContent}>
@@ -1148,17 +1192,24 @@ function BookingForm({ shopSlug, onNotFound }) {
                   {shopSubtitle}
                 </p>
               ) : null}
+              {hasGoogleRating ? (
+                <div className={styles.shopRating} aria-label={`Valoración ${googleRating.toFixed(1)} de 5`}>
+                  <span className={styles.shopRatingStars} aria-hidden="true">★★★★★</span>
+                  <strong>{googleRating.toFixed(1)}</strong>
+                  {googleReviewCount > 0 ? <span>{googleReviewCount} reseñas</span> : null}
+                </div>
+              ) : null}
               {shopAddress || shopPhone ? (
                 <div className={styles.shopContactMeta}>
                   {shopAddress ? (
                     <span>
-                      <span className={styles.contactIcon} aria-hidden="true">⌖</span>
+                      <span className={styles.contactIcon} aria-hidden="true"><img className={style.icon} src="mapa.png" alt="mapa" /></span>
                       {shopAddress}
                     </span>
                   ) : null}
                   {shopPhone ? (
                     <span>
-                      <span className={styles.contactIcon} aria-hidden="true">☎</span>
+                      <span className={styles.contactIcon} aria-hidden="true"><img className={style.icon}  src="telefonoNegro.png" alt="telefono" /></span>
                       {shopPhone}
                     </span>
                   ) : null}
@@ -1169,22 +1220,22 @@ function BookingForm({ shopSlug, onNotFound }) {
               <div className={styles.shopSecondaryLinks}>
                 {hasMapLink ? (
                   <a href={googleMapsUrl} target="_blank" rel="noreferrer" aria-label="Cómo llegar" title="Cómo llegar">
-                    <span aria-hidden="true">⌖</span>
+                    <span aria-hidden="true"><img className={style.icon}  src="mapa.png" alt="mapa" /></span>
                   </a>
                 ) : null}
                 {hasReviewsLink ? (
                   <a href={googleReviewsUrl} target="_blank" rel="noreferrer" aria-label="Ver reseñas" title="Ver reseñas">
-                    <span aria-hidden="true">★</span>
+                    <span aria-hidden="true"><img className={style.icon}  src="estrella.png" alt="estrella" /></span>
                   </a>
                 ) : null}
                 {hasInstagramLink ? (
                   <a href={instagramUrl} target="_blank" rel="noreferrer" aria-label="Instagram" title="Instagram">
-                    <span aria-hidden="true">◎</span>
+                    <span aria-hidden="true"><img className={style.icon}  src="instagram.png" alt="instagram" /></span>
                   </a>
                 ) : null}
                 {hasLinktreeLink ? (
                   <a href={linktreeUrl} target="_blank" rel="noreferrer" aria-label="Linktree" title="Linktree">
-                    <span aria-hidden="true">↗</span>
+                    <span aria-hidden="true"><img className={style.icon}  src="linktree.png" alt="linktree" /></span>
                   </a>
                 ) : null}
               </div>

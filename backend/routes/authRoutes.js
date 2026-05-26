@@ -28,6 +28,8 @@ import {
   updateBarberProfileSettings,
   updatePlanPricingAdmin,
   updatePublicProfile,
+  searchGooglePlaces,
+  selectGooglePlace,
   updateOwnSubscriptionSettings,
   upsertBarberAccess,
   updateShopClosedDays,
@@ -66,6 +68,8 @@ router.post("/subscription/platform/sync", requireAuth, syncStoreSubscription);
 router.put("/password", requireAuth, updatePassword);
 router.put("/theme", requireAuth, requireActiveSubscription, updateThemeConfig);
 router.put("/public-profile", requireAuth, requireActiveSubscription, requirePaidOperationalSubscription, updatePublicProfile);
+router.get("/public-profile/google-places/search", requireAuth, requireActiveSubscription, requirePaidOperationalSubscription, searchGooglePlaces);
+router.post("/public-profile/google-places/select", requireAuth, requireActiveSubscription, requirePaidOperationalSubscription, selectGooglePlace);
 router.put("/payment-settings", requireAuth, requireActiveSubscription, updatePaymentSettings);
 router.put("/notification-settings", requireAuth, requireActiveSubscription, updateNotificationSettings);
 router.put("/barber-profile-settings", requireAuth, requireActiveSubscription, requirePaidOperationalSubscription, requireAdminRole, updateBarberProfileSettings);

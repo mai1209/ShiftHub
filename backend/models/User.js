@@ -39,6 +39,8 @@ const publicProfileSchema = new mongoose.Schema(
     instagramUrl: { type: String, trim: true, default: null },
     linktreeUrl: { type: String, trim: true, default: null },
     googlePlaceId: { type: String, trim: true, default: null },
+    googleRating: { type: Number, default: null, min: 0, max: 5 },
+    googleReviewCount: { type: Number, default: null, min: 0 },
   },
   {
     _id: false,

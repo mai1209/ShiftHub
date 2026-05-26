@@ -8,8 +8,6 @@ import { CUSTOM_PLAN_URL } from "../utils/publicLinks";
 const REGISTER_URL = "/registro";
 const PLANS_URL = "/planes";
 const APP_STORE_URL = "https://apps.apple.com/ar/app/shifthub/id6767229780";
-const PLAY_STORE_URL =
-  "https://play.google.com/store/apps/details?id=com.shifthub.pro";
 
 function LandingPage() {
   const [pricing, setPricing] = useState({
@@ -195,7 +193,7 @@ function LandingPage() {
     {
       n: "01",
       title: "Descarga la app",
-      desc: "Disponible en App Store y Google Play.",
+      desc: "Disponible en App Store. Android queda preparado para mas adelante.",
     },
     {
       n: "02",
@@ -467,9 +465,6 @@ function LandingPage() {
           </a>
           <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className={styles.btnGhost}>
             App Store
-          </a>
-          <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer" className={styles.btnGhost}>
-            Google Play
           </a>
         </div>
       </section>

@@ -7,6 +7,7 @@ import {
   publicListBarbers,
   publicGetPlanPricing,
   publicGetShop,
+  publicGetShopMedia,
   publicListServices,
 } from "../api/publicController.js";
 
@@ -16,6 +17,7 @@ router.get("/plans", publicGetPlanPricing);
 router.post("/subscriptions/checkout", publicCreateSubscriptionCheckout);
 router.post("/subscriptions/recurring/start", publicCreateRecurringSubscriptionCheckout);
 router.get("/shops/:shopSlug", publicGetShop);
+router.get("/shops/:shopSlug/media", publicGetShopMedia);
 router.get("/shops/:shopSlug/barbers", publicListBarbers);
 router.get("/shops/:shopSlug/barbers/:barberId/appointments", publicBarberAppointments);
 router.get("/shops/:shopSlug/services", publicListServices);

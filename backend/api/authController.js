@@ -50,6 +50,7 @@ import {
   buildFreeSubscriptionPatch,
   shouldNormalizeLegacyTrialToFree,
 } from "../utils/subscriptionAccess.js";
+import { isImageDataUrl, isPublicMediaUrl, persistThemeMediaUpdates } from "../utils/publicMedia.js";
 
 const PASSWORD_RESET_EXPIRY_MS = 15 * 60 * 1000;
 const SUBSCRIPTION_CURRENCY_ID = String(
@@ -352,6 +353,25 @@ function buildMercadoPagoCallbackHtml({
   </html>`;
 }
 
+function sanitizeThemeMediaValue(value, { label, maxLength }) {
+  if (value == null || String(value).trim() === "") return null;
+  const mediaValue = String(value).trim();
+
+  if (isPublicMediaUrl(mediaValue) || /^https?:\/\//i.test(mediaValue)) {
+    return mediaValue;
+  }
+
+  if (!isImageDataUrl(mediaValue)) {
+    throw new Error(`${label} debe ser una imagen válida en base64 o una URL pública.`);
+  }
+
+  if (mediaValue.length > maxLength) {
+    throw new Error(`${label} es demasiado grande. Elegí una imagen más liviana.`);
+  }
+
+  return mediaValue;
+}
+
 function sanitizeThemeConfigInput(input) {
   if (!input || typeof input !== "object") {
     return { updates: {}, hasAnyField: false };
@@ -430,53 +450,26 @@ function sanitizeThemeConfigInput(input) {
 
   if (Object.prototype.hasOwnProperty.call(input, "logoDataUrl")) {
     hasAnyField = true;
-
-    if (input.logoDataUrl == null || String(input.logoDataUrl).trim() === "") {
-      updates.logoDataUrl = null;
-    } else {
-      const logoDataUrl = String(input.logoDataUrl);
-      if (!/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(logoDataUrl)) {
-        throw new Error("El logo debe ser una imagen válida en base64.");
-      }
-      if (logoDataUrl.length > 2_500_000) {
-        throw new Error("El logo es demasiado grande. Elegí una imagen más liviana.");
-      }
-      updates.logoDataUrl = logoDataUrl;
-    }
+    updates.logoDataUrl = sanitizeThemeMediaValue(input.logoDataUrl, {
+      label: "El logo",
+      maxLength: 2_500_000,
+    });
   }
 
   if (Object.prototype.hasOwnProperty.call(input, "bannerDataUrl")) {
     hasAnyField = true;
-
-    if (input.bannerDataUrl == null || String(input.bannerDataUrl).trim() === "") {
-      updates.bannerDataUrl = null;
-    } else {
-      const bannerDataUrl = String(input.bannerDataUrl);
-      if (!/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(bannerDataUrl)) {
-        throw new Error("La portada debe ser una imagen válida en base64.");
-      }
-      if (bannerDataUrl.length > 4_500_000) {
-        throw new Error("La portada es demasiado grande. Elegí una imagen más liviana.");
-      }
-      updates.bannerDataUrl = bannerDataUrl;
-    }
+    updates.bannerDataUrl = sanitizeThemeMediaValue(input.bannerDataUrl, {
+      label: "La portada",
+      maxLength: 4_500_000,
+    });
   }
 
   if (Object.prototype.hasOwnProperty.call(input, "mobileBannerDataUrl")) {
     hasAnyField = true;
-
-    if (input.mobileBannerDataUrl == null || String(input.mobileBannerDataUrl).trim() === "") {
-      updates.mobileBannerDataUrl = null;
-    } else {
-      const mobileBannerDataUrl = String(input.mobileBannerDataUrl);
-      if (!/^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(mobileBannerDataUrl)) {
-        throw new Error("La portada para teléfono debe ser una imagen válida en base64.");
-      }
-      if (mobileBannerDataUrl.length > 4_500_000) {
-        throw new Error("La portada para teléfono es demasiado grande. Elegí una imagen más liviana.");
-      }
-      updates.mobileBannerDataUrl = mobileBannerDataUrl;
-    }
+    updates.mobileBannerDataUrl = sanitizeThemeMediaValue(input.mobileBannerDataUrl, {
+      label: "La portada para teléfono",
+      maxLength: 4_500_000,
+    });
   }
 
   return { updates, hasAnyField };
@@ -534,6 +527,34 @@ function sanitizePublicProfileInput(input) {
     }
 
     updates[field] = parsed.toString();
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, "googleRating")) {
+    hasAnyField = true;
+    const rawRating = input.googleRating;
+    if (rawRating == null || String(rawRating).trim() === "") {
+      updates.googleRating = null;
+    } else {
+      const rating = Number(rawRating);
+      if (!Number.isFinite(rating) || rating < 0 || rating > 5) {
+        throw new Error("La valoración de Google no es válida.");
+      }
+      updates.googleRating = rating > 0 ? rating : null;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, "googleReviewCount")) {
+    hasAnyField = true;
+    const rawCount = input.googleReviewCount;
+    if (rawCount == null || String(rawCount).trim() === "") {
+      updates.googleReviewCount = null;
+    } else {
+      const count = Number(rawCount);
+      if (!Number.isInteger(count) || count < 0) {
+        throw new Error("La cantidad de reseñas de Google no es válida.");
+      }
+      updates.googleReviewCount = count > 0 ? count : null;
+    }
   }
 
   return { updates, hasAnyField };
@@ -1853,10 +1874,14 @@ export async function updateThemeConfig(req, res, next) {
     if (!hasAnyField) {
       return res.status(400).json({ error: "No llegaron cambios de tema para guardar." });
     }
+    const persistedUpdates = await persistThemeMediaUpdates({
+      ownerId: userDoc._id,
+      updates,
+    });
 
     userDoc.themeConfig = {
       ...(userDoc.themeConfig?.toObject?.() ?? userDoc.themeConfig ?? {}),
-      ...updates,
+      ...persistedUpdates,
     };
 
     await userDoc.save();
@@ -2105,6 +2130,114 @@ export async function updateOwnSubscriptionSettings(req, res, next) {
     if (err instanceof Error) {
       return res.status(400).json({ error: err.message });
     }
+    return next(err);
+  }
+}
+
+function getGooglePlacesApiKey() {
+  return String(process.env.GOOGLE_PLACES_API_KEY || "").trim();
+}
+
+async function fetchGooglePlacesJson(url) {
+  const response = await fetch(url);
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok || !payload || payload.status === "REQUEST_DENIED") {
+    throw new Error(payload?.error_message || "Google Places no respondió correctamente.");
+  }
+
+  return payload;
+}
+
+export async function searchGooglePlaces(req, res, next) {
+  try {
+    const apiKey = getGooglePlacesApiKey();
+    if (!apiKey) {
+      return res.status(503).json({
+        error: "GOOGLE_PLACES_API_KEY no está configurada.",
+        code: "GOOGLE_PLACES_API_KEY_MISSING",
+      });
+    }
+
+    const query = String(req.query?.query || "").trim();
+    if (query.length < 3) {
+      return res.status(400).json({ error: "Escribí al menos 3 caracteres para buscar." });
+    }
+
+    const params = new URLSearchParams({
+      query,
+      key: apiKey,
+      language: "es",
+    });
+    const payload = await fetchGooglePlacesJson(
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?${params.toString()}`,
+    );
+
+    return res.json({
+      results: (payload.results || []).slice(0, 8).map((place) => ({
+        placeId: place.place_id,
+        name: place.name,
+        address: place.formatted_address || null,
+        googleRating: Number(place.rating || 0) > 0 ? Number(place.rating) : null,
+        googleReviewCount:
+          Number(place.user_ratings_total || 0) > 0 ? Number(place.user_ratings_total) : null,
+      })),
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function selectGooglePlace(req, res, next) {
+  try {
+    const apiKey = getGooglePlacesApiKey();
+    if (!apiKey) {
+      return res.status(503).json({
+        error: "GOOGLE_PLACES_API_KEY no está configurada.",
+        code: "GOOGLE_PLACES_API_KEY_MISSING",
+      });
+    }
+
+    const userId = req.user?.id;
+    const placeId = String(req.body?.placeId || "").trim();
+    if (!userId) return res.status(401).json({ error: "Usuario no autorizado" });
+    if (!placeId) return res.status(400).json({ error: "Falta el Place ID de Google." });
+
+    const params = new URLSearchParams({
+      place_id: placeId,
+      fields: "place_id,name,rating,user_ratings_total,url",
+      key: apiKey,
+      language: "es",
+    });
+    const payload = await fetchGooglePlacesJson(
+      `https://maps.googleapis.com/maps/api/place/details/json?${params.toString()}`,
+    );
+    const place = payload.result || {};
+
+    const userDoc = await UserModel.findById(userId);
+    if (!userDoc || userDoc.isActive === false) {
+      return res.status(401).json({ error: "Usuario no autorizado" });
+    }
+
+    const mapsUrl =
+      place.url || `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(placeId)}`;
+    userDoc.publicProfile = {
+      ...(userDoc.publicProfile?.toObject?.() ?? userDoc.publicProfile ?? {}),
+      googlePlaceId: place.place_id || placeId,
+      googleRating: Number(place.rating || 0) > 0 ? Number(place.rating) : null,
+      googleReviewCount:
+        Number(place.user_ratings_total || 0) > 0 ? Number(place.user_ratings_total) : null,
+      googleMapsUrl: mapsUrl,
+      googleReviewsUrl: mapsUrl,
+    };
+
+    await userDoc.save();
+
+    return res.json({
+      message: "Perfil de Google vinculado correctamente.",
+      user: userDoc.toJSON(),
+    });
+  } catch (err) {
     return next(err);
   }
 }

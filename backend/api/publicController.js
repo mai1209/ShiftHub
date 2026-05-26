@@ -116,10 +116,34 @@ function ensureWebSubscriptionCheckoutAllowed(userDoc) {
   };
 }
 
-async function findActiveShop(shopSlug) {
+const LIGHT_SHOP_SELECT = {
+  fullName: 1,
+  shopSlug: 1,
+  businessType: 1,
+  publicProfile: 1,
+  paymentSettings: 1,
+  shopClosedDays: 1,
+  "themeConfig.mode": 1,
+  "themeConfig.webPreset": 1,
+  "themeConfig.primary": 1,
+  "themeConfig.secondary": 1,
+  "themeConfig.card": 1,
+  "themeConfig.gradientColors": 1,
+};
+
+const FULL_SHOP_SELECT = {
+  ...LIGHT_SHOP_SELECT,
+  "themeConfig.logoDataUrl": 1,
+  "themeConfig.bannerDataUrl": 1,
+  "themeConfig.mobileBannerDataUrl": 1,
+};
+
+async function findActiveShop(shopSlug, { includeMedia = false } = {}) {
   const normalized = normalizeSlug(shopSlug);
   if (!normalized) return null;
-  return UserModel.findOne({ shopSlug: normalized, isActive: true }).lean();
+  return UserModel.findOne({ shopSlug: normalized, isActive: true })
+    .select(includeMedia ? FULL_SHOP_SELECT : LIGHT_SHOP_SELECT)
+    .lean();
 }
 
 // ← Convierte siempre a ObjectId para que Mongoose matchee correctamente
@@ -133,6 +157,42 @@ function getEntityId(value) {
     return String(value._id || value.id || value.serviceId || "");
   }
   return String(value);
+}
+
+function parseTimeToMinutes(value) {
+  const [hour, minute] = String(value || "")
+    .trim()
+    .split(":")
+    .map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  return hour * 60 + minute;
+}
+
+function parseScheduleRangeToMinutes(value) {
+  const parts = String(value || "").split("-");
+  if (parts.length < 2) return null;
+  const start = parseTimeToMinutes(parts[0]);
+  const end = parseTimeToMinutes(parts[1]);
+  if (start == null || end == null || end <= start) return null;
+  return { start, end };
+}
+
+function doesRangeFitSchedule(resolvedSchedule, startMinutes, endMinutes) {
+  const ranges = Array.isArray(resolvedSchedule?.scheduleRanges)
+    ? resolvedSchedule.scheduleRanges
+    : [];
+
+  if (ranges.length) {
+    return ranges.some((range) => {
+      const start = parseTimeToMinutes(range?.start);
+      const end = parseTimeToMinutes(range?.end);
+      return start != null && end != null && startMinutes >= start && endMinutes <= end;
+    });
+  }
+
+  const parsedRange = parseScheduleRangeToMinutes(resolvedSchedule?.scheduleRange);
+  if (!parsedRange) return false;
+  return startMinutes >= parsedRange.start && endMinutes <= parsedRange.end;
 }
 
 function sanitizeBarber(barber) {
@@ -196,6 +256,12 @@ function sanitizeShop(shop) {
       instagramUrl: publicProfile.instagramUrl || null,
       linktreeUrl: publicProfile.linktreeUrl || null,
       googlePlaceId: publicProfile.googlePlaceId || null,
+      googleRating: Number(publicProfile.googleRating || 0) > 0
+        ? Number(publicProfile.googleRating)
+        : null,
+      googleReviewCount: Number(publicProfile.googleReviewCount || 0) > 0
+        ? Number(publicProfile.googleReviewCount)
+        : null,
     },
     themeConfig: {
       mode: themeConfig.mode || null,
@@ -223,6 +289,28 @@ function sanitizeShop(shop) {
         paymentSettings.mercadoPagoConnectionStatus || "disconnected",
     },
     shopClosedDays: normalizeShopClosedDays(shop.shopClosedDays),
+  };
+}
+
+function sanitizeShopSummary(shop) {
+  if (!shop) return null;
+  return {
+    _id: shop._id.toString(),
+    name: shop.fullName,
+    slug: shop.shopSlug,
+    businessType: normalizeBusinessType(shop.businessType),
+    businessTypeLabel: getBusinessTypeLabel(shop.businessType),
+  };
+}
+
+function sanitizeShopMedia(shop) {
+  const themeConfig = shop?.themeConfig || {};
+  return {
+    themeConfig: {
+      logoDataUrl: themeConfig.logoDataUrl || null,
+      bannerDataUrl: themeConfig.bannerDataUrl || null,
+      mobileBannerDataUrl: themeConfig.mobileBannerDataUrl || null,
+    },
   };
 }
 
@@ -498,6 +586,16 @@ export async function publicGetShop(req, res, next) {
       shop: sanitizeShop(shop),
       stats: { barbers: totalBarbers },
     });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function publicGetShopMedia(req, res, next) {
+  try {
+    const shop = await findActiveShop(req.params.shopSlug, { includeMedia: true });
+    if (!shop) return res.status(404).json({ error: "Barbería no encontrada" });
+    return res.json(sanitizeShopMedia(shop));
   } catch (err) {
     return next(err);
   }
@@ -866,11 +964,24 @@ export async function publicListBarbers(req, res, next) {
     const ownerId = toObjectId(shop._id);
 
     const barbers = await BarberModel.find({ owner: ownerId, isActive: true })
+      .select({
+        fullName: 1,
+        photoUrl: 1,
+        serviceIds: 1,
+        shift: 1,
+        scheduleRange: 1,
+        scheduleRanges: 1,
+        dayScheduleOverrides: 1,
+        barberClosedDays: 1,
+        bookingBufferMinutes: 1,
+        barberTimeBlocks: 1,
+        workDays: 1,
+      })
       .sort({ createdAt: 1 })
       .lean();
 
     return res.json({
-      shop: sanitizeShop(shop),
+      shop: sanitizeShopSummary(shop),
       barbers: barbers.map(sanitizeBarber),
     });
   } catch (err) {
@@ -884,10 +995,11 @@ export async function publicListServices(req, res, next) {
     if (!shop) return res.status(404).json({ error: "Barbería no encontrada" });
     const ownerId = toObjectId(shop._id);
     const services = await ServiceModel.find({ owner: ownerId, isActive: true })
+      .select({ name: 1, durationMinutes: 1, price: 1, sortOrder: 1 })
       .sort({ sortOrder: 1, name: 1, _id: 1 })
       .lean();
     return res.json({
-      shop: sanitizeShop(shop),
+      shop: sanitizeShopSummary(shop),
       services: services.map(sanitizeService),
     });
   } catch (err) {
@@ -911,7 +1023,21 @@ export async function publicBarberAppointments(req, res, next) {
       _id: barberId,
       owner: ownerId,
       isActive: true,
-    }).lean();
+    })
+      .select({
+        fullName: 1,
+        photoUrl: 1,
+        serviceIds: 1,
+        shift: 1,
+        scheduleRange: 1,
+        scheduleRanges: 1,
+        dayScheduleOverrides: 1,
+        barberClosedDays: 1,
+        bookingBufferMinutes: 1,
+        barberTimeBlocks: 1,
+        workDays: 1,
+      })
+      .lean();
     if (!barber)
       return res.status(404).json({ error: "Barbero no encontrado" });
     const shopClosure = resolveShopClosureForDate(
@@ -928,6 +1054,7 @@ export async function publicBarberAppointments(req, res, next) {
       status: { $in: ["pending", "completed"] },
       startTime: { $gte: startOfDay, $lte: endOfDay },
     })
+      .select({ startTime: 1, durationMinutes: 1, bufferAfterMinutesApplied: 1, status: 1 })
       .sort({ startTime: 1 })
       .lean();
     const weekday = getTimeZoneWeekday(
@@ -943,7 +1070,7 @@ export async function publicBarberAppointments(req, res, next) {
       effectiveDate || req.query.date || new Date(),
     );
     return res.json({
-      shop: sanitizeShop(shop),
+      shop: sanitizeShopSummary(shop),
       barber: sanitizeBarber(barber),
       resolvedSchedule: shopClosure || barberClosure
         ? { scheduleRange: null, scheduleRanges: [] }
@@ -986,7 +1113,22 @@ export async function publicCreateAppointment(req, res, next) {
       _id: barberId,
       owner: ownerId,
       isActive: true,
-    }).lean();
+    })
+      .select({
+        fullName: 1,
+        email: 1,
+        phone: 1,
+        serviceIds: 1,
+        shift: 1,
+        scheduleRange: 1,
+        scheduleRanges: 1,
+        dayScheduleOverrides: 1,
+        barberClosedDays: 1,
+        bookingBufferMinutes: 1,
+        barberTimeBlocks: 1,
+        workDays: 1,
+      })
+      .lean();
     if (!barber)
       return res.status(404).json({ error: "Barbero no encontrado" });
     const appointmentDate = new Date(startTime);
@@ -1050,6 +1192,17 @@ export async function publicCreateAppointment(req, res, next) {
     const startMinutes = startHour * 60 + startMinute;
     const occupiedEndMinutes =
       startMinutes + Number(normalizedDuration || 0) + bufferAfterMinutes;
+    const resolvedSchedule = resolveBarberScheduleForWeekday(
+      barber,
+      getTimeZoneWeekday(appointmentDate),
+      getTimeZoneLabel(appointmentDate).date,
+    );
+
+    if (!doesRangeFitSchedule(resolvedSchedule, startMinutes, occupiedEndMinutes)) {
+      return res.status(400).json({
+        error: "El horario seleccionado queda fuera del horario laboral del profesional.",
+      });
+    }
 
     const overlappingBlock = barberTimeBlocks.find((block) =>
       doesTimeBlockOverlapRange(block, startMinutes, occupiedEndMinutes),

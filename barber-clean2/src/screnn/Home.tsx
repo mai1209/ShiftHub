@@ -1141,7 +1141,7 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'space-between',
     },
     welcomeText: { color: theme.textPrimary, fontSize: 16, fontWeight: '500' },
-    nameText: { color: theme.textPrimary, fontSize: 28, fontWeight: '800' },
+    nameText: { color: theme.textPrimary, fontSize: 20, fontWeight: '800', maxWidth: 260 },
     scrollContent: { paddingHorizontal: 20, paddingBottom: 120 },
 
     // Links y Métricas (Mismo estilo anterior)
@@ -1632,7 +1632,7 @@ const createStyles = (theme: Theme) =>
     },
     emptyTitle: { color: theme.textMuted, fontSize: 14, fontWeight: '600' },
     errorText: { color: '#ff7b7b', textAlign: 'center', marginBottom: 10 },
-    logo: { width: 55, height: 55 },
+    logo: { width: 42, height: 42 },
   });
 
 export default Home;

@@ -44,6 +44,7 @@ function resolveBaseUrl() {
 
 const BASE_URL = resolveBaseUrl();
 const AUTH_BASE_URL = BASE_URL.replace(/\/public$/, '/auth');
+const API_ORIGIN_URL = BASE_URL.replace(/\/api\/public$/, '');
 let currentShopSlug = null;
 
 function sanitizeSlug(value) {
@@ -143,6 +144,20 @@ export async function createAppointment(payload) {
 
 export async function fetchShopInfo() {
   return request(buildShopPath());
+}
+
+export async function fetchShopMedia() {
+  return request(buildShopPath('/media'));
+}
+
+export function resolveApiMediaUrl(value) {
+  const source = String(value || '').trim();
+  if (!source) return null;
+  if (/^(data:|blob:|https?:\/\/)/i.test(source)) return source;
+  if (source.startsWith('/api/public/media/')) {
+    return new URL(source, API_ORIGIN_URL).toString();
+  }
+  return source;
 }
 
 export async function fetchPlanPricing() {

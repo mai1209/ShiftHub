@@ -74,17 +74,8 @@ const FIELDS: Array<{
     placeholder: 'https://maps.google.com/...',
     keyboardType: 'url',
   },
-  {
-    key: 'googleReviewsUrl',
-    label: 'Link de reseñas de Google',
-    placeholder: 'https://g.page/.../review',
-    keyboardType: 'url',
-  },
-  {
-    key: 'googlePlaceId',
-    label: 'Google Place ID (opcional)',
-    placeholder: 'ChIJ...',
-  },
+
+
   {
     key: 'instagramUrl',
     label: 'Instagram',

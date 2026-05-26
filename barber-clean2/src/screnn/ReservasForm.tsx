@@ -48,6 +48,7 @@ const formatPrice = (value?: number) =>
   }).format(Number(value || 0));
 
 const SHOP_TZ = 'America/Argentina/Cordoba';
+const SLOT_INTERVAL_MINUTES = 15;
 
 function formatTimeInShopTZ(value: string | number | Date): string {
   const parts = new Intl.DateTimeFormat('es-AR', {
@@ -444,12 +445,18 @@ function ReservasForm({ navigation, route }: any) {
       resolveBarberScheduleForDate(selectedBarberData, selectedDate),
     [selectedBarberData, selectedDate, selectedBarberSchedule],
   );
+  const selectedRequiredMinutes = useMemo(
+    () =>
+      (selectedService?.durationMinutes ?? 30) +
+      Math.max(0, Number(selectedBarberData?.bookingBufferMinutes || 0)),
+    [selectedBarberData, selectedService],
+  );
 
   // Genera grupos de slots — soporta horario corrido y turno cortado
   const horarioGroups = useMemo((): SlotGroup[] => {
     if (!isWorkDay || !selectedBarberData) return [];
 
-    const step = selectedService?.durationMinutes ?? 30;
+    const step = SLOT_INTERVAL_MINUTES;
 
     const buildSlots = (startStr: string, endStr: string): string[] => {
       const parse = (t: string) => {
@@ -459,7 +466,7 @@ function ReservasForm({ navigation, route }: any) {
       const start = parse(startStr);
       const end = parse(endStr);
       const slots: string[] = [];
-      for (let m = start; m + step <= end; m += step) {
+      for (let m = start; m + selectedRequiredMinutes <= end; m += step) {
         slots.push(
           `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(
             m % 60,
@@ -483,7 +490,7 @@ function ReservasForm({ navigation, route }: any) {
     const parts = range.split('-');
     if (parts.length < 2) return [];
     return [{ label: '', slots: buildSlots(parts[0], parts[1]) }];
-  }, [isWorkDay, selectedBarberData, selectedService, resolvedBarberSchedule]);
+  }, [isWorkDay, selectedBarberData, selectedRequiredMinutes, resolvedBarberSchedule]);
 
   // Lista plana para validaciones
   const allSlots = useMemo(
@@ -504,7 +511,7 @@ function ReservasForm({ navigation, route }: any) {
   const isSlotUnavailable = useCallback(
     (label: string) => {
       const startMinutes = labelToMinutes(label);
-      const endMinutes = startMinutes + (selectedService?.durationMinutes ?? 30);
+      const endMinutes = startMinutes + selectedRequiredMinutes;
       const overlapsAppointment = occupiedRanges.some(
         range => range.start < endMinutes && range.end > startMinutes,
       );
@@ -525,7 +532,7 @@ function ReservasForm({ navigation, route }: any) {
       currentMinutesInShop,
       isTodayInShop,
       occupiedRanges,
-      selectedService,
+      selectedRequiredMinutes,
     ],
   );
 
