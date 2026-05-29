@@ -2,6 +2,10 @@ import crypto from "node:crypto";
 
 const DEFAULT_AUTH_URL = "https://auth.mercadopago.com/authorization";
 const DEFAULT_API_BASE_URL = "https://api.mercadopago.com";
+const LEGACY_PUBLIC_BOOKING_BASE_URL = "https://barberappbycodex.com";
+const LEGACY_BACKEND_PUBLIC_BASE_URL = "https://api.barberappbycodex.com";
+const SHIFTHUB_PUBLIC_BOOKING_BASE_URL = "https://shifthubycodex.com";
+const SHIFTHUB_BACKEND_PUBLIC_BASE_URL = "https://api.shifthubycodex.com";
 
 function getRequiredEnv(name) {
   const value = String(process.env[name] ?? "").trim();
@@ -15,6 +19,13 @@ function getRequiredEnv(name) {
 
 function normalizeBaseUrl(value) {
   return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function normalizeShiftHubUrl(value) {
+  return String(value || "")
+    .trim()
+    .replaceAll(LEGACY_BACKEND_PUBLIC_BASE_URL, SHIFTHUB_BACKEND_PUBLIC_BASE_URL)
+    .replaceAll(LEGACY_PUBLIC_BOOKING_BASE_URL, SHIFTHUB_PUBLIC_BOOKING_BASE_URL);
 }
 
 function isLocalHttpUrl(url) {
@@ -84,9 +95,11 @@ function validateMercadoPagoRedirectUri(redirectUri) {
 }
 
 export function getMercadoPagoConfig() {
-  const backendBaseUrl = normalizeBaseUrl(getRequiredEnv("BACKEND_PUBLIC_BASE_URL"));
+  const backendBaseUrl = normalizeBaseUrl(
+    normalizeShiftHubUrl(getRequiredEnv("BACKEND_PUBLIC_BASE_URL")),
+  );
   const redirectUri = String(
-    process.env.MERCADO_PAGO_REDIRECT_URI ||
+    normalizeShiftHubUrl(process.env.MERCADO_PAGO_REDIRECT_URI) ||
       `${backendBaseUrl}/api/auth/mercadopago/callback`,
   ).trim();
 
@@ -94,7 +107,9 @@ export function getMercadoPagoConfig() {
     clientId: getRequiredEnv("MERCADO_PAGO_CLIENT_ID"),
     clientSecret: getRequiredEnv("MERCADO_PAGO_CLIENT_SECRET"),
     redirectUri: validateMercadoPagoRedirectUri(redirectUri),
-    publicBookingBaseUrl: getRequiredEnv("PUBLIC_BOOKING_BASE_URL"),
+    publicBookingBaseUrl: normalizeShiftHubUrl(
+      getRequiredEnv("PUBLIC_BOOKING_BASE_URL"),
+    ),
     backendBaseUrl,
     authUrl: String(process.env.MERCADO_PAGO_OAUTH_AUTHORIZE_URL || DEFAULT_AUTH_URL).trim(),
     apiBaseUrl: String(process.env.MERCADO_PAGO_API_BASE_URL || DEFAULT_API_BASE_URL).trim(),

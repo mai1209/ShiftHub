@@ -152,7 +152,7 @@ app.use(async (req, res, next) => {
 // 2. Ruta de Bienvenida
 app.get('/', (req, res) => {
   res.status(200).json({
-    message: "🚀 BarberApp Backend Online - Powered by CODEX®",
+    message: "🚀 ShiftHub Backend Online - Powered by CODEX®",
     status: "Ready",
     database: "Connected"
   });

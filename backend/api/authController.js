@@ -1779,7 +1779,7 @@ export async function handleMercadoPagoOAuthCallback(req, res, next) {
         .send(
           buildMercadoPagoCallbackHtml({
             success: false,
-            title: "No encontramos la barbería",
+            title: "No encontramos la cuenta",
             message: "La cuenta usada para conectar Mercado Pago ya no está disponible.",
           }),
         );
@@ -1819,7 +1819,7 @@ export async function handleMercadoPagoOAuthCallback(req, res, next) {
         buildMercadoPagoCallbackHtml({
           success: true,
           title: "Mercado Pago conectado",
-          message: "La cuenta quedó vinculada a tu barbería. Ya podés volver a la app y ofrecer cobro adelantado real.",
+          message: "La cuenta quedó vinculada a ShiftHub. Ya podés volver a la app y ofrecer cobro adelantado real.",
         }),
       );
   } catch (err) {

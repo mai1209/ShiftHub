@@ -68,16 +68,6 @@ const DAYS_OF_WEEK = [
   { id: 6, label: 'S' },
 ];
 
-const DAY_NAMES = [
-  'Domingo',
-  'Lunes',
-  'Martes',
-  'Miércoles',
-  'Jueves',
-  'Viernes',
-  'Sábado',
-];
-
 const SHOP_TZ = 'America/Argentina/Cordoba';
 
 const getTodayDateLabel = () => {
@@ -173,28 +163,6 @@ const normalizeTimeBlockMessage = (value?: string | null) => {
   return text.slice(0, 220);
 };
 
-const formatLastAccessLabel = (value?: string | null) => {
-  if (!value) return 'Nunca ingresó';
-
-  try {
-    return new Date(value).toLocaleString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return 'Sin dato';
-  }
-};
-
-const resolveAccessStateLabel = (loginAccess?: Barber['loginAccess']) => {
-  if (!loginAccess?.enabled) return 'Sin acceso';
-  if (loginAccess?.lastLoginAt) return 'Activo';
-  return 'Nunca ingresó';
-};
-
 function formatClosedDayLabel(value: string) {
   const normalized = normalizeClosedDayDate(value);
   if (!normalized) return value;
@@ -222,8 +190,6 @@ function RegisterEmployed({ navigation, route }: Props) {
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [servicePickerVisible, setServicePickerVisible] = useState(false);
-  const [overrideDayPickerVisible, setOverrideDayPickerVisible] =
-    useState(false);
   const [overrideEnabled, setOverrideEnabled] = useState(false);
   const [bufferSectionOpen, setBufferSectionOpen] = useState(
     advancedSection === 'buffer',
@@ -273,9 +239,7 @@ function RegisterEmployed({ navigation, route }: Props) {
   const [selectedOverrideDay, setSelectedOverrideDay] = useState<number | null>(
     null,
   );
-  const [multiEditMode, setMultiEditMode] = useState(false);
-  const [multiEditDays, setMultiEditDays] = useState<number[]>([]);
-  const [hasPendingScheduleSave, setHasPendingScheduleSave] = useState(false);
+  const [, setHasPendingScheduleSave] = useState(false);
   const todayDateLabel = useMemo(() => getTodayDateLabel(), []);
   const selectedDaysRef = useRef<number[]>([]);
   const selectedServiceIdsRef = useRef<string[]>([]);
@@ -323,8 +287,10 @@ function RegisterEmployed({ navigation, route }: Props) {
     selectedServiceIdsRef.current = nextServiceIds;
     setSelectedDays((barberToEdit.workDays || []).map(Number));
     selectedDaysRef.current = (barberToEdit.workDays || []).map(Number);
-    setDayScheduleOverrides(barberToEdit.dayScheduleOverrides || []);
-    dayScheduleOverridesRef.current = barberToEdit.dayScheduleOverrides || [];
+    const nextDayScheduleOverrides = barberToEdit.dayScheduleOverrides || [];
+    setDayScheduleOverrides(nextDayScheduleOverrides);
+    dayScheduleOverridesRef.current = nextDayScheduleOverrides;
+    setOverrideEnabled(nextDayScheduleOverrides.length > 0);
     const nextClosedDays = (barberToEdit.barberClosedDays || [])
       .map(item => ({
         date: normalizeClosedDayDate(item.date),
@@ -424,27 +390,7 @@ function RegisterEmployed({ navigation, route }: Props) {
 
   useEffect(() => {
     selectedDaysRef.current = selectedDays;
-    setDayScheduleOverrides(prev => {
-      const next = prev.filter(item => selectedDays.includes(Number(item.day)));
-      dayScheduleOverridesRef.current = next;
-      return next;
-    });
-
-    if (!selectedDays.length) {
-      setSelectedOverrideDay(null);
-      return;
-    }
-
-    // Only auto-select an override day when override switch is enabled
-    if (!overrideEnabled) {
-      setSelectedOverrideDay(null);
-      return;
-    }
-
-    setSelectedOverrideDay(prev =>
-      prev != null && selectedDays.includes(prev) ? prev : selectedDays[0],
-    );
-  }, [selectedDays, overrideEnabled]);
+  }, [selectedDays]);
 
   const upsertClosedDay = useCallback(
     (date: string, message: string) => {
@@ -563,10 +509,6 @@ function RegisterEmployed({ navigation, route }: Props) {
     setBarberTimeBlocks(nextState);
   }, []);
 
-  useEffect(() => {
-    setMultiEditDays(prev => prev.filter(day => selectedDays.includes(day)));
-  }, [selectedDays]);
-
   const toggleDay = (id: number) => {
     setSelectedDays(prev => {
       const next = prev.includes(id)
@@ -614,24 +556,12 @@ function RegisterEmployed({ navigation, route }: Props) {
   );
 
   const previewOverrideDay = useMemo(() => {
-    if (multiEditMode && multiEditDays.length > 0) return multiEditDays[0];
     return selectedOverrideDay;
-  }, [multiEditDays, multiEditMode, selectedOverrideDay]);
+  }, [selectedOverrideDay]);
 
   const editingOverrideDays = useMemo(() => {
-    if (multiEditMode) return multiEditDays;
     return selectedOverrideDay != null ? [selectedOverrideDay] : [];
-  }, [multiEditDays, multiEditMode, selectedOverrideDay]);
-
-  const editingOverrideDaysLabel = useMemo(() => {
-    if (!editingOverrideDays.length) return '';
-    return editingOverrideDays.map(day => DAY_NAMES[day]).join(', ');
-  }, [editingOverrideDays]);
-
-  const specialDaysInputLabel = useMemo(() => {
-    if (!editingOverrideDays.length) return 'Elegí uno o varios días';
-    return editingOverrideDaysLabel;
-  }, [editingOverrideDays.length, editingOverrideDaysLabel]);
+  }, [selectedOverrideDay]);
 
   const baseDayOverride = useMemo<DayScheduleOverride>(
     () =>
@@ -857,8 +787,8 @@ function RegisterEmployed({ navigation, route }: Props) {
     days: number[],
     next: Omit<DayScheduleOverride, 'day'>,
   ) => {
-    const uniqueDays = Array.from(new Set(days.map(Number))).filter(day =>
-      selectedDaysRef.current.includes(day),
+    const uniqueDays = Array.from(new Set(days.map(Number))).filter(
+      day => day >= 0 && day <= 6,
     );
     if (!uniqueDays.length) return;
 
@@ -1072,7 +1002,10 @@ function RegisterEmployed({ navigation, route }: Props) {
       (a, b) => a - b,
     );
     const cleanOverrides = dayScheduleOverridesRef.current
-      .filter(item => cleanDays.includes(Number(item.day)))
+      .filter(item => {
+        const day = Number(item.day);
+        return Number.isInteger(day) && day >= 0 && day <= 6;
+      })
       .map(item => ({
         day: Number(item.day),
         validFrom: item.validFrom ?? todayDateLabel,
@@ -1164,14 +1097,17 @@ function RegisterEmployed({ navigation, route }: Props) {
   };
 
   const openUpgrade = useCallback(() => {
-    navigation.navigate(Platform.OS === 'ios' ? 'Subscription-Settings' : 'Plans');
+    navigation.navigate(
+      Platform.OS === 'ios' ? 'Subscription-Settings' : 'Plans',
+    );
   }, [navigation]);
 
   const showBarberLimitUpgrade = useCallback(
     (message?: string) => {
       Alert.alert(
         'Límite del plan gratis',
-        message || `El plan gratis permite 1 ${businessCopy.staffSingular} activo.`,
+        message ||
+          `El plan gratis permite 1 ${businessCopy.staffSingular} activo.`,
         [
           { text: 'Ahora no', style: 'cancel' },
           { text: 'Ver planes', onPress: openUpgrade },
@@ -1608,18 +1544,7 @@ function RegisterEmployed({ navigation, route }: Props) {
                         onValueChange={(val: boolean) => {
                           setOverrideEnabled(val);
                           if (!val) {
-                            // closing override: clear selection
                             setSelectedOverrideDay(null);
-                            setOverrideDayPickerVisible(false);
-                          } else {
-                            // enabling override: if there are selectedDays, prepare a default
-                            if (
-                              !editingOverrideDays.length &&
-                              selectedDays.length
-                            ) {
-                              setSelectedOverrideDay(selectedDays[0]);
-                            }
-                            setOverrideDayPickerVisible(true);
                           }
                         }}
                         trackColor={{ false: '#767577', true: theme.primary }}
@@ -1630,42 +1555,78 @@ function RegisterEmployed({ navigation, route }: Props) {
                     </View>
                   </View>
 
-                  {overrideEnabled && selectedDays.length ? (
+                  {overrideEnabled ? (
                     <>
-                      <Pressable
-                        style={styles.serviceSelectInput}
-                        onPress={() => {
-                          if (!overrideEnabled) return; // only open when switch enabled
-                          if (
-                            !editingOverrideDays.length &&
-                            selectedDays.length
-                          ) {
-                            setSelectedOverrideDay(selectedDays[0]);
-                            setMultiEditMode(false);
-                          }
-                          setOverrideDayPickerVisible(true);
-                        }}
-                      >
-                        <View style={styles.serviceSelectBody}>
-                          <Text style={styles.serviceSelectLabel}>
-                            Días de la semana
-                          </Text>
-                          <Text
-                            style={styles.serviceSelectValue}
-                            numberOfLines={1}
-                          >
-                            {specialDaysInputLabel}
-                          </Text>
+                      <View style={styles.specialDaysInlineWrap}>
+                        <View style={styles.specialDaysRow}>
+                          {DAYS_OF_WEEK.map(day => {
+                            const active = selectedOverrideDay === day.id;
+                            const overrideConfig = resolveActiveDayOverride(
+                              dayScheduleOverrides,
+                              day.id,
+                              todayDateLabel,
+                            );
+                            const hasOverride = Boolean(
+                              overrideConfig && !overrideConfig.useBase,
+                            );
+
+                            return (
+                              <Pressable
+                                key={day.id}
+                                onPress={() => {
+                                  if (
+                                    selectedOverrideDay == null ||
+                                    selectedOverrideDay === day.id
+                                  ) {
+                                    setSelectedOverrideDay(day.id);
+                                  }
+                                }}
+                                style={[
+                                  styles.dayCircle,
+                                  hasOverride && styles.overrideDayCircleLoaded,
+                                  active && styles.dayCircleActive,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.dayText,
+                                    hasOverride && styles.overrideDayTextLoaded,
+                                    active && styles.dayTextActive,
+                                  ]}
+                                >
+                                  {day.label}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
                         </View>
-                        <Text style={styles.serviceSelectChevron}>▾</Text>
-                      </Pressable>
+                        <View style={styles.specialDaysActionsRow}>
+                          <Pressable
+                            accessibilityLabel="Agregar otro día con horario especial"
+                            style={styles.addSpecialDayButton}
+                            onPress={() => setSelectedOverrideDay(null)}
+                          >
+                            <Text style={styles.addSpecialDayButtonText}>
+                              +
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </View>
 
                       {editingOverrideDays.length ? (
                         <View style={styles.overrideCard}>
                           <Text style={styles.specialScheduleTitle}>
                             Ahora elegí tu horario:
                           </Text>
-                          <View style={[{ flexDirection: 'row', borderRadius: 16, overflow: 'hidden' }]}>
+                          <View
+                            style={[
+                              {
+                                flexDirection: 'row',
+                                borderRadius: 16,
+                                overflow: 'hidden',
+                              },
+                            ]}
+                          >
                             <Pressable
                               onPress={() =>
                                 applyOverrideToEditingDays({
@@ -1679,15 +1640,22 @@ function RegisterEmployed({ navigation, route }: Props) {
                               }
                               style={({ pressed }) => [
                                 styles.scheduleModeButton,
-                                selectedOverrideHasCustomSchedule && !selectedOverrideIsSplit && styles.scheduleModeButtonActive,
-                                { borderTopRightRadius: 0, borderBottomRightRadius: 0 },
+                                selectedOverrideHasCustomSchedule &&
+                                  !selectedOverrideIsSplit &&
+                                  styles.scheduleModeButtonActive,
+                                {
+                                  borderTopRightRadius: 0,
+                                  borderBottomRightRadius: 0,
+                                },
                                 pressed && { opacity: 0.85 },
                               ]}
                             >
                               <Text
                                 style={[
                                   styles.scheduleModeText,
-                                  selectedOverrideHasCustomSchedule && !selectedOverrideIsSplit && styles.scheduleModeTextActive,
+                                  selectedOverrideHasCustomSchedule &&
+                                    !selectedOverrideIsSplit &&
+                                    styles.scheduleModeTextActive,
                                   { fontSize: 13 },
                                 ]}
                               >
@@ -1702,28 +1670,43 @@ function RegisterEmployed({ navigation, route }: Props) {
                                   scheduleRanges: [
                                     {
                                       label: 'mañana',
-                                      start: formatMinutes(overrideMorningRange[0]),
-                                      end: formatMinutes(overrideMorningRange[1]),
+                                      start: formatMinutes(
+                                        overrideMorningRange[0],
+                                      ),
+                                      end: formatMinutes(
+                                        overrideMorningRange[1],
+                                      ),
                                     },
                                     {
                                       label: 'tarde',
-                                      start: formatMinutes(overrideAfternoonRange[0]),
-                                      end: formatMinutes(overrideAfternoonRange[1]),
+                                      start: formatMinutes(
+                                        overrideAfternoonRange[0],
+                                      ),
+                                      end: formatMinutes(
+                                        overrideAfternoonRange[1],
+                                      ),
                                     },
                                   ],
                                 })
                               }
                               style={({ pressed }) => [
                                 styles.scheduleModeButton,
-                                selectedOverrideHasCustomSchedule && selectedOverrideIsSplit && styles.scheduleModeButtonActive,
-                                { borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
+                                selectedOverrideHasCustomSchedule &&
+                                  selectedOverrideIsSplit &&
+                                  styles.scheduleModeButtonActive,
+                                {
+                                  borderTopLeftRadius: 0,
+                                  borderBottomLeftRadius: 0,
+                                },
                                 pressed && { opacity: 0.85 },
                               ]}
                             >
                               <Text
                                 style={[
                                   styles.scheduleModeText,
-                                  selectedOverrideHasCustomSchedule && selectedOverrideIsSplit && styles.scheduleModeTextActive,
+                                  selectedOverrideHasCustomSchedule &&
+                                    selectedOverrideIsSplit &&
+                                    styles.scheduleModeTextActive,
                                   { fontSize: 13 },
                                 ]}
                               >
@@ -1833,22 +1816,20 @@ function RegisterEmployed({ navigation, route }: Props) {
 
                           {selectedOverrideHasCustomSchedule ? (
                             <>
-                              <View style={styles.specialScheduleSavedBanner}>
-                                <Text style={styles.specialScheduleSavedIcon}>
-                                  ✓
+                              <Pressable
+                                style={styles.doneSpecialScheduleButton}
+                                onPress={() => setSelectedOverrideDay(null)}
+                              >
+                                <Text style={styles.doneSpecialScheduleText}>
+                                  Listo
                                 </Text>
-                                <Text style={styles.specialScheduleSavedText}>
-                                  {hasPendingScheduleSave
-                                    ? 'Horario especial cargado. Para aplicarlo, tocá Guardar cambios.'
-                                    : 'Horario especial cargado.'}
-                                </Text>
-                              </View>
+                              </Pressable>
                               <Pressable
                                 style={styles.clearSpecialScheduleButton}
                                 onPress={removeOverridesFromEditingDays}
                               >
                                 <Text style={styles.clearSpecialScheduleText}>
-                                  Ocultar horario especial
+                                  Eliminar horario especial
                                 </Text>
                               </Pressable>
                             </>
@@ -2240,28 +2221,33 @@ function RegisterEmployed({ navigation, route }: Props) {
                 </View>
               ) : null}
 
-              {/* SUBMIT */}
-              <View style={{ marginTop: 10 }}>
-                <Pressable
-                  onPress={handleSubmit}
-                  style={styles.submitBtn}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={theme.textOnPrimary} />
-                  ) : (
-                    <Text style={styles.submitBtnText}>
-                      {isEditing
-                        ? 'Guardar cambios'
-                        : `Registrar ${businessCopy.staffSingularCapitalized}`}
-                    </Text>
-                  )}
-                </Pressable>
-              </View>
+              <View style={styles.bottomSubmitSpacer} />
             </View>
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
+
+      <View style={styles.floatingSubmitWrap} pointerEvents="box-none">
+        <Pressable
+          onPress={handleSubmit}
+          style={[
+            styles.submitBtn,
+            styles.floatingSubmitButton,
+            loading && styles.floatingSubmitButtonDisabled,
+          ]}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={theme.textOnPrimary} />
+          ) : (
+            <Text style={styles.submitBtnText}>
+              {isEditing
+                ? 'Guardar cambios'
+                : `Registrar ${businessCopy.staffSingularCapitalized}`}
+            </Text>
+          )}
+        </Pressable>
+      </View>
 
       <TimeSelectModal
         visible={!!activePicker}
@@ -2294,85 +2280,6 @@ function RegisterEmployed({ navigation, route }: Props) {
           setIsBlockDateModalVisible(false);
         }}
       />
-      <Modal
-        transparent
-        visible={overrideDayPickerVisible}
-        animationType="slide"
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>Días con horario especial</Text>
-              <Pressable onPress={() => setOverrideDayPickerVisible(false)}>
-                <Text style={{ color: theme.primary, fontWeight: 'bold' }}>
-                  CERRAR
-                </Text>
-              </Pressable>
-            </View>
-            <Text style={styles.servicePickerHint}>
-              Elegí uno o varios días que trabajan diferente al horario
-              principal.
-            </Text>
-            {selectedDays.map(day => {
-              const activeDays = multiEditMode
-                ? multiEditDays
-                : selectedOverrideDay != null
-                ? [selectedOverrideDay]
-                : [];
-              const active = activeDays.includes(day);
-
-              return (
-                <Pressable
-                  key={day}
-                  style={[
-                    styles.servicePickerRow,
-                    active && styles.servicePickerRowActive,
-                  ]}
-                  onPress={() => {
-                    const nextDays = active
-                      ? activeDays.filter(item => item !== day)
-                      : [...activeDays, day];
-
-                    if (nextDays.length <= 1) {
-                      setMultiEditMode(false);
-                      setSelectedOverrideDay(nextDays[0] ?? null);
-                      setMultiEditDays([]);
-                    } else {
-                      setMultiEditMode(true);
-                      setSelectedOverrideDay(nextDays[0]);
-                      setMultiEditDays(nextDays);
-                    }
-                  }}
-                >
-                  <View style={styles.servicePickerTextWrap}>
-                    <Text style={styles.servicePickerTitle}>
-                      {DAY_NAMES[day]}
-                    </Text>
-                    <Text style={styles.servicePickerMeta}>
-                      {resolveActiveDayOverride(
-                        dayScheduleOverrides,
-                        day,
-                        todayDateLabel,
-                      )
-                        ? 'Ya tiene horario especial'
-                        : 'Sin horario especial'}
-                    </Text>
-                  </View>
-                  <Text style={styles.servicePickerCheck}>
-                    {active ? '✓' : ''}
-                  </Text>
-                </Pressable>
-              );
-            })}
-            <Pressable
-              style={styles.modalBtn}
-              onPress={() => setOverrideDayPickerVisible(false)}
-            >
-              <Text style={styles.modalBtnText}>Listo</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
       <Modal transparent visible={servicePickerVisible} animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
@@ -2924,6 +2831,43 @@ const createStyles = (theme: Theme) =>
     },
     dayText: { color: theme.textMuted, fontSize: 13, fontWeight: '700' },
     dayTextActive: { color: theme.textOnPrimary },
+    specialDaysInlineWrap: {
+      gap: 10,
+    },
+    specialDaysRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      width: '100%',
+    },
+    specialDaysActionsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 10,
+    },
+    overrideDayCircleLoaded: {
+      borderColor: '#16A34A',
+      backgroundColor: hexToRgba('#16A34A', 0.1),
+    },
+    overrideDayTextLoaded: {
+      color: '#16A34A',
+    },
+    addSpecialDayButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: theme.primary,
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+    },
+    addSpecialDayButtonText: {
+      color: theme.primary,
+      fontSize: 24,
+      fontWeight: '800',
+      lineHeight: 26,
+    },
     timeRow: { flexDirection: 'row', gap: 12 },
     timeCard: {
       flex: 1,
@@ -3134,15 +3078,27 @@ const createStyles = (theme: Theme) =>
     clearSpecialScheduleButton: {
       borderRadius: 14,
       borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.input,
+      borderColor: 'rgba(255, 77, 77, 0.28)',
+      backgroundColor: 'rgba(255, 77, 77, 0.12)',
       paddingVertical: 12,
       alignItems: 'center',
       justifyContent: 'center',
     },
     clearSpecialScheduleText: {
-      color: theme.textMuted,
+      color: theme.mode === 'light' ? '#C53333' : '#FF8A8A',
       fontSize: 12,
+      fontWeight: '900',
+    },
+    doneSpecialScheduleButton: {
+      borderRadius: 14,
+      backgroundColor: theme.primary,
+      paddingVertical: 13,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    doneSpecialScheduleText: {
+      color: theme.textOnPrimary,
+      fontSize: 13,
       fontWeight: '900',
     },
     bulkApplyCard: {
@@ -3402,14 +3358,34 @@ const createStyles = (theme: Theme) =>
 
     submitBtn: {
       backgroundColor: theme.primary,
-      borderRadius: 20,
-      paddingVertical: 18,
+      borderRadius: 15,
+      paddingVertical: 14,
+      marginBottom:85,
       alignItems: 'center',
     },
     submitBtnText: {
       color: theme.textOnPrimary,
-      fontSize: 16,
-      fontWeight: '800',
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    floatingSubmitWrap: {
+      position: 'absolute',
+      left: 15,
+      right: 15,
+      bottom: Platform.OS === 'ios' ? 26 : 18,
+    },
+    floatingSubmitButton: {
+      shadowColor: '#000',
+      shadowOpacity: 0.22,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 8,
+    },
+    floatingSubmitButtonDisabled: {
+      opacity: 0.72,
+    },
+    bottomSubmitSpacer: {
+      height: 84,
     },
     modalBackdrop: {
       flex: 1,

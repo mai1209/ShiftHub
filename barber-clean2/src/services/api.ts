@@ -18,7 +18,7 @@ type ApiError = Error & {
 const LAN_IP = "192.168.100.60";
 const ANDROID_EMULATOR_HOST = "10.0.2.2";
 const REQUEST_TIMEOUT_MS = 15000;
-const FORCE_PROD_IN_DEBUG = true; // En desarrollo usamos el backend local para no mezclar datos con producción FALSO LOCAL TRUE PRODUCCION.
+const FORCE_PROD_IN_DEBUG = false; // En desarrollo usamos el backend local para no mezclar datos con producción FALSO LOCAL / TRUE PRODUCCION.
 
 const isAndroid = Platform.OS === "android";
 const isAndroidEmulator = Boolean(
