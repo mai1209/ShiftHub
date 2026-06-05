@@ -3,6 +3,8 @@ import { BarberModel } from "../models/Barber.js";
 import { AppointmentModel } from "../models/Appointment.js";
 import { ServiceModel } from "../models/Services.js";
 import { UserModel } from "../models/User.js";
+import { CashEntryModel } from "../models/CashEntry.js";
+import { applyShopScope } from "../utils/shopContext.js";
 import admin from "../firebase.js";
 import { sendAppMail } from "../services/mailer.js";
 import {
@@ -51,6 +53,7 @@ function normalizePaymentMethod(value) {
 
 function normalizeCollectedPaymentMethod(value) {
   if (value == null || value === "") return null;
+  if (value === "mixed") return "mixed";
   return normalizePaymentMethod(value);
 }
 
@@ -63,6 +66,7 @@ function normalizePaymentStatus(value) {
 }
 
 function getEffectivePaymentMethod(appointment) {
+  if (appointment.paymentMethodCollected === "mixed") return "mixed";
   return normalizePaymentMethod(
     appointment.paymentMethodCollected || appointment.paymentMethod,
   );
@@ -119,15 +123,68 @@ function monthStartFromOffset(baseDate, offset) {
   return new Date(baseDate.getFullYear(), baseDate.getMonth() + offset, 1, 0, 0, 0, 0);
 }
 
+function parseDateOnly(value) {
+  if (!value) return null;
+  const text = String(value).trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+  if (!match) return null;
+  const d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0, 0);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function buildMetricsRange(query = {}) {
   const now = new Date();
   const parsedYear = Number(query.year);
   const year = Number.isInteger(parsedYear) && parsedYear >= 2024
     ? parsedYear
     : now.getFullYear();
-  const annual = String(query.annual ?? "").toLowerCase() === "true";
 
-  if (annual) {
+  const annualFlag = String(query.annual ?? "").toLowerCase() === "true";
+  let mode = String(query.range || "").trim().toLowerCase();
+  if (!["daily", "weekly", "monthly", "annual"].includes(mode)) {
+    mode = annualFlag ? "annual" : "monthly";
+  }
+
+  if (mode === "daily") {
+    const ref = parseDateOnly(query.date) || now;
+    const start = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+    return {
+      mode: "daily",
+      year: start.getFullYear(),
+      month: start.getMonth() + 1,
+      day: start.getDate(),
+      key: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`,
+      label: start.toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" }),
+      start,
+      end,
+    };
+  }
+
+  if (mode === "weekly") {
+    const ref = parseDateOnly(query.date) || now;
+    const base = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0, 0);
+    const offsetToMonday = (base.getDay() + 6) % 7;
+    const start = new Date(base);
+    start.setDate(base.getDate() - offsetToMonday);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 7);
+    const lastDay = new Date(end);
+    lastDay.setDate(end.getDate() - 1);
+    return {
+      mode: "weekly",
+      year: start.getFullYear(),
+      month: start.getMonth() + 1,
+      day: start.getDate(),
+      key: `${start.getFullYear()}-W${String(start.getMonth() + 1).padStart(2, "0")}${String(start.getDate()).padStart(2, "0")}`,
+      label: `Semana ${start.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} al ${lastDay.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}`,
+      start,
+      end,
+    };
+  }
+
+  if (mode === "annual") {
     const start = new Date(year, 0, 1, 0, 0, 0, 0);
     const end = new Date(year + 1, 0, 1, 0, 0, 0, 0);
     return {
@@ -170,11 +227,61 @@ function createMetricsBucket(base = {}) {
     cashRevenue: 0,
     transferCount: 0,
     transferRevenue: 0,
+    commission: 0,
+    localRevenue: 0,
     ...base,
   };
 }
 
-function applyAppointmentMetrics(bucket, appointment, servicePriceMap) {
+// % de comisión normalizado para un profesional (0–100).
+function normalizeCommissionPercent(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(100, parsed));
+}
+
+// % de comisión de un servicio. null = sin comisión propia (hereda la del profesional).
+function normalizeServiceCommission(value) {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.min(100, parsed));
+}
+
+function buildCommissionMaps(activeServices, barbers) {
+  const serviceCommissionMap = new Map(
+    (activeServices || []).map((s) => [
+      String(s.name || "").trim().toLowerCase(),
+      s.commissionPercent === null || s.commissionPercent === undefined
+        ? null
+        : Number(s.commissionPercent),
+    ]),
+  );
+  const barberCommissionMap = new Map(
+    (barbers || []).map((b) => [String(b._id), Number(b.commissionPercent || 0)]),
+  );
+  return { serviceCommissionMap, barberCommissionMap };
+}
+
+// La comisión del SERVICIO tiene prioridad; si el servicio no tiene, usa la del profesional.
+function resolveCommissionPercent(appointment, commissionMaps) {
+  if (!commissionMaps) return 0;
+  const { serviceCommissionMap, barberCommissionMap } = commissionMaps;
+  const serviceKey = String(appointment.service || "").trim().toLowerCase();
+  const servicePct = serviceCommissionMap ? serviceCommissionMap.get(serviceKey) : null;
+  if (servicePct !== undefined && servicePct !== null && Number.isFinite(Number(servicePct))) {
+    return Math.max(0, Math.min(100, Number(servicePct)));
+  }
+  const barberId = String(
+    appointment.barber && typeof appointment.barber === "object"
+      ? appointment.barber._id || appointment.barber
+      : appointment.barber || "",
+  );
+  const barberPct = barberCommissionMap ? barberCommissionMap.get(barberId) : 0;
+  return Math.max(0, Math.min(100, Number(barberPct || 0)));
+}
+
+function applyAppointmentMetrics(bucket, appointment, servicePriceMap, commissionMaps) {
   const fallbackPrice = servicePriceMap.get(
     String(appointment.service || "").trim().toLowerCase(),
   );
@@ -184,11 +291,28 @@ function applyAppointmentMetrics(bucket, appointment, servicePriceMap) {
   bucket.appointmentsCount += 1;
   bucket.totalRevenue += finalPrice;
 
+  const pct = resolveCommissionPercent(appointment, commissionMaps);
+  const commission = pct > 0 ? Number(((finalPrice * pct) / 100).toFixed(2)) : 0;
+  bucket.commission += commission;
+  bucket.localRevenue += Number((finalPrice - commission).toFixed(2));
+
   if (!(finalPrice > 0)) {
     return;
   }
 
-  if (method === "transfer") {
+  if (method === "mixed") {
+    // El pago mixto suma su parte en efectivo y su parte en transferencia.
+    const cash = Math.max(0, Number(appointment.cashAmount) || 0);
+    const transfer = Math.max(0, Number(appointment.transferAmount) || 0);
+    if (cash > 0) {
+      bucket.cashCount += 1;
+      bucket.cashRevenue += cash;
+    }
+    if (transfer > 0) {
+      bucket.transferCount += 1;
+      bucket.transferRevenue += transfer;
+    }
+  } else if (method === "transfer") {
     bucket.transferCount += 1;
     bucket.transferRevenue += finalPrice;
   } else {
@@ -225,6 +349,8 @@ function sanitizeService(service) {
     name: String(service.name || "").trim(),
     durationMinutes: Number(service.durationMinutes || 30),
     price: Number(service.price || 0),
+    commissionPercent:
+      service.commissionPercent == null ? null : Number(service.commissionPercent),
     sortOrder: Number(service.sortOrder || 0),
     isActive: Boolean(service.isActive ?? true),
   };
@@ -363,6 +489,7 @@ export async function createAppointment(req, res, next) {
     // 3. GUARDAR EN BASE DE DATOS
     const appointment = await AppointmentModel.create({
       owner: finalOwnerId,
+      shop: req.activeShopId || null,
       barber: barberId,
       customerName,
       service,
@@ -571,7 +698,7 @@ export async function getAppointmentMetrics(req, res, next) {
       filter.barber = barberId;
     }
 
-    const [appointments, activeServices, barber] = await Promise.all([
+    const [appointments, activeServices, barber, commissionBarbers] = await Promise.all([
       AppointmentModel.find(filter)
         .select({
           barber: 1,
@@ -582,22 +709,28 @@ export async function getAppointmentMetrics(req, res, next) {
           paymentStatus: 1,
           amountTotal: 1,
           amountPaid: 1,
+          cashAmount: 1,
+          transferAmount: 1,
           startTime: 1,
         })
         .lean(),
       ServiceModel.find({ owner: ownerId })
-        .select({ name: 1, price: 1 })
+        .select({ name: 1, price: 1, commissionPercent: 1 })
         .lean(),
       barberId
         ? BarberModel.findOne({ _id: barberId, owner: ownerId })
             .select({ fullName: 1 })
             .lean()
         : Promise.resolve(null),
+      BarberModel.find({ owner: ownerId, isActive: true })
+        .select({ _id: 1, commissionPercent: 1 })
+        .lean(),
     ]);
 
     const servicePriceMap = new Map(
       activeServices.map((item) => [String(item.name || "").trim().toLowerCase(), Number(item.price || 0)]),
     );
+    const commissionMaps = buildCommissionMaps(activeServices, commissionBarbers);
 
     const totals = createMetricsBucket();
     const monthlyMap = new Map();
@@ -618,14 +751,14 @@ export async function getAppointmentMetrics(req, res, next) {
     }
 
     for (const appointment of appointments) {
-      applyAppointmentMetrics(totals, appointment, servicePriceMap);
+      applyAppointmentMetrics(totals, appointment, servicePriceMap, commissionMaps);
 
       if (period.mode === "annual") {
         const date = new Date(appointment.startTime);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
         const monthEntry = monthlyMap.get(key);
         if (monthEntry) {
-          applyAppointmentMetrics(monthEntry, appointment, servicePriceMap);
+          applyAppointmentMetrics(monthEntry, appointment, servicePriceMap, commissionMaps);
         }
       }
     }
@@ -674,13 +807,15 @@ export async function getCurrentMonthOverview(req, res, next) {
           paymentStatus: 1,
           amountTotal: 1,
           amountPaid: 1,
+          cashAmount: 1,
+          transferAmount: 1,
         })
         .lean(),
       ServiceModel.find({ owner: ownerId })
-        .select({ name: 1, price: 1 })
+        .select({ name: 1, price: 1, commissionPercent: 1 })
         .lean(),
       BarberModel.find({ owner: ownerId, isActive: true })
-        .select({ fullName: 1 })
+        .select({ fullName: 1, commissionPercent: 1 })
         .sort({ fullName: 1 })
         .lean(),
     ]);
@@ -688,6 +823,7 @@ export async function getCurrentMonthOverview(req, res, next) {
     const servicePriceMap = new Map(
       activeServices.map((item) => [String(item.name || "").trim().toLowerCase(), Number(item.price || 0)]),
     );
+    const commissionMaps = buildCommissionMaps(activeServices, activeBarbers);
 
     const barberMap = new Map(
       activeBarbers.map((barber) => [
@@ -711,7 +847,7 @@ export async function getCurrentMonthOverview(req, res, next) {
       }
 
       const entry = barberMap.get(barberId);
-      applyAppointmentMetrics(entry, appointment, servicePriceMap);
+      applyAppointmentMetrics(entry, appointment, servicePriceMap, commissionMaps);
     }
 
     const byBarber = Array.from(barberMap.values()).sort((a, b) => {
@@ -727,6 +863,8 @@ export async function getCurrentMonthOverview(req, res, next) {
         acc.cashRevenue += item.cashRevenue;
         acc.transferCount += item.transferCount;
         acc.transferRevenue += item.transferRevenue;
+        acc.commission += item.commission;
+        acc.localRevenue += item.localRevenue;
         return acc;
       },
       createMetricsBucket(),
@@ -900,6 +1038,8 @@ export async function updateAppointmentStatus(req, res, next) {
       paymentMethodCollected,
       paymentStatus,
       amountPaid,
+      cashAmount,
+      transferAmount,
     } = req.body;
 
     if (!["awaiting_payment", "pending", "completed", "cancelled"].includes(status)) {
@@ -954,6 +1094,15 @@ export async function updateAppointmentStatus(req, res, next) {
         normalizedStatus === "paid"
           ? Math.max(0, total - safeAmountPaid)
           : Math.max(0, total - safeAmountPaid);
+
+      // Desglose del pago mixto (efectivo + transferencia).
+      if (normalizedCollectedMethod === "mixed") {
+        appointmentDoc.cashAmount = Math.max(0, Number(cashAmount) || 0);
+        appointmentDoc.transferAmount = Math.max(0, Number(transferAmount) || 0);
+      } else {
+        appointmentDoc.cashAmount = 0;
+        appointmentDoc.transferAmount = 0;
+      }
     }
 
     await appointmentDoc.save();
@@ -1024,6 +1173,7 @@ export async function createService(req, res, next) {
       name,
       durationMinutes,
       price,
+      commissionPercent: normalizeServiceCommission(req.body?.commissionPercent),
       sortOrder: Number(lastService?.sortOrder || 0) + 1,
       isActive: true,
     });
@@ -1071,7 +1221,12 @@ export async function updateService(req, res, next) {
 
     const service = await ServiceModel.findOneAndUpdate(
       { _id: serviceId, owner: ownerId, isActive: true },
-      { name, durationMinutes, price },
+      {
+        name,
+        durationMinutes,
+        price,
+        commissionPercent: normalizeServiceCommission(req.body?.commissionPercent),
+      },
       { new: true },
     ).lean();
 
@@ -1194,6 +1349,267 @@ export async function deleteAppointment(req, res, next) {
     await appointment.deleteOne();
 
     return res.json({ success: true });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// CAJA (movimientos de ingreso/egreso + resumen)
+// ──────────────────────────────────────────────────────────────────────────
+
+function serializePeriod(period) {
+  return {
+    mode: period.mode,
+    key: period.key,
+    label: period.label,
+    year: period.year,
+    month: period.month ?? null,
+    from: period.start,
+    to: period.end,
+  };
+}
+
+function serializeCashEntry(doc) {
+  return {
+    _id: String(doc._id),
+    type: doc.type,
+    amount: Number(doc.amount || 0),
+    description: doc.description || "",
+    category: doc.category || "",
+    date: doc.date,
+  };
+}
+
+function buildCashEntryFilter(req, period) {
+  const ownerId = req.user.ownerId || req.user.id;
+  return {
+    owner: ownerId,
+    ...(req.activeShopId ? { shop: req.activeShopId } : {}),
+    date: { $gte: period.start, $lt: period.end },
+  };
+}
+
+export async function createCashEntry(req, res, next) {
+  try {
+    const ownerId = req.user.ownerId || req.user.id;
+    const type = String(req.body?.type || "").trim().toLowerCase();
+    if (!["income", "expense"].includes(type)) {
+      return res.status(400).json({ error: "El tipo debe ser income (ingreso) o expense (egreso)." });
+    }
+
+    const amount = Number(req.body?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: "El monto debe ser un número mayor a 0." });
+    }
+
+    const description = String(req.body?.description || "").trim().slice(0, 200);
+    const category = String(req.body?.category || "").trim().slice(0, 60);
+    const date = req.body?.date ? new Date(req.body.date) : new Date();
+    if (Number.isNaN(date.getTime())) {
+      return res.status(400).json({ error: "La fecha no es válida." });
+    }
+
+    const entry = await CashEntryModel.create({
+      owner: ownerId,
+      shop: req.activeShopId || null,
+      type,
+      amount: Number(amount.toFixed(2)),
+      description,
+      category,
+      date,
+      createdBy: req.user.id || null,
+    });
+
+    return res.status(201).json({ entry: serializeCashEntry(entry) });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function listCashEntries(req, res, next) {
+  try {
+    const period = buildMetricsRange(req.query);
+    const filter = buildCashEntryFilter(req, period);
+    const typeFilter = String(req.query.type || "").trim().toLowerCase();
+    if (["income", "expense"].includes(typeFilter)) {
+      filter.type = typeFilter;
+    }
+
+    const entries = await CashEntryModel.find(filter)
+      .sort({ date: -1, createdAt: -1 })
+      .lean();
+
+    return res.json({
+      period: serializePeriod(period),
+      entries: entries.map(serializeCashEntry),
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function updateCashEntry(req, res, next) {
+  try {
+    const ownerId = req.user.ownerId || req.user.id;
+    const id = String(req.params?.id || "");
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Movimiento inválido." });
+    }
+
+    const entry = await CashEntryModel.findOne({
+      _id: id,
+      owner: ownerId,
+      ...(req.activeShopId ? { shop: req.activeShopId } : {}),
+    });
+
+    if (!entry) {
+      return res.status(404).json({ error: "No encontramos ese movimiento." });
+    }
+
+    if (req.body?.type !== undefined) {
+      const type = String(req.body.type || "").trim().toLowerCase();
+      if (!["income", "expense"].includes(type)) {
+        return res.status(400).json({ error: "El tipo debe ser income (ingreso) o expense (egreso)." });
+      }
+      entry.type = type;
+    }
+
+    if (req.body?.amount !== undefined) {
+      const amount = Number(req.body.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return res.status(400).json({ error: "El monto debe ser un número mayor a 0." });
+      }
+      entry.amount = Number(amount.toFixed(2));
+    }
+
+    if (req.body?.description !== undefined) {
+      entry.description = String(req.body.description || "").trim().slice(0, 200);
+    }
+
+    if (req.body?.category !== undefined) {
+      entry.category = String(req.body.category || "").trim().slice(0, 60);
+    }
+
+    if (req.body?.date !== undefined) {
+      const date = req.body.date ? new Date(req.body.date) : new Date();
+      if (Number.isNaN(date.getTime())) {
+        return res.status(400).json({ error: "La fecha no es válida." });
+      }
+      entry.date = date;
+    }
+
+    await entry.save();
+
+    return res.json({ entry: serializeCashEntry(entry) });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function deleteCashEntry(req, res, next) {
+  try {
+    const ownerId = req.user.ownerId || req.user.id;
+    const id = String(req.params?.id || "");
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Movimiento inválido." });
+    }
+
+    const deleted = await CashEntryModel.findOneAndDelete({
+      _id: id,
+      owner: ownerId,
+      ...(req.activeShopId ? { shop: req.activeShopId } : {}),
+    });
+
+    if (!deleted) {
+      return res.status(404).json({ error: "No encontramos ese movimiento." });
+    }
+
+    return res.json({ ok: true });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+// Resumen de caja del período: ingresos por servicios (turnos completados) +
+// ingresos/egresos manuales, descontando las comisiones de los profesionales.
+// profit = ingresos − egresos − comisiones.
+export async function getCashSummary(req, res, next) {
+  try {
+    const ownerId = req.user.ownerId || req.user.id;
+    const period = buildMetricsRange(req.query);
+
+    const appointmentFilter = {
+      owner: ownerId,
+      ...(req.activeShopId ? { shop: req.activeShopId } : {}),
+      status: "completed",
+      startTime: { $gte: period.start, $lt: period.end },
+    };
+
+    const [appointments, activeServices, commissionBarbers, cashEntries] = await Promise.all([
+      AppointmentModel.find(appointmentFilter)
+        .select({
+          barber: 1,
+          service: 1,
+          servicePrice: 1,
+          amountPaid: 1,
+          amountTotal: 1,
+          paymentStatus: 1,
+        })
+        .lean(),
+      ServiceModel.find(applyShopScope({ owner: ownerId }, req))
+        .select({ name: 1, price: 1, commissionPercent: 1 })
+        .lean(),
+      BarberModel.find(applyShopScope({ owner: ownerId, isActive: true }, req))
+        .select({ _id: 1, commissionPercent: 1 })
+        .lean(),
+      CashEntryModel.find(buildCashEntryFilter(req, period)).lean(),
+    ]);
+
+    const servicePriceMap = new Map(
+      activeServices.map((item) => [
+        String(item.name || "").trim().toLowerCase(),
+        Number(item.price || 0),
+      ]),
+    );
+    const commissionMaps = buildCommissionMaps(activeServices, commissionBarbers);
+
+    let serviceIncome = 0;
+    let commissions = 0;
+    for (const appointment of appointments) {
+      const fallback = servicePriceMap.get(
+        String(appointment.service || "").trim().toLowerCase(),
+      );
+      const paid = getEffectivePaidAmount(appointment, fallback);
+      serviceIncome += paid;
+      const pct = resolveCommissionPercent(appointment, commissionMaps);
+      if (pct > 0) commissions += (paid * pct) / 100;
+    }
+
+    let manualIncome = 0;
+    let expenses = 0;
+    for (const entry of cashEntries) {
+      if (entry.type === "income") manualIncome += Number(entry.amount || 0);
+      else if (entry.type === "expense") expenses += Number(entry.amount || 0);
+    }
+
+    commissions = Number(commissions.toFixed(2));
+    const totalIncome = Number((serviceIncome + manualIncome).toFixed(2));
+    const localServiceIncome = Number((serviceIncome - commissions).toFixed(2));
+    const profit = Number((totalIncome - expenses - commissions).toFixed(2));
+
+    return res.json({
+      period: serializePeriod(period),
+      serviceIncome: Number(serviceIncome.toFixed(2)),
+      localServiceIncome,
+      commissions,
+      manualIncome: Number(manualIncome.toFixed(2)),
+      totalIncome,
+      expenses: Number(expenses.toFixed(2)),
+      profit,
+      servicesCount: appointments.length,
+      entriesCount: cashEntries.length,
+    });
   } catch (err) {
     return next(err);
   }

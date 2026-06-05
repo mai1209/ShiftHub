@@ -6,6 +6,8 @@ import {
   SHIFT_APP_BRAND_NAME,
 } from '../utils/businessCopy';
 
+const APP_STORE_URL = 'https://apps.apple.com/ar/app/shifthub/id6767229780';
+
 function EyeIcon({ visible }) {
   return (
     <svg
@@ -52,6 +54,7 @@ function buildPlansUrl(email) {
 export default function RegisterAccountPage() {
   const [fullName, setFullName]               = useState('');
   const [email, setEmail]                     = useState('');
+  const [phone, setPhone]                     = useState('');
   const [password, setPassword]               = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [businessType, setBusinessType]       = useState('');
@@ -59,22 +62,24 @@ export default function RegisterAccountPage() {
   const [showConfirm, setShowConfirm]         = useState(false);
   const [loading, setLoading]                 = useState(false);
   const [error, setError]                     = useState('');
+  const [successOpen, setSuccessOpen]         = useState(false);
 
   const isFormValid = useMemo(
     () =>
       fullName.trim().length >= 3 &&
       email.trim().length > 0 &&
+      phone.trim().length >= 6 &&
       password.length >= 8 &&
       confirmPassword.length >= 8 &&
       businessType.trim().length > 0,
-    [businessType, confirmPassword.length, email, fullName, password.length],
+    [businessType, confirmPassword.length, email, fullName, phone, password.length],
   );
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (loading) return;
     if (!isFormValid) {
-      setError('Completá nombre, rubro, email y una contraseña de al menos 8 caracteres.');
+      setError('Completá nombre, rubro, email, teléfono y una contraseña de al menos 8 caracteres.');
       return;
     }
     if (password !== confirmPassword) {
@@ -87,16 +92,21 @@ export default function RegisterAccountPage() {
       await registerPublicAccount({
         fullName: fullName.trim(),
         email: email.trim().toLowerCase(),
+        phone: phone.trim(),
         password,
         businessType,
         registrationSource: 'web',
       });
-      window.location.assign(buildPlansUrl(email));
+      setSuccessOpen(true);
     } catch (err) {
       setError(err.message || 'No pudimos crear la cuenta.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const goToPlans = () => {
+    window.location.assign(buildPlansUrl(email));
   };
 
   return (
@@ -266,6 +276,34 @@ export default function RegisterAccountPage() {
               </div>
             </label>
 
+            {/* Teléfono */}
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>Teléfono</span>
+              <div className={styles.inputWrap}>
+                <div className={styles.inputIcon}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M3 2.5h2.2l1 2.6-1.4 1A8 8 0 0 0 8.4 9.2l1-1.4 2.6 1V11c0 .8-.7 1.5-1.5 1.4A10 10 0 0 1 1.6 4 1.4 1.4 0 0 1 3 2.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Ej: 11 2345 6789"
+                  autoComplete="tel"
+                  required
+                  className={phone.trim().length >= 6 ? styles.inputValid : ''}
+                />
+                {phone.trim().length >= 6 && (
+                  <div className={styles.inputCheck}>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                )}
+              </div>
+            </label>
+
             {/* Passwords */}
             <div className={styles.passwordGrid}>
               <label className={styles.field}>
@@ -387,6 +425,76 @@ export default function RegisterAccountPage() {
           </p>
         </section>
       </div>
+
+      {successOpen ? (
+        <div
+          className={styles.successOverlay}
+          onClick={() => setSuccessOpen(false)}
+        >
+          <div
+            className={styles.successModal}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={styles.successClose}
+              aria-label="Cerrar"
+              onClick={() => setSuccessOpen(false)}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path
+                  d="M4 4l8 8M12 4l-8 8"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+
+            <div className={styles.successBadge}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M4 12.5l5 5 11-11"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+
+            <h2 className={styles.successTitle}>¡Tu cuenta ya está lista!</h2>
+            <p className={styles.successText}>
+              Bienvenido a <strong>{SHIFT_APP_BRAND_NAME}</strong>. Descargá la
+              app y empezá a usarla <strong>gratis</strong> ahora mismo, o activá
+              un plan para desbloquear todas las funciones (métricas, equipo,
+              caja, cupones y más).
+            </p>
+
+            <div className={styles.successActions}>
+              <a
+                className={styles.successPrimaryBtn}
+                href={APP_STORE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Descargar la app gratis
+              </a>
+              <button
+                type="button"
+                className={styles.successSecondaryBtn}
+                onClick={goToPlans}
+              >
+                Activar un plan ahora
+              </button>
+            </div>
+
+            <p className={styles.successFootnote}>
+              Podés empezar gratis y pasar a un plan cuando quieras.
+            </p>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

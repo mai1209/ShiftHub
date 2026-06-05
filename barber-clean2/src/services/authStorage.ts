@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const TOKEN_KEY = "AUTH_TOKEN";
 const USER_KEY = "AUTH_USER";
+const ACTIVE_SHOP_KEY = "ACTIVE_SHOP";
 const userProfileListeners = new Set<(user: any | null) => void>();
 
 function notifyUserProfileListeners(user: any | null) {
@@ -43,6 +44,30 @@ export async function getUserProfile<T = any>() {
 export async function removeUserProfile() {
   await AsyncStorage.removeItem(USER_KEY);
   notifyUserProfileListeners(null);
+}
+
+export async function saveActiveShop(shop: any | null) {
+  if (!shop) {
+    await AsyncStorage.removeItem(ACTIVE_SHOP_KEY);
+    return;
+  }
+
+  await AsyncStorage.setItem(ACTIVE_SHOP_KEY, JSON.stringify(shop));
+}
+
+export async function getActiveShop<T = any>() {
+  const raw = await AsyncStorage.getItem(ACTIVE_SHOP_KEY);
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function removeActiveShop() {
+  await AsyncStorage.removeItem(ACTIVE_SHOP_KEY);
 }
 
 export function subscribeToUserProfile(listener: (user: any | null) => void) {

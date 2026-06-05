@@ -10,6 +10,8 @@ import barberRoutes from "./routes/barberRoutes.js";
 import appointmentRoutes from "./routes/appointmentRoutes.js";
 import publicRoutes from "./routes/publicRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import cashRoutes from "./routes/cashRoutes.js";
+import productRoutes from "./routes/productRoutes.js";
 
 const app = express();
 
@@ -120,7 +122,13 @@ app.use(cors({
     }
   },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "x-admin-secret"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "x-admin-secret",
+    "X-Shop-Id",
+    "X-Active-Shop-Id",
+  ],
   credentials: true,
   optionsSuccessStatus: 204,
 }));
@@ -162,6 +170,8 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/barbers', barberRoutes);
 app.use('/api/appointments', appointmentRoutes);
+app.use('/api/cash', cashRoutes);
+app.use('/api/products', productRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/payments', paymentRoutes);
 

@@ -19,6 +19,7 @@ import {
   serializePlanPricing,
 } from "../services/planPricingService.js";
 import { resolvePlanPricingForSubscription } from "../services/subscriptionPricingService.js";
+import { createNamedShopsForOwner } from "../utils/shopContext.js";
 import { notifySubscriptionActivated } from "../services/subscriptionLifecycleService.js";
 
 function normalizePaymentStatus(value) {
@@ -480,6 +481,108 @@ function shouldClearExistingCouponOnApprovedPayment({ userDoc, paidAt }) {
   return false;
 }
 
+/**
+ * Activa la suscripción a partir de un pago aprobado de Mercado Pago.
+ * La usan TANTO el webhook como el cobro sincrónico (tarjeta embebida con
+ * Bricks), así el comportamiento es idéntico.
+ *
+ * Idempotente: si el mismo `paymentId` ya activó la cuenta, no reprocesa
+ * (evita doble redención de cupón / doble notificación cuando llegan el
+ * pago sincrónico y el webhook por el mismo pago).
+ *
+ * No toca `provider`, así que un pago web deja la cuenta como "web"
+ * (provider distinto de apple/google) y la app sigue ocultando el botón
+ * de renovación por tienda. El flujo App Store / Play Store no se altera.
+ */
+export async function activateSubscriptionFromApprovedPayment({
+  userDoc,
+  plan,
+  payment,
+  paymentId,
+}) {
+  const billingCycle =
+    String(payment?.metadata?.billing_cycle || userDoc.subscription?.billingCycle || "monthly").trim() ||
+    "monthly";
+  const paidAt = payment?.date_approved ? new Date(payment.date_approved) : new Date();
+  const previousPaymentId = String(userDoc.subscription?.mercadoPagoPaymentId || "").trim();
+  const currentPaymentId = String(payment?.id || paymentId || "").trim();
+
+  if (currentPaymentId && currentPaymentId === previousPaymentId) {
+    return {
+      isNew: false,
+      paidAmount: Math.max(0, Number(payment?.transaction_amount || 0)),
+    };
+  }
+
+  const pricingDoc = await getOrCreatePlanPricing();
+  const pricing = serializePlanPricing(pricingDoc);
+
+  if (shouldClearExistingCouponOnApprovedPayment({ userDoc, paidAt })) {
+    clearSubscriptionCouponBenefit(userDoc);
+  }
+
+  const resolvedCouponPricing = await applyPendingCouponToSubscription({
+    userDoc,
+    plan,
+    pricing,
+  });
+  const paidAmount = Math.max(
+    0,
+    Number(payment?.transaction_amount || resolvedCouponPricing?.effectiveArs || 0),
+  );
+
+  userDoc.subscription = {
+    ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+    plan,
+    status: "active",
+    billingCycle,
+    renewalMode: userDoc.subscription?.renewalMode || "manual",
+    startedAt: paidAt,
+    expiresAt: calculateSubscriptionExpiry({ billingCycle, paidAt }),
+    nextBillingAt:
+      userDoc.subscription?.renewalMode === "automatic"
+        ? userDoc.subscription?.nextBillingAt || null
+        : calculateSubscriptionExpiry({ billingCycle, paidAt }),
+    pendingPlan: null,
+    mercadoPagoPaymentId: currentPaymentId || previousPaymentId || null,
+    mercadoPagoPreferenceId: payment?.order?.id
+      ? String(payment.order.id)
+      : userDoc.subscription?.mercadoPagoPreferenceId || null,
+    lastPaymentAt: paidAt,
+    renewalReminder7dAt: null,
+    renewalReminder3dAt: null,
+    renewalReminder1dAt: null,
+    pastDueAt: null,
+    pastDueReminderSentAt: null,
+    graceUntil: null,
+    cancelledAt: null,
+  };
+  await userDoc.save();
+
+  // Locales adicionales: creamos los Shop con los nombres elegidos en el
+  // checkout (idempotente). Sirve para el flujo de tarjeta y el de redirect.
+  try {
+    const pendingNames = Array.isArray(userDoc.subscription?.pendingBusinessNames)
+      ? userDoc.subscription.pendingBusinessNames
+      : [];
+    if (pendingNames.length > 0) {
+      await createNamedShopsForOwner(userDoc, pendingNames);
+      userDoc.subscription = {
+        ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+        pendingBusinessNames: [],
+      };
+      await userDoc.save();
+    }
+  } catch (shopError) {
+    console.error(
+      "Error creando locales adicionales al activar:",
+      shopError?.message || shopError,
+    );
+  }
+
+  return { isNew: true, paidAmount };
+}
+
 async function syncAutomaticSubscriptionFromPreapproval(preapproval) {
   const parsedReference = normalizeSubscriptionReference(preapproval?.external_reference);
   const userId = parsedReference?.userId || "";
@@ -892,57 +995,14 @@ export async function handleSubscriptionMercadoPagoWebhook(req, res, next) {
     }
 
     if (normalizedStatus === "approved") {
-      const billingCycle =
-        String(payment.metadata?.billing_cycle || userDoc.subscription?.billingCycle || "monthly").trim() ||
-        "monthly";
-      const paidAt = payment.date_approved ? new Date(payment.date_approved) : new Date();
-      const previousPaymentId = String(userDoc.subscription?.mercadoPagoPaymentId || "").trim();
-      const currentPaymentId = String(payment.id || paymentId).trim();
-      const pricingDoc = await getOrCreatePlanPricing();
-      const pricing = serializePlanPricing(pricingDoc);
-
-      if (shouldClearExistingCouponOnApprovedPayment({ userDoc, paidAt })) {
-        clearSubscriptionCouponBenefit(userDoc);
-      }
-
-      const resolvedCouponPricing = await applyPendingCouponToSubscription({
+      const { isNew, paidAmount } = await activateSubscriptionFromApprovedPayment({
         userDoc,
         plan,
-        pricing,
+        payment,
+        paymentId,
       });
-      const paidAmount = Math.max(
-        0,
-        Number(payment.transaction_amount || resolvedCouponPricing?.effectiveArs || 0),
-      );
 
-      userDoc.subscription = {
-        ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
-        plan,
-        status: "active",
-        billingCycle,
-        renewalMode: userDoc.subscription?.renewalMode || "manual",
-        startedAt: paidAt,
-        expiresAt: calculateSubscriptionExpiry({ billingCycle, paidAt }),
-        nextBillingAt:
-          userDoc.subscription?.renewalMode === "automatic"
-            ? userDoc.subscription?.nextBillingAt || null
-            : calculateSubscriptionExpiry({ billingCycle, paidAt }),
-        pendingPlan: null,
-        mercadoPagoPaymentId: currentPaymentId,
-        mercadoPagoPreferenceId:
-          payment.order?.id ? String(payment.order.id) : userDoc.subscription?.mercadoPagoPreferenceId || null,
-        lastPaymentAt: paidAt,
-        renewalReminder7dAt: null,
-        renewalReminder3dAt: null,
-        renewalReminder1dAt: null,
-        pastDueAt: null,
-        pastDueReminderSentAt: null,
-        graceUntil: null,
-        cancelledAt: null,
-      };
-      await userDoc.save();
-
-      if (currentPaymentId && currentPaymentId !== previousPaymentId) {
+      if (isNew) {
         try {
           await notifySubscriptionActivated({
             userDoc,

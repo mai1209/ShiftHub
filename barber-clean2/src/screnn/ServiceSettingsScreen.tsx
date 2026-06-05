@@ -77,6 +77,7 @@ function ServiceSettingsScreen({ navigation }: Props) {
   const [name, setName] = useState('');
   const [durationMinutes, setDurationMinutes] = useState('30');
   const [price, setPrice] = useState('');
+  const [commission, setCommission] = useState('');
 
   useEffect(() => {
     servicesRef.current = services;
@@ -88,6 +89,7 @@ function ServiceSettingsScreen({ navigation }: Props) {
     setName('');
     setDurationMinutes('30');
     setPrice('');
+    setCommission('');
   };
 
   const loadServices = useCallback(async (isRefresh = false) => {
@@ -133,6 +135,13 @@ function ServiceSettingsScreen({ navigation }: Props) {
       return;
     }
 
+    // Vacío = sin comisión propia (hereda la del profesional).
+    const trimmedCommission = commission.trim();
+    const parsedCommission =
+      trimmedCommission === ''
+        ? null
+        : Math.max(0, Math.min(100, Number(trimmedCommission) || 0));
+
     try {
       setSaving(true);
       if (editingServiceId) {
@@ -140,12 +149,14 @@ function ServiceSettingsScreen({ navigation }: Props) {
           name: trimmedName,
           durationMinutes: parsedDuration,
           price: parsedPrice,
+          commissionPercent: parsedCommission,
         });
       } else {
         await createService({
           name: trimmedName,
           durationMinutes: parsedDuration,
           price: parsedPrice,
+          commissionPercent: parsedCommission,
         });
       }
       resetForm();
@@ -165,6 +176,11 @@ function ServiceSettingsScreen({ navigation }: Props) {
     setPrice(
       service.price != null && Number(service.price) > 0
         ? String(service.price)
+        : '',
+    );
+    setCommission(
+      service.commissionPercent != null
+        ? String(service.commissionPercent)
         : '',
     );
     requestAnimationFrame(() => {
@@ -360,6 +376,18 @@ function ServiceSettingsScreen({ navigation }: Props) {
                 onChangeText={setPrice}
               />
             </View>
+          </View>
+
+          <View style={styles.fieldBlock}>
+            <Text style={styles.label}>Comisión de este servicio (%)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Opcional — vacío usa la comisión del profesional"
+              placeholderTextColor="#555"
+              keyboardType="numeric"
+              value={commission}
+              onChangeText={setCommission}
+            />
           </View>
 
           <Pressable

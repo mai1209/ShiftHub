@@ -88,6 +88,12 @@ const normalizeOverrideValidFrom = (value?: string | null) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '1970-01-01';
 };
 
+type BookingSlotIntervalMinutes = 15 | 30;
+
+const normalizeBookingSlotInterval = (
+  value?: number | null,
+): BookingSlotIntervalMinutes => (Number(value) === 30 ? 30 : 15);
+
 type DayScheduleOverride = {
   day: number;
   validFrom?: string | null;
@@ -224,6 +230,9 @@ function RegisterEmployed({ navigation, route }: Props) {
   );
   const [bookingBufferMinutesInput, setBookingBufferMinutesInput] =
     useState('0');
+  const [commissionPercentInput, setCommissionPercentInput] = useState('0');
+  const [bookingSlotIntervalMinutes, setBookingSlotIntervalMinutes] =
+    useState<BookingSlotIntervalMinutes>(15);
   const [barberTimeBlocks, setBarberTimeBlocks] = useState<BarberTimeBlock[]>(
     [],
   );
@@ -302,6 +311,14 @@ function RegisterEmployed({ navigation, route }: Props) {
     barberClosedDaysRef.current = nextClosedDays;
     setBookingBufferMinutesInput(
       String(Math.max(0, Number(barberToEdit.bookingBufferMinutes || 0))),
+    );
+    setCommissionPercentInput(
+      String(
+        Math.max(0, Math.min(100, Number(barberToEdit.commissionPercent || 0))),
+      ),
+    );
+    setBookingSlotIntervalMinutes(
+      normalizeBookingSlotInterval(barberToEdit.bookingSlotIntervalMinutes),
     );
     const nextTimeBlocks = (barberToEdit.barberTimeBlocks || [])
       .map(item => ({
@@ -998,6 +1015,11 @@ function RegisterEmployed({ navigation, route }: Props) {
       return null;
     }
 
+    const parsedCommissionPercent = Math.max(
+      0,
+      Math.min(100, Number(commissionPercentInput || '0') || 0),
+    );
+
     const cleanDays = Array.from(new Set(selectedDaysRef.current)).sort(
       (a, b) => a - b,
     );
@@ -1068,6 +1090,8 @@ function RegisterEmployed({ navigation, route }: Props) {
           ]
         : [],
       bookingBufferMinutes: parsedBookingBufferMinutes,
+      commissionPercent: parsedCommissionPercent,
+      bookingSlotIntervalMinutes,
       barberTimeBlocks: cleanTimeBlocks,
       barberClosedDays: cleanClosedDays,
       dayScheduleOverrides: cleanOverrides,
@@ -1846,6 +1870,57 @@ function RegisterEmployed({ navigation, route }: Props) {
                 </View>
               ) : null}
 
+              {!advancedSection ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Frecuencia de turnos</Text>
+                  <Text style={styles.sectionHelperMuted}>
+                    {`Define cada cuánto se muestran horarios disponibles para este ${businessCopy.staffSingular}.`}
+                  </Text>
+                  <View style={styles.slotIntervalRow}>
+                    {([15, 30] as const).map(interval => {
+                      const active = bookingSlotIntervalMinutes === interval;
+                      return (
+                        <Pressable
+                          key={interval}
+                          onPress={() => setBookingSlotIntervalMinutes(interval)}
+                          style={({ pressed }) => [
+                            styles.slotIntervalButton,
+                            active && styles.slotIntervalButtonActive,
+                            pressed && { opacity: 0.85 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.slotIntervalButtonText,
+                              active && styles.slotIntervalButtonTextActive,
+                            ]}
+                          >
+                            {`Cada ${interval} min`}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+
+              {!advancedSection ? (
+                <View style={styles.section}>
+                  <Text style={styles.sectionLabel}>Comisión</Text>
+                  <Text style={styles.sectionHelperMuted}>
+                    {`De cada servicio cobrado, este % se lo lleva el ${businessCopy.staffSingular} y el resto queda para ${businessCopy.theBusiness}. Dejalo en 0 si no cobra comisión.`}
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="0"
+                    placeholderTextColor={theme.placeholder}
+                    keyboardType="numeric"
+                    value={commissionPercentInput}
+                    onChangeText={setCommissionPercentInput}
+                  />
+                </View>
+              ) : null}
+
               {isEditing &&
               (!advancedSection || advancedSection === 'buffer') ? (
                 <View style={styles.section}>
@@ -2606,7 +2681,7 @@ const createStyles = (theme: Theme) =>
     },
     section: { gap: 12 },
     sectionLabel: {
-      color: '#FF1493',
+      color: theme.textPrimary,
       fontSize: 11,
       fontWeight: '700',
       textTransform: 'uppercase',
@@ -2630,7 +2705,7 @@ const createStyles = (theme: Theme) =>
       gap: 4,
     },
     collapsibleTitle: {
-      color: '#FF1493',
+      color: theme.textPrimary,
       fontSize: 14,
       fontWeight: '600',
     },
@@ -2867,6 +2942,33 @@ const createStyles = (theme: Theme) =>
       fontSize: 24,
       fontWeight: '800',
       lineHeight: 26,
+    },
+    slotIntervalRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    slotIntervalButton: {
+      flex: 1,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.input,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    slotIntervalButtonActive: {
+      borderColor: theme.primary,
+      backgroundColor: hexToRgba(theme.primary, 0.16),
+    },
+    slotIntervalButtonText: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      fontWeight: '900',
+      textAlign: 'center',
+    },
+    slotIntervalButtonTextActive: {
+      color: theme.primary,
     },
     timeRow: { flexDirection: 'row', gap: 12 },
     timeCard: {

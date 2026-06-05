@@ -1,12 +1,29 @@
 import { useEffect, useMemo, useState } from 'react';
+import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
 import {
   createPublicRecurringSubscription,
   createPublicSubscriptionCheckout,
+  createPublicSubscriptionPayment,
   fetchPlanPricing,
+  fetchPublicSubscriptionQuote,
 } from '../services/api';
 import styles from '../styles/SubscriptionCheckoutPage.module.css';
 import { SHIFT_APP_BRAND_NAME } from '../utils/businessCopy';
 import { buildWhatsAppUrl } from '../utils/publicLinks';
+
+const MP_PUBLIC_KEY = process.env.REACT_APP_MERCADO_PAGO_PUBLIC_KEY || '';
+
+// Inicializamos el SDK al importar el modulo, antes de cualquier render,
+// para que el CardPayment Brick nunca monte sin el SDK listo (evita problemas
+// con React StrictMode montando el brick antes de inicializar).
+if (MP_PUBLIC_KEY) {
+  try {
+    initMercadoPago(MP_PUBLIC_KEY, { locale: 'es-AR' });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('No se pudo inicializar Mercado Pago:', err);
+  }
+}
 
 const APP_STORE_URL = 'https://apps.apple.com/ar/app/shifthub/id6767229780';
 /* const PLAY_STORE_URL =
@@ -51,6 +68,16 @@ function getInitialPaymentMode() {
 
 function getInitialPaymentProvider() {
   return 'mercadopago';
+}
+
+function CardIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <rect x="1.75" y="4" width="16.5" height="12" rx="2.4" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M1.75 8h16.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M4.5 12.5h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 function CheckIcon() {
@@ -110,10 +137,16 @@ export default function SubscriptionCheckoutPage() {
   const [pricing, setPricing] = useState({
     basic: { ars: 25000, usdReference: 25 },
     pro: { ars: 35000, usdReference: 35 },
+    additionalBusiness: { ars: 10000, usdReference: 10 },
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [showCardForm, setShowCardForm] = useState(false);
+  const [quote, setQuote] = useState(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [extraLocals, setExtraLocals] = useState(0);
+  const [localNames, setLocalNames] = useState([]);
 
   useEffect(() => {
     let mounted = true;
@@ -128,6 +161,12 @@ export default function SubscriptionCheckoutPage() {
           pro: {
             ars: Number(response.pricing?.pro?.ars || 35000),
             usdReference: Number(response.pricing?.pro?.usdReference || 35),
+          },
+          additionalBusiness: {
+            ars: Number(response.pricing?.additionalBusiness?.ars || 10000),
+            usdReference: Number(
+              response.pricing?.additionalBusiness?.usdReference || 10,
+            ),
           },
         });
       })
@@ -164,8 +203,133 @@ export default function SubscriptionCheckoutPage() {
     [pricing],
   );
 
+  const buildFreeCouponMessage = (response) =>
+    (response.message ||
+      `Se aplico el cupon ${response.couponApplied || ''} y el plan quedo activo gratis hasta ${new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(response.expiresAt))}.`) +
+    ' Ahora abri la app e inicia sesion con esta misma cuenta para empezar a usarla.';
+
+  const closeCardForm = () => {
+    setShowCardForm(false);
+    setQuote(null);
+  };
+
+  // Autoservicio de locales adicionales: el usuario elige cuántos locales extra
+  // (con su nombre) y se cobran +USD 10 c/u. El server recalcula el precio real.
+  const changeExtraLocals = (next) => {
+    const count = Math.max(0, Math.min(10, Number(next) || 0));
+    setExtraLocals(count);
+    setLocalNames((prev) => {
+      const arr = prev.slice(0, count);
+      while (arr.length < count) arr.push('');
+      return arr;
+    });
+    closeCardForm();
+  };
+
+  const setLocalName = (index, value) => {
+    setLocalNames((prev) => {
+      const arr = [...prev];
+      arr[index] = value;
+      return arr;
+    });
+  };
+
+  // Abre el form de tarjeta y cotiza el total real (plan + recargo por locales
+  // adicionales + cupón). Si falla, el brick cae al precio base del plan.
+  const openCardForm = async () => {
+    setShowCardForm(true);
+    setError('');
+    setQuote(null);
+    if (!email.includes('@')) return;
+    setQuoteLoading(true);
+    try {
+      const q = await fetchPublicSubscriptionQuote({
+        email,
+        plan: selectedPlan,
+        couponCode,
+        additionalBusinesses: extraLocals,
+      });
+      setQuote(q);
+    } catch (err) {
+      setQuote(null);
+    } finally {
+      setQuoteLoading(false);
+    }
+  };
+
+  // Cobro con TARJETA embebido (Bricks): el cliente carga la tarjeta acá mismo
+  // y el server hace la activación sincrónica. El redirect a Mercado Pago queda
+  // como fallback (boton primario "Completar pago").
+  const handleBrickSubmit = async (formData) => {
+    setError('');
+    setMessage('');
+
+    const cleanNames = localNames.map((n) => (n || '').trim()).filter(Boolean);
+    if (extraLocals > 0 && cleanNames.length < extraLocals) {
+      const msg = 'Completá el nombre de cada local adicional antes de pagar.';
+      setError(msg);
+      throw new Error(msg);
+    }
+
+    try {
+      const response = await createPublicSubscriptionPayment({
+        email,
+        plan: selectedPlan,
+        couponCode,
+        additionalBusinesses: extraLocals,
+        businessNames: cleanNames,
+        payment: formData,
+      });
+
+      if (response.activatedDirectly) {
+        setMessage(buildFreeCouponMessage(response));
+        return;
+      }
+
+      const status = String(response.status || '').toLowerCase();
+      if (status === 'approved') {
+        setMessage(
+          `¡Pago aprobado! Cobramos ARS ${Number(response.amount || 0).toLocaleString('es-AR')} y tu plan ya queda activo. Abri la app e inicia sesion con esta misma cuenta.`,
+        );
+      } else if (status === 'in_process' || status === 'pending') {
+        setMessage(
+          'Tu pago quedo en revision de Mercado Pago. Apenas se acredite (suele ser unos minutos) activamos tu plan automaticamente.',
+        );
+      } else {
+        throw new Error(
+          response.statusDetail
+            ? `El pago no se pudo completar (${response.statusDetail}). Proba con otra tarjeta.`
+            : 'El pago fue rechazado. Proba con otra tarjeta o usa el pago en la pagina de Mercado Pago.',
+        );
+      }
+    } catch (err) {
+      setError(err.message || 'No pudimos procesar el pago.');
+      throw err;
+    }
+  };
+
+  const handleBrickError = (brickError) => {
+    // eslint-disable-next-line no-console
+    console.error('MercadoPago Brick error:', brickError);
+    const detail =
+      brickError?.message ||
+      brickError?.cause ||
+      (typeof brickError?.type === 'string' ? brickError.type : '');
+    setError(
+      `No se pudo cargar el formulario de pago${detail ? ` (${detail})` : ''}. ` +
+        'Revisa la consola del navegador (F12) o usa el pago en la pagina de Mercado Pago.',
+    );
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    const cleanNames = localNames.map((n) => (n || '').trim()).filter(Boolean);
+    if (paymentMode === 'manual' && extraLocals > 0 && cleanNames.length < extraLocals) {
+      setError('Completá el nombre de cada local adicional antes de pagar.');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setMessage('');
@@ -191,6 +355,8 @@ export default function SubscriptionCheckoutPage() {
               plan: selectedPlan,
               couponCode,
               provider: paymentProvider,
+              additionalBusinesses: extraLocals,
+              businessNames: cleanNames,
             });
 
       if (response.activatedDirectly) {
@@ -271,7 +437,10 @@ export default function SubscriptionCheckoutPage() {
                 key={plan.key}
                 type="button"
                 className={`${styles.planCard} ${styles[`planCard_${plan.variant}`]} ${selectedPlan === plan.key ? styles.planCardActive : styles.planCardInactive}`}
-                onClick={() => setSelectedPlan(plan.key)}
+                onClick={() => {
+                  setSelectedPlan(plan.key);
+                  closeCardForm();
+                }}
                 aria-pressed={selectedPlan === plan.key}
               >
                 <div className={styles.planCardTop}>
@@ -305,22 +474,62 @@ export default function SubscriptionCheckoutPage() {
               </button>
             ))}
           </div>
+
+          {/* Trust card */}
+          <div className={styles.trustCard}>
+            {[
+              'Pago 100% seguro procesado por Mercado Pago',
+              'Activación inmediata apenas se acredita el pago',
+              'Sin permanencia: cancelás cuando quieras',
+            ].map((item) => (
+              <div key={item} className={styles.trustItem}>
+                <span className={styles.trustCheck}>
+                  <CheckIcon />
+                </span>
+                {item}
+              </div>
+            ))}
+          </div>
+
+          {/* Consultas / WhatsApp (columna izquierda, como barberApp) */}
+          <div className={styles.consultCard}>
+            <div className={styles.cardDivider}>
+              <span>Consultas</span>
+            </div>
+            <div className={styles.whatsappRow}>
+              <p className={styles.whatsappHelper}>
+                ¿Dudas con el plan o queres un presupuesto especial?
+              </p>
+              <a
+                href={buildWhatsAppUrl(`Hola quiero consultar por mi plan de ${SHIFT_APP_BRAND_NAME}`)}
+                className={styles.whatsappBtn}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <WhatsAppIcon />
+                Hablar por WhatsApp
+              </a>
+            </div>
+          </div>
         </div>
 
         {/* ── RIGHT: form card ── */}
         <div className={styles.rightCol}>
+          {/* Procesador de pago (card separada, arriba de la formCard) */}
+          <div className={styles.processorCard} aria-label="Procesador de pago">
+            <div className={styles.processorIcon}>
+              <img src="/mercadopago.png" alt="" />
+            </div>
+            <div className={styles.processorCopy}>
+              <span className={styles.processorLabel}>Procesador de pago</span>
+              <strong className={styles.processorName}>Mercado Pago</strong>
+            </div>
+          </div>
+
           <div className={styles.formCard}>
             <div className={styles.formCardHeader}>
               <span className={styles.formCardTag}>Checkout</span>
               <span className={styles.formCardCaption}>Seleccionaste: {PLAN_META[selectedPlan].title}</span>
-            </div>
-
-            <div className={styles.paymentBrandRow} aria-label="Procesador de pago">
-              <span className={styles.paymentBrandLabel}>Procesador disponible</span>
-              <span className={styles.mercadoPagoBadge}>
-                <img className={styles.mercadoPagoLogo} src="/mercadopago.png" alt="" />
-                Mercado Pago
-              </span>
             </div>
 
             <div className={styles.modeToggleGroup}>
@@ -332,7 +541,7 @@ export default function SubscriptionCheckoutPage() {
                   onClick={() => setPaymentMode('manual')}
                 >
                   <span className={styles.modeBtnDot} />
-                  Mensual manual
+                  Pago mensual manual
                   <span className={styles.modeBtnReco}>recomendado</span>
                 </button>
                 <button
@@ -408,12 +617,85 @@ export default function SubscriptionCheckoutPage() {
                     id="checkout-coupon"
                     type="text"
                     value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    onChange={(e) => {
+                      setCouponCode(e.target.value.toUpperCase());
+                      closeCardForm();
+                    }}
                     placeholder="CODIGO"
                     className={styles.inputMono}
                   />
                 </div>
               </div>
+
+              {/* Locales adicionales (autoservicio) — solo en modo manual */}
+              {paymentMode === 'manual' ? (
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>¿Tenés varios locales?</span>
+                  <div className={styles.localsStepper}>
+                    <button
+                      type="button"
+                      className={styles.stepBtn}
+                      onClick={() => changeExtraLocals(extraLocals - 1)}
+                      disabled={extraLocals <= 0}
+                      aria-label="Quitar local"
+                    >
+                      −
+                    </button>
+                    <span className={styles.stepCount}>{extraLocals}</span>
+                    <button
+                      type="button"
+                      className={styles.stepBtn}
+                      onClick={() => changeExtraLocals(extraLocals + 1)}
+                      disabled={extraLocals >= 10}
+                      aria-label="Agregar local"
+                    >
+                      +
+                    </button>
+                    <span className={styles.stepHint}>locales extra · +USD 10 c/u</span>
+                  </div>
+                  {Array.from({ length: extraLocals }).map((_, i) => (
+                    <input
+                      // eslint-disable-next-line react/no-array-index-key
+                      key={i}
+                      type="text"
+                      className={styles.localNameInput}
+                      value={localNames[i] || ''}
+                      onChange={(event) => setLocalName(i, event.target.value)}
+                      placeholder={`Nombre del local ${i + 2}`}
+                    />
+                  ))}
+                </div>
+              ) : null}
+
+              {/* Resumen de cobro */}
+              {(() => {
+                const planArs = Number(pricing[selectedPlan]?.ars || 0);
+                const unitArs = Number(pricing.additionalBusiness?.ars || 0);
+                const unitUsd = Number(pricing.additionalBusiness?.usdReference || 10);
+                const locals = paymentMode === 'manual' ? extraLocals : 0;
+                const localsArs = locals * unitArs;
+                const total = planArs + localsArs;
+                return (
+                  <div className={styles.summaryCard}>
+                    <div className={styles.summaryRow}>
+                      <span>{PLAN_META[selectedPlan].title}</span>
+                      <span>ARS {planArs.toLocaleString('es-AR')}</span>
+                    </div>
+                    {locals > 0 ? (
+                      <div className={styles.summaryRow}>
+                        <span>
+                          {locals} local(es) · +USD {unitUsd} c/u
+                        </span>
+                        <span>ARS {localsArs.toLocaleString('es-AR')}</span>
+                      </div>
+                    ) : null}
+                    <div className={styles.summaryTotalRow}>
+                      <span>Total a pagar</span>
+                      <span>ARS {total.toLocaleString('es-AR')}</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Submit */}
               <button
@@ -441,6 +723,60 @@ export default function SubscriptionCheckoutPage() {
               )}
             </form>
 
+            {/* Pago con tarjeta embebido (Bricks) — solo en modo manual */}
+            {paymentMode === 'manual' && MP_PUBLIC_KEY ? (
+              <div className={styles.brickWrap}>
+                <div className={styles.cardDivider}>
+                  <span>o paga con tarjeta</span>
+                </div>
+
+                {!showCardForm ? (
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={openCardForm}
+                  >
+                    <CardIcon />
+                    Pagar con tarjeta (sin cuenta de Mercado Pago)
+                  </button>
+                ) : !email.includes('@') ? (
+                  <p className={styles.brickHint}>
+                    Ingresa el email de tu cuenta arriba para cargar la tarjeta.
+                  </p>
+                ) : quoteLoading ? (
+                  <p className={styles.brickHint}>Calculando el precio final…</p>
+                ) : (
+                  <>
+                    {quote && quote.additionalBusinessesCount > 0 ? (
+                      <div className={styles.messageBox}>
+                        Incluye {quote.additionalBusinessesCount} local(es) adicional(es): +USD{' '}
+                        {quote.additionalBusinessesUsdReference} (ARS{' '}
+                        {Number(quote.additionalBusinessesArs || 0).toLocaleString('es-AR')}). Total a
+                        cobrar: ARS {Number(quote.amount || 0).toLocaleString('es-AR')}.
+                      </div>
+                    ) : null}
+                    <div className={styles.brickBox}>
+                      <CardPayment
+                        key={`${selectedPlan}-${Number(
+                          quote?.amount ?? pricing[selectedPlan]?.ars ?? 0,
+                        )}`}
+                        initialization={{
+                          amount: Number(
+                            quote?.amount ?? pricing[selectedPlan]?.ars ?? 0,
+                          ),
+                        }}
+                        customization={{
+                          paymentMethods: { maxInstallments: 1 },
+                        }}
+                        onSubmit={handleBrickSubmit}
+                        onError={handleBrickError}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : null}
+
             {/* Feedback */}
             {message && (
               <div className={styles.messageBox}>
@@ -461,50 +797,26 @@ export default function SubscriptionCheckoutPage() {
               </div>
             )}
 
-            {/* Divider */}
-            <div className={styles.cardDivider}>
-              <span>Consultas</span>
-            </div>
+          </div>
 
-            {/* WhatsApp */}
-            <div className={styles.whatsappRow}>
-              <p className={styles.whatsappHelper}>
-                ¿Dudas con el plan o queres un presupuesto especial?
+          {/* Despues del alta: descarga la app (card separada, fuera de la formCard) */}
+          <div className={styles.downloadCard}>
+            <div className={styles.downloadCardIcon}>
+              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                <path d="M10 2a8 8 0 100 16A8 8 0 0010 2z" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M10 6v4l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div className={styles.downloadCardBody}>
+              <p className={styles.downloadTitle}>Despues del alta, descarga la app</p>
+              <p className={styles.downloadText}>
+                {`Cuando completes la activacion, entra a la app con esta misma cuenta para empezar a usar ${SHIFT_APP_BRAND_NAME}.`}
               </p>
-              <a
-                href={buildWhatsAppUrl(`Hola quiero consultar por mi plan de ${SHIFT_APP_BRAND_NAME}`)}
-                className={styles.whatsappBtn}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <WhatsAppIcon />
-                Hablar por WhatsApp
-              </a>
-            </div>
-
-            {/* Download card */}
-            <div className={styles.downloadCard}>
-              <div className={styles.downloadCardIcon}>
-                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                  <path d="M10 2a8 8 0 100 16A8 8 0 0010 2z" stroke="currentColor" strokeWidth="1.4" />
-                  <path d="M10 6v4l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <div className={styles.downloadCardBody}>
-                <p className={styles.downloadTitle}>Despues del alta, descarga la app</p>
-                <p className={styles.downloadText}>
-                  {`Cuando completes la activacion, entra a la app con esta misma cuenta para empezar a usar ${SHIFT_APP_BRAND_NAME}.`}
-                </p>
-                <div className={styles.storeButtons}>
-                  <a href={APP_STORE_URL} target="_blank" rel="noreferrer" className={styles.storeBtn}>
-                    <AppleIcon />
-                    App Store
-                  </a>
-                {/*   <a href={PLAY_STORE_URL} target="_blank" rel="noreferrer" className={styles.storeBtn}>
-                    <PlayIcon />
-                    Google Play
-                  </a> */}
-                </div>
+              <div className={styles.storeButtons}>
+                <a href={APP_STORE_URL} target="_blank" rel="noreferrer" className={styles.storeBtn}>
+                  <AppleIcon />
+                  App Store
+                </a>
               </div>
             </div>
           </div>

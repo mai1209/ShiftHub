@@ -37,6 +37,12 @@ import {
 } from "../services/subscriptionPricingService.js";
 import { normalizeShopClosedDays } from "../utils/shopClosures.js";
 import {
+  ensureDefaultShopForOwner,
+  serializeShop,
+  normalizeShopSlugCandidate,
+  buildAvailableShopSlug,
+} from "../utils/shopContext.js";
+import {
   normalizeAppRole,
   resolveEffectiveOwnerId,
   serializeAuthUser,
@@ -616,6 +622,15 @@ function sanitizePaymentSettingsInput(input) {
     updates.advanceValue = parsed;
   }
 
+  if (Object.prototype.hasOwnProperty.call(input, "bookingSlotIntervalMinutes")) {
+    hasAnyField = true;
+    const parsed = Number(input.bookingSlotIntervalMinutes);
+    if (![15, 30].includes(parsed)) {
+      throw new Error("El intervalo de horarios debe ser de 15 o 30 minutos.");
+    }
+    updates.bookingSlotIntervalMinutes = parsed;
+  }
+
   if (Object.prototype.hasOwnProperty.call(input, "mercadoPagoConnectionStatus")) {
     hasAnyField = true;
     const value = String(input.mercadoPagoConnectionStatus ?? "")
@@ -637,6 +652,53 @@ function sanitizePaymentSettingsInput(input) {
     hasAnyField = true;
     const value = String(input.mercadoPagoPublicKey ?? "").trim();
     updates.mercadoPagoPublicKey = value || null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, "bookingCoupons")) {
+    hasAnyField = true;
+    if (!Array.isArray(input.bookingCoupons)) {
+      throw new Error("Los cupones no tienen un formato válido.");
+    }
+
+    const seenCodes = new Set();
+    updates.bookingCoupons = input.bookingCoupons.slice(0, 20).map((item) => {
+      const code = String(item?.code ?? "")
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9_-]/g, "")
+        .slice(0, 32);
+      const name = String(item?.name ?? "").trim().slice(0, 80);
+      const discountType =
+        String(item?.discountType ?? "").trim().toLowerCase() === "fixed"
+          ? "fixed"
+          : "percent";
+      const discountValue = Number(item?.discountValue);
+      const serviceIds = Array.isArray(item?.serviceIds)
+        ? [...new Set(item.serviceIds.map((id) => String(id || "").trim()).filter(Boolean))]
+        : [];
+
+      if (!code) throw new Error("Cada cupón necesita un código.");
+      if (seenCodes.has(code)) {
+        throw new Error(`El cupón ${code} está repetido.`);
+      }
+      seenCodes.add(code);
+
+      if (!Number.isFinite(discountValue) || discountValue <= 0) {
+        throw new Error(`El descuento del cupón ${code} no es válido.`);
+      }
+      if (discountType === "percent" && discountValue > 100) {
+        throw new Error(`El porcentaje del cupón ${code} no puede superar 100%.`);
+      }
+
+      return {
+        code,
+        name: name || code,
+        discountType,
+        discountValue,
+        serviceIds,
+        isActive: item?.isActive !== false,
+      };
+    });
   }
 
   return { updates, hasAnyField };
@@ -1011,6 +1073,14 @@ function sanitizePlanPricingInput(input) {
     ["basicPriceUsdReference", "La referencia USD del plan Básico no es válida."],
     ["proPriceArs", "El precio ARS del plan Pro no es válido."],
     ["proPriceUsdReference", "La referencia USD del plan Pro no es válida."],
+    [
+      "additionalBusinessPriceArs",
+      "El precio ARS del local adicional no es válido.",
+    ],
+    [
+      "additionalBusinessPriceUsdReference",
+      "La referencia USD del local adicional no es válida.",
+    ],
   ];
 
   for (const [field, message] of fields) {
@@ -1127,7 +1197,19 @@ async function buildAuthUserResponse(userDoc) {
   userResponse.businessType = normalizeBusinessType(userResponse.businessType);
   userResponse.businessTypeLabel = getBusinessTypeLabel(userResponse.businessType);
 
-  if (userResponse.role !== "barber" || !userDoc?.shopOwnerId) {
+  // Multi-local: el dueño recibe sus locales y el local activo por defecto.
+  if (userResponse.role !== "barber") {
+    const defaultShop = await ensureDefaultShopForOwner(userDoc);
+    const shops = await ShopModel.find({ owner: userDoc._id, isActive: true })
+      .sort({ isDefault: -1, createdAt: 1 })
+      .lean();
+    userResponse.businessLimit = resolveBusinessLimit(userResponse.subscription);
+    userResponse.shops = shops.map(serializeShop);
+    userResponse.activeShop = serializeShop(defaultShop || shops[0]);
+    return userResponse;
+  }
+
+  if (!userDoc?.shopOwnerId) {
     return userResponse;
   }
 
@@ -1175,7 +1257,127 @@ async function buildAuthUserResponse(userDoc) {
     userResponse.registrationSource = ownerDoc.registrationSource;
   }
 
+  // El profesional hereda el local activo del dueño (multi-local).
+  if (ownerDoc?._id) {
+    const defaultShop = await ensureDefaultShopForOwner(ownerDoc);
+    if (defaultShop) {
+      userResponse.activeShop = serializeShop(defaultShop);
+    }
+  }
+
   return userResponse;
+}
+
+function resolveBusinessLimit(subscription) {
+  const extra = Math.max(
+    0,
+    Math.trunc(Number(subscription?.additionalBusinesses) || 0),
+  );
+  return 1 + extra;
+}
+
+export async function listOwnShops(req, res, next) {
+  try {
+    const userId = req.user?.ownerId || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuario no autorizado" });
+    }
+
+    const ownerDoc = await UserModel.findById(userId);
+    if (!ownerDoc || ownerDoc.isActive === false) {
+      return res.status(401).json({ error: "Usuario no autorizado" });
+    }
+
+    const defaultShop = await ensureDefaultShopForOwner(ownerDoc);
+    const shops = await ShopModel.find({ owner: ownerDoc._id, isActive: true })
+      .sort({ isDefault: -1, createdAt: 1 })
+      .lean();
+
+    return res.json({
+      shops: shops.map(serializeShop),
+      activeShop: serializeShop(defaultShop || shops[0]),
+      businessLimit: resolveBusinessLimit(ownerDoc.subscription),
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function createOwnShop(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuario no autorizado" });
+    }
+
+    if (normalizeAppRole(req.user?.role) !== "admin") {
+      return res
+        .status(403)
+        .json({ error: "Solo el administrador puede crear locales." });
+    }
+
+    const ownerDoc = await UserModel.findById(userId);
+    if (!ownerDoc || ownerDoc.isActive === false) {
+      return res.status(401).json({ error: "Usuario no autorizado" });
+    }
+
+    await ensureDefaultShopForOwner(ownerDoc);
+
+    const businessLimit = resolveBusinessLimit(ownerDoc.subscription);
+    const activeCount = await ShopModel.countDocuments({
+      owner: ownerDoc._id,
+      isActive: true,
+    });
+
+    if (activeCount >= businessLimit) {
+      return res.status(403).json({
+        code: "BUSINESS_LIMIT_REACHED",
+        error:
+          "Tu plan no permite crear otro local. Agregá un negocio adicional para continuar.",
+      });
+    }
+
+    const name = String(req.body?.name ?? "").trim();
+    if (name.length < 3) {
+      return res
+        .status(400)
+        .json({ error: "El nombre del local es obligatorio." });
+    }
+
+    const requestedSlug = normalizeShopSlugCandidate(req.body?.slug);
+    const slug = requestedSlug || (await buildAvailableShopSlug(name));
+    if (
+      requestedSlug &&
+      ((await ShopModel.exists({ slug: requestedSlug })) ||
+        (await UserModel.exists({ shopSlug: requestedSlug })))
+    ) {
+      return res
+        .status(409)
+        .json({ error: "Ese enlace público ya está en uso." });
+    }
+
+    const shop = await ShopModel.create({
+      owner: ownerDoc._id,
+      name,
+      slug,
+      address: String(req.body?.address ?? "").trim(),
+      phone: String(req.body?.phone ?? "").trim(),
+      isDefault: false,
+      isActive: true,
+    });
+
+    const shops = await ShopModel.find({ owner: ownerDoc._id, isActive: true })
+      .sort({ isDefault: -1, createdAt: 1 })
+      .lean();
+
+    return res.status(201).json({
+      shop: serializeShop(shop),
+      shops: shops.map(serializeShop),
+      businessLimit,
+    });
+  } catch (err) {
+    return next(err);
+  }
 }
 
 export async function registerUser(req, res, next) {
@@ -1183,6 +1385,7 @@ export async function registerUser(req, res, next) {
     const fullName = String(req.body?.fullName ?? "").trim();
     const email = sanitizeEmail(req.body?.email);
     const password = String(req.body?.password ?? "");
+    const phone = String(req.body?.phone ?? "").trim().slice(0, 80);
     const businessTypeRaw = String(req.body?.businessType ?? "").trim().toLowerCase();
     const requestedSlugRaw = String(req.body?.shopSlug ?? "").trim();
     const requestedSlug = requestedSlugRaw ? normalizeSlugCandidate(requestedSlugRaw) : "";
@@ -1190,6 +1393,9 @@ export async function registerUser(req, res, next) {
 
     if (!fullName || !email || !password) {
       return res.status(400).json({ error: "fullName, email y password son obligatorios" });
+    }
+    if (!phone) {
+      return res.status(400).json({ error: "El teléfono es obligatorio" });
     }
     if (password.length < 8) {
       return res.status(400).json({ error: "El password debe tener al menos 8 caracteres" });
@@ -1225,6 +1431,7 @@ export async function registerUser(req, res, next) {
       businessType,
       shopSlug,
       email,
+      phone: phone || null,
       passwordHash,
       registrationSource,
       subscription: {

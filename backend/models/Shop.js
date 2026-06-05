@@ -7,6 +7,10 @@ const shopSchema = new Schema({
   description: { type: String },
   address: { type: String },
   phone: { type: String },
+  isDefault: { type: Boolean, default: false },
+  isActive: { type: Boolean, default: true },
 }, { timestamps: true });
+
+shopSchema.index({ owner: 1, isActive: 1, createdAt: 1 });
 
 export const ShopModel = model("Shop", shopSchema);

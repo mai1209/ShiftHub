@@ -7,6 +7,7 @@ import {
 import {
   createBarber,
   deactivateBarber,
+  reactivateBarber,
   listBarbers,
   listBarberAppointments,
   updateBarber,
@@ -22,5 +23,6 @@ router.get("/:barberId/appointments", listBarberAppointments);
 router.post("/", requireAdminRole, createBarber);
 router.put("/:barberId", updateBarber);
 router.delete("/:barberId", requireAdminRole, deactivateBarber);
+router.patch("/:barberId/reactivate", requireAdminRole, reactivateBarber);
 
 export default router;

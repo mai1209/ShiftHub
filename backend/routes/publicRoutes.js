@@ -3,24 +3,30 @@ import {
   publicBarberAppointments,
   publicCreateRecurringSubscriptionCheckout,
   publicCreateSubscriptionCheckout,
+  publicCreateSubscriptionPayment,
+  publicGetSubscriptionQuote,
   publicCreateAppointment,
   publicListBarbers,
   publicGetPlanPricing,
   publicGetShop,
   publicGetShopMedia,
   publicListServices,
+  publicValidateBookingCoupon,
 } from "../api/publicController.js";
 
 const router = Router();
 
 router.get("/plans", publicGetPlanPricing);
 router.post("/subscriptions/checkout", publicCreateSubscriptionCheckout);
+router.post("/subscriptions/payment", publicCreateSubscriptionPayment);
+router.post("/subscriptions/quote", publicGetSubscriptionQuote);
 router.post("/subscriptions/recurring/start", publicCreateRecurringSubscriptionCheckout);
 router.get("/shops/:shopSlug", publicGetShop);
 router.get("/shops/:shopSlug/media", publicGetShopMedia);
 router.get("/shops/:shopSlug/barbers", publicListBarbers);
 router.get("/shops/:shopSlug/barbers/:barberId/appointments", publicBarberAppointments);
 router.get("/shops/:shopSlug/services", publicListServices);
+router.post("/shops/:shopSlug/coupons/validate", publicValidateBookingCoupon);
 router.post("/shops/:shopSlug/appointments", publicCreateAppointment);
 
 export default router;

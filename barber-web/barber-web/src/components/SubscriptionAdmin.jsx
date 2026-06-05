@@ -322,6 +322,8 @@ export default function SubscriptionAdmin() {
     basicPriceUsdReference: 25,
     proPriceArs: 35000,
     proPriceUsdReference: 35,
+    additionalBusinessPriceArs: 10000,
+    additionalBusinessPriceUsdReference: 10,
   });
   const [savingPricing, setSavingPricing] = useState(false);
   const [selectedYear, setSelectedYear] = useState('');
@@ -456,6 +458,12 @@ export default function SubscriptionAdmin() {
         basicPriceUsdReference: Number(pricingResponse.pricing?.basic?.usdReference || 25),
         proPriceArs: Number(pricingResponse.pricing?.pro?.ars || 35000),
         proPriceUsdReference: Number(pricingResponse.pricing?.pro?.usdReference || 35),
+        additionalBusinessPriceArs: Number(
+          pricingResponse.pricing?.additionalBusiness?.ars || 10000,
+        ),
+        additionalBusinessPriceUsdReference: Number(
+          pricingResponse.pricing?.additionalBusiness?.usdReference || 10,
+        ),
       };
       setCoupons(nextCoupons);
       setShops(nextShops);
@@ -567,6 +575,10 @@ export default function SubscriptionAdmin() {
           basicPriceUsdReference: Number(pricingDraft.basicPriceUsdReference),
           proPriceArs: Number(pricingDraft.proPriceArs),
           proPriceUsdReference: Number(pricingDraft.proPriceUsdReference),
+          additionalBusinessPriceArs: Number(pricingDraft.additionalBusinessPriceArs),
+          additionalBusinessPriceUsdReference: Number(
+            pricingDraft.additionalBusinessPriceUsdReference,
+          ),
         },
       });
 
@@ -575,6 +587,12 @@ export default function SubscriptionAdmin() {
         basicPriceUsdReference: Number(response.pricing?.basic?.usdReference || 25),
         proPriceArs: Number(response.pricing?.pro?.ars || 35000),
         proPriceUsdReference: Number(response.pricing?.pro?.usdReference || 35),
+        additionalBusinessPriceArs: Number(
+          response.pricing?.additionalBusiness?.ars || 10000,
+        ),
+        additionalBusinessPriceUsdReference: Number(
+          response.pricing?.additionalBusiness?.usdReference || 10,
+        ),
       });
       setSuccess('Precios guardados correctamente.');
     } catch (err) {
@@ -1099,8 +1117,16 @@ export default function SubscriptionAdmin() {
         <p className={styles.eyebrow}>ADMIN SUSCRIPCIONES</p>
         <h1 className={styles.title}>Control de planes y estado comercial</h1>
         <p className={styles.subtitle}>
-          Panel interno para ver cuentas, buscar barberías y cambiar plan o estado sin entrar a la base.
+          Panel interno para ver cuentas, buscar negocios y cambiar plan o estado sin entrar a la base.
         </p>
+        <div className={styles.adminNav}>
+          <a className={styles.adminNavLinkActive} href="/admin">
+            Suscripciones
+          </a>
+          <a className={styles.adminNavLink} href="/admin/subscription-coupons">
+            Cuentas con cupón activo
+          </a>
+        </div>
       </section>
 
       <section className={styles.toolbar}>
@@ -1210,6 +1236,42 @@ export default function SubscriptionAdmin() {
                   <p className={styles.priceDescription}>{plan.description}</p>
                 </article>
               ))}
+
+              <article className={styles.priceCard}>
+                <span className={styles.priceBadge}>Local adicional</span>
+                <label className={styles.priceField}>
+                  <span>Precio principal ARS</span>
+                  <input
+                    type="number"
+                    value={pricingDraft.additionalBusinessPriceArs}
+                    onChange={(e) =>
+                      handlePricingDraftChange(
+                        'additionalBusinessPriceArs',
+                        e.target.value,
+                      )
+                    }
+                    className={styles.priceInput}
+                  />
+                </label>
+                <label className={styles.priceField}>
+                  <span>Referencia USD</span>
+                  <input
+                    type="number"
+                    value={pricingDraft.additionalBusinessPriceUsdReference}
+                    onChange={(e) =>
+                      handlePricingDraftChange(
+                        'additionalBusinessPriceUsdReference',
+                        e.target.value,
+                      )
+                    }
+                    className={styles.priceInput}
+                  />
+                </label>
+                <p className={styles.priceDescription}>
+                  Precio por cada local extra que el dueño suma a su plan. Se cobra
+                  en el pago según la referencia USD que cargues acá.
+                </p>
+              </article>
             </div>
             <div className={styles.pricingActions}>
               <button
@@ -1270,7 +1332,7 @@ export default function SubscriptionAdmin() {
               </label>
               {couponDraft.couponCategory === 'referral' ? (
                 <label className={styles.priceField}>
-                  <span>Referente / barbero</span>
+                  <span>Referente</span>
                   <input
                     type="text"
                     value={couponDraft.referralOwnerName}

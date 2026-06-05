@@ -1,0 +1,986 @@
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import {
+  CashEntry,
+  CashSummaryResponse,
+  createCashEntry,
+  updateCashEntry,
+  deleteCashEntry,
+  fetchCashEntries,
+  fetchCashSummary,
+} from '../services/api';
+import { getUserProfile } from '../services/authStorage';
+import { hasProPlanAccess } from '../services/planAccess';
+import { useTheme } from '../context/ThemeContext';
+import type { Theme } from '../context/ThemeContext';
+import {
+  ArrowLeft,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Pencil,
+  Plus,
+  Trash2,
+  TrendingUp,
+  Store,
+  Banknote,
+  X,
+} from 'lucide-react-native';
+
+type Props = { navigation: any };
+
+type RangeMode = 'daily' | 'weekly' | 'monthly' | 'annual';
+
+const RANGE_OPTIONS: { key: RangeMode; label: string }[] = [
+  { key: 'daily', label: 'Día' },
+  { key: 'weekly', label: 'Semana' },
+  { key: 'monthly', label: 'Mes' },
+  { key: 'annual', label: 'Año' },
+];
+
+const toYmd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`;
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
+
+const hexToRgba = (hex: string, alpha: number) => {
+  const sanitized = hex.replace('#', '');
+  const bigint = parseInt(
+    sanitized.length === 3 ? sanitized.repeat(2) : sanitized,
+    16,
+  );
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const INCOME_COLOR = '#16a34a';
+const EXPENSE_COLOR = '#ef4444';
+
+const EXPENSE_CATEGORIES = [
+  'Alquiler',
+  'Sueldos',
+  'Insumos',
+  'Productos',
+  'Servicios',
+  'Otro',
+];
+const INCOME_CATEGORIES = ['Producto', 'Propina', 'Otro'];
+
+function CajaScreen({ navigation }: Props) {
+  const { theme } = useTheme();
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
+  const [rangeMode, setRangeMode] = useState<RangeMode>('monthly');
+  const [refDate, setRefDate] = useState(() => new Date());
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [summary, setSummary] = useState<CashSummaryResponse | null>(null);
+  const [entries, setEntries] = useState<CashEntry[]>([]);
+
+  // Formulario de carga
+  const [formOpen, setFormOpen] = useState(false);
+  const [formType, setFormType] = useState<'income' | 'expense'>('expense');
+  const [amountInput, setAmountInput] = useState('');
+  const [descriptionInput, setDescriptionInput] = useState('');
+  const [categoryInput, setCategoryInput] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const buildRangeParams = useCallback(() => {
+    if (rangeMode === 'daily') return { range: 'daily' as const, date: toYmd(refDate) };
+    if (rangeMode === 'weekly') return { range: 'weekly' as const, date: toYmd(refDate) };
+    if (rangeMode === 'annual')
+      return { range: 'annual' as const, year: refDate.getFullYear() };
+    return {
+      range: 'monthly' as const,
+      year: refDate.getFullYear(),
+      month: refDate.getMonth() + 1,
+    };
+  }, [rangeMode, refDate]);
+
+  const shiftPeriod = (dir: number) => {
+    setRefDate(prev => {
+      const d = new Date(prev);
+      if (rangeMode === 'daily') d.setDate(d.getDate() + dir);
+      else if (rangeMode === 'weekly') d.setDate(d.getDate() + dir * 7);
+      else if (rangeMode === 'annual') d.setFullYear(d.getFullYear() + dir);
+      else d.setMonth(d.getMonth() + dir);
+      return d;
+    });
+  };
+
+  const loadData = useCallback(
+    async (isRefresh = false) => {
+      try {
+        if (!isRefresh) setLoading(true);
+        setError('');
+        const params = buildRangeParams();
+        const [summaryRes, entriesRes] = await Promise.all([
+          fetchCashSummary(params),
+          fetchCashEntries(params),
+        ]);
+        setSummary(summaryRes);
+        setEntries(entriesRes.entries ?? []);
+      } catch (err: any) {
+        setError(err?.message ?? 'No se pudo cargar la caja');
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [buildRangeParams],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        const storedUser = await getUserProfile();
+        if (cancelled) return;
+        if (!hasProPlanAccess(storedUser)) {
+          Alert.alert(
+            'Función Pro',
+            'La caja está disponible en el plan Pro.',
+            [{ text: 'Volver', onPress: () => navigation.goBack() }],
+          );
+          return;
+        }
+        loadData(false);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [loadData, navigation]),
+  );
+
+  const periodLabel = summary?.period.label || toYmd(refDate);
+
+  const categoryBreakdown = useMemo(() => {
+    const map = new Map<
+      string,
+      { category: string; type: 'income' | 'expense'; total: number }
+    >();
+    entries.forEach(entry => {
+      const cat = (entry.category || '').trim() || 'Sin categoría';
+      const key = `${entry.type}|${cat}`;
+      const current = map.get(key) || {
+        category: cat,
+        type: entry.type,
+        total: 0,
+      };
+      current.total += Number(entry.amount || 0);
+      map.set(key, current);
+    });
+    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+  }, [entries]);
+
+  const resetForm = () => {
+    setAmountInput('');
+    setDescriptionInput('');
+    setCategoryInput('');
+    setEditingId(null);
+  };
+
+  const handleOpenForm = () => {
+    resetForm();
+    setFormType('expense');
+    setFormOpen(true);
+  };
+
+  const handleEdit = (entry: CashEntry) => {
+    setEditingId(entry._id);
+    setFormType(entry.type);
+    setAmountInput(String(entry.amount));
+    setDescriptionInput(entry.description || '');
+    setCategoryInput(entry.category || '');
+    setFormOpen(true);
+  };
+
+  const handleSave = async () => {
+    const amount = Number(amountInput.replace(',', '.'));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      Alert.alert('Monto inválido', 'Ingresá un monto mayor a 0.');
+      return;
+    }
+    try {
+      setSaving(true);
+      const payload = {
+        type: formType,
+        amount,
+        description: descriptionInput.trim(),
+        category: categoryInput.trim() || undefined,
+      };
+      if (editingId) {
+        await updateCashEntry(editingId, payload);
+      } else {
+        await createCashEntry(payload);
+      }
+      resetForm();
+      setFormOpen(false);
+      await loadData(true);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'No se pudo guardar el movimiento.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = (entry: CashEntry) => {
+    Alert.alert(
+      'Borrar movimiento',
+      `¿Borrar "${entry.description || (entry.type === 'income' ? 'Ingreso' : 'Egreso')}" por ${formatCurrency(entry.amount)}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Borrar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteCashEntry(entry._id);
+              await loadData(true);
+            } catch (err: any) {
+              Alert.alert('Error', err?.message ?? 'No se pudo borrar.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  return (
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              loadData(true);
+            }}
+            tintColor={theme.primary}
+          />
+        }
+      >
+        <View style={styles.header}>
+          <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <ArrowLeft size={20} color={theme.textPrimary} />
+          </Pressable>
+          <View>
+            <Text style={styles.headerSubtitle}>CAJA DEL LOCAL</Text>
+            <Text style={styles.headerTitle}>Ingresos y egresos</Text>
+          </View>
+        </View>
+
+        {/* Selector de periodo */}
+        <View style={styles.filterSection}>
+          <View style={styles.filterHeader}>
+            <Calendar size={14} color={theme.primary} />
+            <Text style={styles.filterTitle}>Periodo</Text>
+          </View>
+          <View style={styles.rangeTabs}>
+            {RANGE_OPTIONS.map(opt => {
+              const active = rangeMode === opt.key;
+              return (
+                <Pressable
+                  key={opt.key}
+                  style={[styles.rangeTab, active && styles.rangeTabActive]}
+                  onPress={() => setRangeMode(opt.key)}
+                >
+                  <Text
+                    style={[
+                      styles.rangeTabText,
+                      active && styles.rangeTabTextActive,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <View style={styles.periodNav}>
+            <Pressable style={styles.periodNavBtn} onPress={() => shiftPeriod(-1)}>
+              <ChevronLeft size={18} color={theme.textPrimary} />
+            </Pressable>
+            <Text style={styles.periodNavLabel}>{periodLabel}</Text>
+            <Pressable style={styles.periodNavBtn} onPress={() => shiftPeriod(1)}>
+              <ChevronRight size={18} color={theme.textPrimary} />
+            </Pressable>
+          </View>
+        </View>
+
+        {loading ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={styles.loaderText}>Calculando la caja...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : (
+          <>
+            {/* Ganancia destacada */}
+            <View style={styles.profitCard}>
+              <Text style={styles.profitLabel}>GANANCIA DEL LOCAL</Text>
+              <Text style={styles.profitValue}>
+                {formatCurrency(summary?.profit ?? 0)}
+              </Text>
+              <Text style={styles.profitHint}>
+                Ingresos − egresos − comisiones
+              </Text>
+            </View>
+
+            {/* Desglose */}
+            <View style={styles.breakdownGrid}>
+              <View style={styles.breakdownCard}>
+                <Text style={styles.breakdownLabel}>Servicios cobrados</Text>
+                <Text style={styles.breakdownValue}>
+                  {formatCurrency(summary?.serviceIncome ?? 0)}
+                </Text>
+              </View>
+              <View style={styles.breakdownCard}>
+                <Text style={styles.breakdownLabel}>Ventas de productos</Text>
+                <Text style={styles.breakdownValue}>
+                  {formatCurrency(summary?.manualIncome ?? 0)}
+                </Text>
+              </View>
+              <View style={styles.breakdownCard}>
+                <Text style={styles.breakdownLabel}>Comisiones profesionales</Text>
+                <Text style={[styles.breakdownValue, { color: EXPENSE_COLOR }]}>
+                  − {formatCurrency(summary?.commissions ?? 0)}
+                </Text>
+              </View>
+              <View style={styles.breakdownCard}>
+                <Text style={styles.breakdownLabel}>Egresos</Text>
+                <Text style={[styles.breakdownValue, { color: EXPENSE_COLOR }]}>
+                  − {formatCurrency(summary?.expenses ?? 0)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Botón + cargar movimiento */}
+            <Pressable style={styles.addBtn} onPress={handleOpenForm}>
+              <View style={styles.addBtnPlus}>
+                <Plus size={18} color="#fff" />
+              </View>
+              <Text style={styles.addBtnText}>Cargar movimiento</Text>
+            </Pressable>
+
+            <Modal
+              visible={formOpen}
+              transparent
+              animationType="fade"
+              onRequestClose={() => {
+                setFormOpen(false);
+                resetForm();
+              }}
+            >
+              <Pressable
+                style={styles.modalOverlay}
+                onPress={() => {
+                  if (!saving) {
+                    setFormOpen(false);
+                    resetForm();
+                  }
+                }}
+              >
+                <Pressable style={styles.modalCard} onPress={() => {}}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>
+                      {editingId ? 'Editar movimiento' : 'Nuevo movimiento'}
+                    </Text>
+                    <Pressable
+                      style={styles.modalClose}
+                      onPress={() => {
+                        setFormOpen(false);
+                        resetForm();
+                      }}
+                    >
+                      <X size={18} color={theme.textSecondary} />
+                    </Pressable>
+                  </View>
+
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    <View style={styles.typeToggle}>
+                  <Pressable
+                    style={[
+                      styles.typeOption,
+                      formType === 'income' && {
+                        backgroundColor: hexToRgba(INCOME_COLOR, 0.15),
+                        borderColor: INCOME_COLOR,
+                      },
+                    ]}
+                    onPress={() => setFormType('income')}
+                  >
+                    <Banknote size={16} color={INCOME_COLOR} />
+                    <Text style={styles.typeOptionText}>Ingreso</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.typeOption,
+                      formType === 'expense' && {
+                        backgroundColor: hexToRgba(EXPENSE_COLOR, 0.15),
+                        borderColor: EXPENSE_COLOR,
+                      },
+                    ]}
+                    onPress={() => setFormType('expense')}
+                  >
+                    <TrendingUp size={16} color={EXPENSE_COLOR} />
+                    <Text style={styles.typeOptionText}>Egreso</Text>
+                  </Pressable>
+                </View>
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="Monto"
+                  placeholderTextColor={theme.placeholder}
+                  keyboardType="numeric"
+                  value={amountInput}
+                  onChangeText={setAmountInput}
+                />
+                <TextInput
+                  style={[styles.input, { marginTop: 10 }]}
+                  placeholder="Descripción (ej. alquiler, shampoo)"
+                  placeholderTextColor={theme.placeholder}
+                  value={descriptionInput}
+                  onChangeText={setDescriptionInput}
+                />
+
+                <Text style={styles.categoryLabel}>Categoría</Text>
+                <View style={styles.categoryChips}>
+                  {(formType === 'expense'
+                    ? EXPENSE_CATEGORIES
+                    : INCOME_CATEGORIES
+                  ).map(cat => {
+                    const active = categoryInput === cat;
+                    return (
+                      <Pressable
+                        key={cat}
+                        style={[
+                          styles.categoryChip,
+                          active && styles.categoryChipActive,
+                        ]}
+                        onPress={() =>
+                          setCategoryInput(active ? '' : cat)
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.categoryChipText,
+                            active && styles.categoryChipTextActive,
+                          ]}
+                        >
+                          {cat}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                    <Pressable
+                      style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+                      onPress={handleSave}
+                      disabled={saving}
+                    >
+                      <Text style={styles.saveBtnText}>
+                        {saving
+                          ? 'Guardando...'
+                          : editingId
+                          ? 'Guardar cambios'
+                          : 'Guardar movimiento'}
+                      </Text>
+                    </Pressable>
+                  </ScrollView>
+                </Pressable>
+              </Pressable>
+            </Modal>
+
+            {/* Resumen por categoría */}
+            {categoryBreakdown.length > 0 ? (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Por categoría</Text>
+                  <TrendingUp size={16} color={theme.primary} />
+                </View>
+                <View style={styles.categoryList}>
+                  {categoryBreakdown.map(item => {
+                    const isIncome = item.type === 'income';
+                    const color = isIncome ? INCOME_COLOR : EXPENSE_COLOR;
+                    return (
+                      <View
+                        key={`${item.type}|${item.category}`}
+                        style={styles.categoryRow}
+                      >
+                        <View style={styles.categoryRowLeft}>
+                          <View
+                            style={[styles.categoryDot, { backgroundColor: color }]}
+                          />
+                          <Text style={styles.categoryRowName}>
+                            {item.category}
+                          </Text>
+                          <Text style={styles.categoryRowType}>
+                            {isIncome ? 'Ingreso' : 'Egreso'}
+                          </Text>
+                        </View>
+                        <Text style={[styles.categoryRowTotal, { color }]}>
+                          {isIncome ? '+' : '−'} {formatCurrency(item.total)}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
+
+            {/* Lista de movimientos */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Movimientos del período</Text>
+              <Store size={16} color={theme.primary} />
+            </View>
+
+            {entries.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No hay movimientos cargados en este período.
+              </Text>
+            ) : (
+              <View style={styles.entriesList}>
+                {entries.map(entry => {
+                  const isIncome = entry.type === 'income';
+                  const color = isIncome ? INCOME_COLOR : EXPENSE_COLOR;
+                  return (
+                    <View key={entry._id} style={styles.entryRow}>
+                      <View style={styles.entryInfo}>
+                        <Text style={styles.entryDesc}>
+                          {entry.description ||
+                            (isIncome ? 'Ingreso' : 'Egreso')}
+                        </Text>
+                        <View style={styles.entryMetaRow}>
+                          <Text style={styles.entryDate}>
+                            {new Date(entry.date).toLocaleDateString('es-AR')}
+                          </Text>
+                          {entry.category ? (
+                            <View style={styles.entryCategoryBadge}>
+                              <Text style={styles.entryCategoryText}>
+                                {entry.category}
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
+                      <Text style={[styles.entryAmount, { color }]}>
+                        {isIncome ? '+' : '−'} {formatCurrency(entry.amount)}
+                      </Text>
+                      <Pressable
+                        style={styles.entryEdit}
+                        onPress={() => handleEdit(entry)}
+                      >
+                        <Pencil size={15} color={theme.primary} />
+                      </Pressable>
+                      <Pressable
+                        style={styles.entryDelete}
+                        onPress={() => handleDelete(entry)}
+                      >
+                        <Trash2 size={16} color={EXPENSE_COLOR} />
+                      </Pressable>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const makeStyles = (theme: Theme) =>
+  StyleSheet.create({
+    screen: { flex: 1, backgroundColor: theme.background },
+    scrollContent: { paddingBottom: 140 },
+    header: {
+      marginTop: Platform.OS === 'ios' ? 60 : 30,
+      paddingHorizontal: 20,
+      marginBottom: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    backBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    headerSubtitle: {
+      color: theme.primary,
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 3,
+    },
+    headerTitle: {
+      color: theme.textPrimary,
+      fontSize: 22,
+      fontWeight: '900',
+      marginTop: 2,
+    },
+    filterSection: { paddingHorizontal: 20, marginBottom: 18 },
+    filterHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 12,
+    },
+    filterTitle: {
+      color: theme.textPrimary,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    rangeTabs: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    rangeTab: {
+      flex: 1,
+      paddingVertical: 9,
+      borderRadius: 12,
+      alignItems: 'center',
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    rangeTabActive: {
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+      borderColor: theme.primary,
+    },
+    rangeTabText: { color: theme.textMuted, fontSize: 13, fontWeight: '700' },
+    rangeTabTextActive: { color: theme.primary },
+    periodNav: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    periodNavBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.card,
+    },
+    periodNavLabel: {
+      flex: 1,
+      textAlign: 'center',
+      color: theme.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+      textTransform: 'capitalize',
+    },
+    loaderContainer: { alignItems: 'center', paddingTop: 50, gap: 12 },
+    loaderText: { color: theme.textMuted },
+    errorBox: {
+      marginHorizontal: 20,
+      padding: 16,
+      borderRadius: 14,
+      backgroundColor: hexToRgba(EXPENSE_COLOR, 0.1),
+    },
+    errorText: { color: EXPENSE_COLOR, textAlign: 'center' },
+    profitCard: {
+      marginHorizontal: 20,
+      marginBottom: 16,
+      padding: 22,
+      borderRadius: 22,
+      backgroundColor: hexToRgba(theme.primary, 0.1),
+      borderWidth: 1,
+      borderColor: hexToRgba(theme.primary, 0.25),
+      alignItems: 'center',
+    },
+    profitLabel: {
+      color: theme.primary,
+      fontSize: 11,
+      fontWeight: '800',
+      letterSpacing: 2,
+    },
+    profitValue: {
+      color: theme.textPrimary,
+      fontSize: 34,
+      fontWeight: '900',
+      marginTop: 6,
+    },
+    profitHint: { color: theme.textMuted, fontSize: 12, marginTop: 4 },
+    breakdownGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      paddingHorizontal: 20,
+      marginBottom: 16,
+    },
+    breakdownCard: {
+      flexBasis: '47%',
+      flexGrow: 1,
+      padding: 14,
+      borderRadius: 16,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    breakdownLabel: { color: theme.textMuted, fontSize: 12 },
+    breakdownValue: {
+      color: theme.textPrimary,
+      fontSize: 17,
+      fontWeight: '800',
+      marginTop: 4,
+    },
+    addBtn: {
+      marginHorizontal: 20,
+      marginBottom: 14,
+      height: 48,
+      borderRadius: 14,
+      backgroundColor: theme.primary,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    addBtnPlus: {
+      width: 26,
+      height: 26,
+      borderRadius: 999,
+      backgroundColor: 'rgba(255,255,255,0.22)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    addBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      justifyContent: 'center',
+      paddingHorizontal: 20,
+    },
+    modalCard: {
+      maxHeight: '82%',
+      padding: 18,
+      borderRadius: 22,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 14,
+    },
+    modalTitle: {
+      color: theme.textPrimary,
+      fontSize: 17,
+      fontWeight: '800',
+    },
+    modalClose: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.surfaceAlt,
+    },
+    formCard: {
+      marginHorizontal: 20,
+      marginBottom: 16,
+      padding: 16,
+      borderRadius: 18,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    typeToggle: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+    typeOption: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      borderRadius: 12,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    typeOptionText: { color: theme.textPrimary, fontWeight: '700' },
+    input: {
+      height: 48,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+      color: theme.textPrimary,
+    },
+    saveBtn: {
+      marginTop: 14,
+      height: 46,
+      borderRadius: 12,
+      backgroundColor: theme.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 20,
+      marginBottom: 10,
+      marginTop: 4,
+    },
+    sectionTitle: { color: theme.textPrimary, fontSize: 16, fontWeight: '800' },
+    emptyText: {
+      color: theme.textMuted,
+      textAlign: 'center',
+      paddingHorizontal: 20,
+      marginTop: 10,
+    },
+    categoryList: { paddingHorizontal: 20, gap: 8, marginBottom: 8 },
+    categoryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    categoryRowLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flex: 1,
+    },
+    categoryDot: { width: 8, height: 8, borderRadius: 4 },
+    categoryRowName: {
+      color: theme.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    categoryRowType: {
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    categoryRowTotal: { fontSize: 14, fontWeight: '800' },
+    entriesList: { paddingHorizontal: 20, gap: 10 },
+    entryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 14,
+      borderRadius: 14,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    entryInfo: { flex: 1 },
+    entryDesc: { color: theme.textPrimary, fontSize: 14, fontWeight: '600' },
+    entryMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 4,
+      flexWrap: 'wrap',
+    },
+    entryDate: { color: theme.textMuted, fontSize: 12 },
+    entryCategoryBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 8,
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+    },
+    entryCategoryText: {
+      color: theme.primary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    categoryLabel: {
+      color: theme.textMuted,
+      fontSize: 13,
+      fontWeight: '700',
+      marginTop: 12,
+      marginBottom: 8,
+    },
+    categoryChips: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    categoryChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 10,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    categoryChipActive: {
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+      borderColor: theme.primary,
+    },
+    categoryChipText: { color: theme.textMuted, fontSize: 13, fontWeight: '600' },
+    categoryChipTextActive: { color: theme.primary, fontWeight: '700' },
+    entryAmount: { fontSize: 15, fontWeight: '800' },
+    entryEdit: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: hexToRgba(theme.primary, 0.1),
+    },
+    entryDelete: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: hexToRgba(EXPENSE_COLOR, 0.1),
+    },
+  });
+
+export default CajaScreen;

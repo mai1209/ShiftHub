@@ -1,0 +1,17 @@
+/* Reset mínimo para el panel admin (scope: cuando se monta /panel). */
+:root {
+  --panel-bg: #f4f6fa;
+  --panel-surface: #ffffff;
+  --panel-surface-2: #f1f4f9;
+  --panel-border: #e3e8f0;
+  --panel-text: #111827;
+  --panel-text-dim: #6b7280;
+  /* Verde de ShiftHub: #2FAA1F como sólido (buen contraste con texto blanco)
+     y el lima #39E01F en versión soft para fondos/acentos. */
+  --panel-primary: #2FAA1F;
+  --panel-primary-soft: rgba(57, 224, 31, 0.12);
+}
+
+body {
+  margin: 0;
+}

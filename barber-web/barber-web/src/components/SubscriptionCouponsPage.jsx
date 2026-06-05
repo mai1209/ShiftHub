@@ -110,6 +110,14 @@ export default function SubscriptionCouponsPage() {
         <p className={styles.subtitle}>
           Vista rápida para ver quién tiene beneficio activo, qué cupón usa y hasta cuándo aplica.
         </p>
+        <div className={styles.adminNav}>
+          <a className={styles.adminNavLink} href="/admin">
+            Suscripciones
+          </a>
+          <a className={styles.adminNavLinkActive} href="/admin/subscription-coupons">
+            Cuentas con cupón activo
+          </a>
+        </div>
       </section>
 
       <section className={styles.toolbar}>

@@ -13,6 +13,7 @@ import {
 import {
   BellRing,
   BookOpen,
+  Building2,
   CalendarDays,
   ChevronRight,
   CreditCard,
@@ -26,11 +27,13 @@ import {
   Palette,
   ShieldCheck,
   BriefcaseBusiness,
+  Tag,
   Users,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import {
   getUserProfile,
+  removeActiveShop,
   removeToken,
   removeUserProfile,
   saveUserProfile,
@@ -160,6 +163,7 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
           onPress: async () => {
             await removeToken();
             await removeUserProfile();
+            await removeActiveShop();
             applyUserTheme(null);
             navigation.reset({
               index: 0,
@@ -197,7 +201,6 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
       <View style={styles.headerRow}>
         <View>
           <Text style={styles.title}>Ajustes</Text>
-         
         </View>
       </View>
 
@@ -224,10 +227,28 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             />
             <View style={styles.separator} />
             <MenuItem
+              icon={Building2}
+              label="Mis locales"
+              description="Elegí el panel de cada local o agregá otro negocio según tu plan."
+              onPress={() => navigation.navigate('Shop-Select')}
+              theme={theme}
+              styles={styles}
+            />
+            <View style={styles.separator} />
+            <MenuItem
               icon={BriefcaseBusiness}
               label="Cargar servicios"
               description="Cargá, editá o sacá los servicios que ofrece tu local."
               onPress={() => navigation.navigate('Service-Settings')}
+              theme={theme}
+              styles={styles}
+            />
+            <View style={styles.separator} />
+            <MenuItem
+              icon={Tag}
+              label="Cupones"
+              description="Códigos de descuento para que el cliente los aplique en la web de turnos."
+              onPress={() => navigation.navigate('Coupon-Settings')}
               theme={theme}
               styles={styles}
             />
@@ -289,8 +310,8 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
               label="Configurar cobros"
               description={
                 isIOS
-                  ? 'Medios de cobro disponibles y estado general de la cuenta de pagos.'
-                  : 'Efectivo, seña online y estado de Mercado Pago.'
+                  ? 'Medios de cobro disponibles, intervalo de agenda y estado general de la cuenta de pagos.'
+                  : 'Efectivo, seña online, intervalo de agenda y estado de Mercado Pago.'
               }
               onPress={() => navigation.navigate('Payment-Settings')}
               theme={theme}
@@ -329,7 +350,9 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
                   : 'Disponible desde el plan Básico.'
               }
               onPress={() =>
-                hasBasicAccess ? navigation.navigate('WhatsApp-Campaigns') : openUpgrade()
+                hasBasicAccess
+                  ? navigation.navigate('WhatsApp-Campaigns')
+                  : openUpgrade()
               }
               theme={theme}
               styles={styles}
@@ -345,7 +368,9 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
                   : 'Disponible con plan Pro.'
               }
               onPress={() =>
-                hasProAccess ? navigation.navigate('Customer-History') : openUpgrade()
+                hasProAccess
+                  ? navigation.navigate('Customer-History')
+                  : openUpgrade()
               }
               theme={theme}
               styles={styles}
@@ -402,7 +427,9 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
           icon={ShieldCheck}
           label="Política de privacidad"
           description="Revisá cómo usamos, guardamos y protegemos tus datos."
-          onPress={() => openExternalPage(PRIVACY_POLICY_URL, PRIVACY_POLICY_URL)}
+          onPress={() =>
+            openExternalPage(PRIVACY_POLICY_URL, PRIVACY_POLICY_URL)
+          }
           theme={theme}
           styles={styles}
         />

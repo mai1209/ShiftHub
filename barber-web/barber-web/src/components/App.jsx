@@ -11,6 +11,7 @@ import PrivacyPolicyPage from './PrivacyPolicyPage';
 import AccountDeletionPage from './AccountDeletionPage';
 import RegisterAccountPage from './RegisterAccountPage';
 import SupportPage from './SupportPage';
+import PanelApp from '../panel/PanelApp';
 //import landingStyles from '../styles/LandingPage.module.css';
 
 
@@ -45,6 +46,11 @@ function resolveInternalPage() {
   const url = new URL(window.location.href);
   const pathname = url.pathname.replace(/^\/+|\/+$/g, '');
   const segments = pathname ? pathname.split('/') : [];
+
+  // Panel de gestión web (con sub-rutas: /panel/login, /panel/turnos, etc.)
+  if (segments[0] === 'panel') {
+    return 'panel';
+  }
 
   if (pathname === 'admin' || pathname === 'admin/subscriptions') {
     return 'subscription-admin';
@@ -115,6 +121,10 @@ function App() {
   const [internalPage] = useState(() => resolveInternalPage());
   const [shopSlug] = useState(() => resolveInitialSlug());
   const [missingShop, setMissingShop] = useState(false);
+
+  if (internalPage === 'panel') {
+    return <PanelApp />;
+  }
 
   if (internalPage === 'subscription-admin') {
     return <SubscriptionAdmin />;

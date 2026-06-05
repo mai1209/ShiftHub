@@ -7,6 +7,7 @@ import admin from "../firebase.js";
 import { BarberModel } from "../models/Barber.js";
 import { sendAppMail } from "../services/mailer.js";
 import {
+  activateSubscriptionFromApprovedPayment,
   applyPendingCouponToSubscription,
   calculateSubscriptionExpiry,
   createAppointmentMercadoPagoPreference,
@@ -35,6 +36,7 @@ import {
 import {
   buildMercadoPagoSubscriptionReturnUrls,
   buildMercadoPagoSubscriptionWebhookUrl,
+  createMercadoPagoSystemPayment,
   createMercadoPagoSystemPreapproval,
   createMercadoPagoSystemPreference,
 } from "../services/mercadoPago.js";
@@ -49,6 +51,7 @@ import {
 } from "../services/planPricingService.js";
 import {
   normalizeCouponCode,
+  resolveAdditionalBusinessesArs,
   resolvePlanPricingForSubscription,
 } from "../services/subscriptionPricingService.js";
 import { notifySubscriptionActivated } from "../services/subscriptionLifecycleService.js";
@@ -203,6 +206,8 @@ function sanitizeBarber(barber) {
     photoUrl: barber.photoUrl || null,
     serviceIds: (barber.serviceIds || []).map(getEntityId).filter(Boolean),
     shift: barber.shift,
+    bookingSlotIntervalMinutes:
+      Number(barber.bookingSlotIntervalMinutes) === 30 ? 30 : 15,
     scheduleRange: barber.scheduleRange || null,
     scheduleRanges: barber.scheduleRanges || [],
     dayScheduleOverrides: (barber.dayScheduleOverrides || []).map((item) => ({
@@ -284,9 +289,19 @@ function sanitizeShop(shop) {
       advanceMode: paymentSettings.advanceMode || "deposit",
       advanceType: paymentSettings.advanceType || "percent",
       advanceValue: Number(paymentSettings.advanceValue || 0),
+      bookingSlotIntervalMinutes: [15, 30].includes(
+        Number(paymentSettings.bookingSlotIntervalMinutes),
+      )
+        ? Number(paymentSettings.bookingSlotIntervalMinutes)
+        : 15,
       mercadoPagoReady: paymentSettings.mercadoPagoConnectionStatus === "connected",
       mercadoPagoConnectionStatus:
         paymentSettings.mercadoPagoConnectionStatus || "disconnected",
+      bookingCouponsEnabled:
+        Array.isArray(paymentSettings.bookingCoupons) &&
+        paymentSettings.bookingCoupons.some(
+          (coupon) => coupon && coupon.isActive !== false && coupon.code,
+        ),
     },
     shopClosedDays: normalizeShopClosedDays(shop.shopClosedDays),
   };
@@ -492,12 +507,96 @@ async function resolveServicePrice({ ownerId, serviceName, providedPrice }) {
   return Number(serviceDoc?.price || 0);
 }
 
+// ====== CUPONES DE RESERVA (descuento al cliente) ======
+
+function normalizeBookingCouponCode(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_-]/g, "")
+    .slice(0, 32);
+}
+
+function findActiveBookingCoupon(shop, couponCode) {
+  const code = normalizeBookingCouponCode(couponCode);
+  if (!code) return null;
+  const coupons = Array.isArray(shop?.paymentSettings?.bookingCoupons)
+    ? shop.paymentSettings.bookingCoupons
+    : [];
+  return (
+    coupons.find(
+      (coupon) =>
+        coupon?.isActive !== false &&
+        normalizeBookingCouponCode(coupon?.code) === code,
+    ) || null
+  );
+}
+
+function calculateCouponDiscountForService(coupon, serviceDoc) {
+  if (!coupon || !serviceDoc) return 0;
+  const serviceId = String(serviceDoc._id);
+  const allowedServices = Array.isArray(coupon.serviceIds)
+    ? coupon.serviceIds.map(String).filter(Boolean)
+    : [];
+  if (allowedServices.length && !allowedServices.includes(serviceId)) {
+    return 0;
+  }
+
+  const price = Math.max(0, Number(serviceDoc.price || 0));
+  const discountValue = Math.max(0, Number(coupon.discountValue || 0));
+  if (!price || !discountValue) return 0;
+
+  const rawDiscount =
+    coupon.discountType === "fixed"
+      ? discountValue
+      : price * (Math.min(discountValue, 100) / 100);
+  return Math.min(price, Math.round(rawDiscount));
+}
+
+function buildCouponQuote(coupon, services) {
+  if (!coupon || !Array.isArray(services) || !services.length) return null;
+  const serviceDiscounts = services.map((service) => {
+    const originalPrice = Math.max(0, Number(service.price || 0));
+    const discountAmount = calculateCouponDiscountForService(coupon, service);
+    return {
+      serviceId: String(service._id),
+      name: service.name,
+      originalPrice,
+      discountAmount,
+      finalPrice: Math.max(0, originalPrice - discountAmount),
+    };
+  });
+  const totalOriginal = serviceDiscounts.reduce(
+    (sum, item) => sum + item.originalPrice,
+    0,
+  );
+  const totalDiscount = serviceDiscounts.reduce(
+    (sum, item) => sum + item.discountAmount,
+    0,
+  );
+
+  if (totalDiscount <= 0) return null;
+
+  return {
+    code: normalizeBookingCouponCode(coupon.code),
+    name: coupon.name || normalizeBookingCouponCode(coupon.code),
+    discountType: coupon.discountType === "fixed" ? "fixed" : "percent",
+    discountValue: Number(coupon.discountValue || 0),
+    totalOriginal,
+    totalDiscount,
+    totalFinal: Math.max(0, totalOriginal - totalDiscount),
+    serviceDiscounts,
+  };
+}
+
 async function resolveAppointmentServices({
   ownerId,
   service,
   servicePrice,
   durationMinutes,
   serviceItems,
+  couponCode,
+  shop,
 }) {
   if (Array.isArray(serviceItems) && serviceItems.length > 0) {
     const rawIds = serviceItems
@@ -551,11 +650,31 @@ async function resolveAppointmentServices({
       throw new Error("La combinación de servicios supera la duración permitida.");
     }
 
+    // Cupón de descuento del cliente (opcional).
+    let couponQuote = null;
+    let finalTotalPrice = totalPrice;
+    if (couponCode && shop) {
+      const coupon = findActiveBookingCoupon(shop, couponCode);
+      if (coupon) {
+        const orderedServices = normalizedItems.map((item) => ({
+          _id: item.serviceId,
+          name: item.name,
+          price: item.price,
+        }));
+        couponQuote = buildCouponQuote(coupon, orderedServices);
+        if (couponQuote) {
+          finalTotalPrice = couponQuote.totalFinal;
+        }
+      }
+    }
+
     return {
       serviceLabel: normalizedItems.map((item) => item.name).join(" + "),
       items: normalizedItems,
       totalDuration,
-      totalPrice,
+      totalPrice: finalTotalPrice,
+      totalOriginalPrice: totalPrice,
+      couponQuote,
     };
   }
 
@@ -570,6 +689,8 @@ async function resolveAppointmentServices({
     items: [],
     totalDuration: Number(durationMinutes) || 30,
     totalPrice: resolvedServicePrice,
+    totalOriginalPrice: resolvedServicePrice,
+    couponQuote: null,
   };
 }
 
@@ -610,12 +731,30 @@ export async function publicGetPlanPricing(req, res, next) {
   }
 }
 
+// Cantidad de locales adicionales pedida desde el front (autoservicio).
+// Devuelve null si no vino (para caer al valor guardado en la cuenta).
+function parseRequestedAdditionalBusinesses(value) {
+  if (value == null || !Number.isFinite(Number(value))) return null;
+  return Math.max(0, Math.trunc(Number(value)));
+}
+
+// Nombres de los locales adicionales elegidos en el checkout.
+function parseBusinessNames(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((n) => String(n || "").trim())
+    .filter((n) => n.length > 0)
+    .slice(0, 20);
+}
+
 export async function publicCreateSubscriptionCheckout(req, res, next) {
   try {
     const email = String(req.body?.email || "").trim().toLowerCase();
     const plan = normalizePublicPlan(req.body?.plan);
     const couponCode = String(req.body?.couponCode || "").trim();
     const paymentProvider = normalizeSubscriptionPaymentProvider(req.body?.provider);
+    const requestedExtra = parseRequestedAdditionalBusinesses(req.body?.additionalBusinesses);
+    const businessNames = parseBusinessNames(req.body?.businessNames);
 
     if (!email || !plan) {
       return res.status(400).json({
@@ -654,7 +793,17 @@ export async function publicCreateSubscriptionCheckout(req, res, next) {
       couponDiscountPercent: Number(coupon?.discountPercent || 0),
       couponDiscountAmountUsdReference: Number(coupon?.discountAmountUsdReference || 0),
     });
-    const amount = Number(resolvedPricing.effectiveArs || 0);
+    const effectiveExtra =
+      requestedExtra ?? Number(userDoc.subscription?.additionalBusinesses || 0);
+    const additionalBusinessesPricing = resolveAdditionalBusinessesArs({
+      plan,
+      pricing,
+      subscription: { additionalBusinesses: effectiveExtra },
+    });
+    const amount = Number(
+      (Number(resolvedPricing.effectiveArs || 0) +
+        Number(additionalBusinessesPricing.ars || 0)).toFixed(2),
+    );
 
     const canActivateForFree =
       Boolean(coupon) &&
@@ -734,6 +883,8 @@ export async function publicCreateSubscriptionCheckout(req, res, next) {
         pendingPlan: plan,
         billingCycle: userDoc.subscription?.billingCycle || "monthly",
         provider: "astropay",
+        additionalBusinesses: effectiveExtra,
+        pendingBusinessNames: businessNames,
         astroPayCheckoutId: checkout.checkoutId ? String(checkout.checkoutId) : null,
         pendingCouponCode: coupon ? coupon.code : null,
         pendingCouponDiscountType: coupon ? coupon.discountType || "percentage" : null,
@@ -794,6 +945,8 @@ export async function publicCreateSubscriptionCheckout(req, res, next) {
       pendingPlan: plan,
       billingCycle: userDoc.subscription?.billingCycle || "monthly",
       provider: "mercadopago",
+      additionalBusinesses: effectiveExtra,
+      pendingBusinessNames: businessNames,
       mercadoPagoPreferenceId: preference.id || null,
       pendingCouponCode: coupon ? coupon.code : null,
       pendingCouponDiscountType: coupon ? coupon.discountType || "percentage" : null,
@@ -817,6 +970,346 @@ export async function publicCreateSubscriptionCheckout(req, res, next) {
       couponDiscountAmountUsdReference: coupon ? Number(coupon.discountAmountUsdReference || 0) : null,
       couponBenefitDurationType: coupon ? coupon.benefitDurationType || "forever" : null,
       couponBenefitDurationValue: coupon ? coupon.benefitDurationValue ?? null : null,
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * Cotización del total real del plan SIN crear pago. Sirve para mostrar en la
+ * web el monto que se va a cobrar (incluido el recargo por locales/negocios
+ * adicionales y el cupón, si corresponde). El cobro real SIEMPRE recalcula el
+ * monto en el server; este endpoint es solo informativo.
+ */
+export async function publicGetSubscriptionQuote(req, res, next) {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const plan = normalizePublicPlan(req.body?.plan);
+    const couponCode = String(req.body?.couponCode || "").trim();
+    const overrideExtra = parseRequestedAdditionalBusinesses(req.body?.additionalBusinesses);
+
+    if (!plan) {
+      return res.status(400).json({ error: "Plan inválido para cotizar." });
+    }
+
+    const pricingDoc = await getOrCreatePlanPricing();
+    const pricing = serializePlanPricing(pricingDoc);
+    const baseArs = Number(pricing?.[plan]?.ars || 0);
+
+    // Si no hay cuenta todavía, igual cotizamos el recargo con la cantidad
+    // pedida en el front para mostrar el total correcto en el checkout.
+    const fallbackAddon = resolveAdditionalBusinessesArs({
+      plan,
+      pricing,
+      subscription: { additionalBusinesses: overrideExtra ?? 0 },
+    });
+    const fallback = {
+      amount: Number((baseArs + Number(fallbackAddon.ars || 0)).toFixed(2)),
+      planAmount: baseArs,
+      baseAmount: baseArs,
+      additionalBusinessesCount: fallbackAddon.count,
+      additionalBusinessesArs: fallbackAddon.ars,
+      additionalBusinessesUsdReference: fallbackAddon.usdReference,
+      couponApplied: null,
+      discountApplied: false,
+    };
+
+    if (!email) {
+      return res.json(fallback);
+    }
+
+    const userDoc = await UserModel.findOne({ email, isActive: true });
+    if (!userDoc) {
+      return res.json(fallback);
+    }
+
+    let coupon = null;
+    if (couponCode) {
+      try {
+        coupon = await findValidSubscriptionCoupon({ couponCode, plan });
+      } catch (_couponError) {
+        coupon = null;
+      }
+    }
+
+    const resolvedPricing = resolvePlanPricingForSubscription({
+      plan,
+      pricing,
+      subscription: userDoc.subscription,
+      couponDiscountType: String(coupon?.discountType || "percentage").trim() || "percentage",
+      couponDiscountPercent: Number(coupon?.discountPercent || 0),
+      couponDiscountAmountUsdReference: Number(coupon?.discountAmountUsdReference || 0),
+    });
+    const addon = resolveAdditionalBusinessesArs({
+      plan,
+      pricing,
+      subscription: {
+        additionalBusinesses:
+          overrideExtra ?? Number(userDoc.subscription?.additionalBusinesses || 0),
+      },
+    });
+    const planAmount = Number(resolvedPricing.effectiveArs || 0);
+    const amount = Number((planAmount + Number(addon.ars || 0)).toFixed(2));
+
+    return res.json({
+      amount,
+      planAmount,
+      baseAmount: Number(resolvedPricing.baseArs || baseArs),
+      additionalBusinessesCount: addon.count,
+      additionalBusinessesArs: addon.ars,
+      additionalBusinessesUsdReference: addon.usdReference,
+      couponApplied: coupon ? coupon.code : null,
+      discountApplied: Boolean(resolvedPricing.discountApplied),
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * Cobro de plan con TARJETA embebida (Mercado Pago Bricks): el cliente carga
+ * la tarjeta en la propia página, sin redirigir a Mercado Pago ni necesitar
+ * cuenta de MP. Es ADICIONAL al checkout por redirect (Checkout Pro), que
+ * sigue disponible como fallback.
+ *
+ * El monto se RECALCULA siempre en el server (nunca se confía en el front) y,
+ * si MP aprueba el pago en el acto, se hace ACTIVACIÓN SINCRÓNICA reutilizando
+ * activateSubscriptionFromApprovedPayment. El webhook queda de respaldo
+ * (idempotente por paymentId).
+ */
+export async function publicCreateSubscriptionPayment(req, res, next) {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const plan = normalizePublicPlan(req.body?.plan);
+    const couponCode = String(req.body?.couponCode || "").trim();
+    const payment =
+      req.body?.payment && typeof req.body.payment === "object" ? req.body.payment : {};
+
+    const token = String(payment.token || "").trim();
+    const paymentMethodId = String(payment.payment_method_id || "").trim();
+    const installments = Math.max(1, Math.trunc(Number(payment.installments) || 1));
+    const issuerId =
+      payment.issuer_id != null && String(payment.issuer_id).trim() !== ""
+        ? String(payment.issuer_id).trim()
+        : null;
+    const payerIdentification =
+      payment.payer && typeof payment.payer === "object"
+        ? payment.payer.identification
+        : null;
+    const requestedExtra = parseRequestedAdditionalBusinesses(req.body?.additionalBusinesses);
+    const businessNames = parseBusinessNames(req.body?.businessNames);
+
+    if (!email || !plan) {
+      return res.status(400).json({
+        error: "Necesitamos el email de la cuenta y un plan válido para generar el pago.",
+      });
+    }
+
+    if (!token || !paymentMethodId) {
+      return res.status(400).json({
+        error: "No recibimos los datos de la tarjeta. Volvé a intentar el pago.",
+      });
+    }
+
+    const userDoc = await UserModel.findOne({ email, isActive: true });
+    if (!userDoc) {
+      return res.status(404).json({
+        error: "No encontramos una cuenta activa con ese email.",
+      });
+    }
+
+    const channelConflict = ensureWebSubscriptionCheckoutAllowed(userDoc);
+    if (channelConflict) {
+      return res.status(channelConflict.status).json(channelConflict.body);
+    }
+
+    const pricingDoc = await getOrCreatePlanPricing();
+    const pricing = serializePlanPricing(pricingDoc);
+    const coupon = couponCode
+      ? await findValidSubscriptionCoupon({ couponCode, plan })
+      : null;
+    const resolvedPricing = resolvePlanPricingForSubscription({
+      plan,
+      pricing,
+      subscription: userDoc.subscription,
+      couponDiscountType: String(coupon?.discountType || "percentage").trim() || "percentage",
+      couponDiscountPercent: Number(coupon?.discountPercent || 0),
+      couponDiscountAmountUsdReference: Number(coupon?.discountAmountUsdReference || 0),
+    });
+    const effectiveExtra =
+      requestedExtra ?? Number(userDoc.subscription?.additionalBusinesses || 0);
+    const additionalBusinessesPricing = resolveAdditionalBusinessesArs({
+      plan,
+      pricing,
+      subscription: { additionalBusinesses: effectiveExtra },
+    });
+    const amount = Number(
+      (Number(resolvedPricing.effectiveArs || 0) +
+        Number(additionalBusinessesPricing.ars || 0)).toFixed(2),
+    );
+
+    const canActivateForFree =
+      Boolean(coupon) &&
+      resolvedPricing.discountApplied &&
+      !(amount > 0) &&
+      Number(resolvedPricing.baseArs || 0) > 0;
+
+    if (!(amount > 0) && canActivateForFree) {
+      const activation = await activateFreeSubscriptionCoupon({
+        userDoc,
+        plan,
+        coupon,
+        pricing,
+        provider: "mercadopago",
+      });
+
+      return res.json({
+        activatedDirectly: true,
+        activationReason: "free_coupon",
+        amount: 0,
+        currencyId: "ARS",
+        discountApplied: true,
+        baseAmount: resolvedPricing.baseArs,
+        couponApplied: coupon.code,
+        couponBenefitDurationType: coupon.benefitDurationType || "forever",
+        couponBenefitDurationValue: coupon.benefitDurationValue ?? null,
+        renewalMode: "manual",
+        startedAt: activation.activatedAt,
+        expiresAt: activation.expiresAt,
+        message:
+          "El cupón dejó el plan bonificado y activamos la cuenta sin pasar por Mercado Pago.",
+      });
+    }
+
+    if (!(amount > 0)) {
+      return res.status(400).json({
+        error: "El plan no tiene un precio configurado.",
+      });
+    }
+
+    const externalReference = `subscription:${userDoc._id.toString()}:${plan}:${Date.now()}`;
+
+    userDoc.subscription = {
+      ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+      pendingPlan: plan,
+      billingCycle: userDoc.subscription?.billingCycle || "monthly",
+      provider: "mercadopago",
+      additionalBusinesses: effectiveExtra,
+      pendingBusinessNames: businessNames,
+      pendingCouponCode: coupon ? coupon.code : null,
+      pendingCouponDiscountType: coupon ? coupon.discountType || "percentage" : null,
+      pendingCouponDiscountPercent: coupon ? Number(coupon.discountPercent || 0) : null,
+      pendingCouponDiscountAmountUsdReference: coupon
+        ? Number(coupon.discountAmountUsdReference || 0)
+        : null,
+      pendingCouponBenefitDurationType: coupon ? coupon.benefitDurationType || "forever" : null,
+      pendingCouponBenefitDurationValue: coupon ? coupon.benefitDurationValue ?? null : null,
+    };
+    await userDoc.save();
+
+    const paymentPayload = {
+      transaction_amount: amount,
+      token,
+      description: `Plan mensual ShiftHub ${plan === "basic" ? "Básico" : "Pro"}`,
+      installments,
+      payment_method_id: paymentMethodId,
+      external_reference: externalReference,
+      notification_url: `${buildMercadoPagoSubscriptionWebhookUrl()}?userId=${userDoc._id.toString()}`,
+      metadata: {
+        user_id: userDoc._id.toString(),
+        plan,
+        billing_cycle: "monthly",
+        subscription_type: "barberapp_plan",
+      },
+      payer: {
+        email: userDoc.email,
+      },
+    };
+
+    if (issuerId) {
+      paymentPayload.issuer_id = issuerId;
+    }
+
+    if (
+      payerIdentification &&
+      typeof payerIdentification === "object" &&
+      payerIdentification.type &&
+      payerIdentification.number
+    ) {
+      paymentPayload.payer.identification = {
+        type: String(payerIdentification.type).trim(),
+        number: String(payerIdentification.number).trim(),
+      };
+    }
+
+    let mpPayment;
+    try {
+      mpPayment = await createMercadoPagoSystemPayment({
+        payload: paymentPayload,
+        idempotencyKey: externalReference,
+      });
+    } catch (mpError) {
+      return res.status(402).json({
+        status: "rejected",
+        error: mpError?.message || "Mercado Pago no pudo procesar el pago.",
+      });
+    }
+
+    const status = String(mpPayment?.status || "").trim();
+    const currentPaymentId = mpPayment?.id ? String(mpPayment.id) : null;
+
+    if (status === "approved") {
+      // Activación sincrónica: activamos la cuenta en el acto, sin depender
+      // del webhook. El webhook queda de respaldo (idempotente por paymentId).
+      try {
+        const { isNew, paidAmount } = await activateSubscriptionFromApprovedPayment({
+          userDoc,
+          plan,
+          payment: mpPayment,
+        });
+
+        if (isNew) {
+          try {
+            await notifySubscriptionActivated({
+              userDoc,
+              plan,
+              amountArs: paidAmount || amount,
+              expiresAt: userDoc.subscription?.expiresAt,
+              renewalMode: userDoc.subscription?.renewalMode || "manual",
+            });
+          } catch (notifyError) {
+            console.error(
+              "Error notificando activación sincrónica del plan:",
+              notifyError?.message || notifyError,
+            );
+          }
+        }
+      } catch (activationError) {
+        // No rompemos la respuesta del pago: el webhook reintenta la activación.
+        console.error(
+          "Error en activación sincrónica (el webhook lo reintentará):",
+          activationError?.message || activationError,
+        );
+      }
+    } else if (currentPaymentId) {
+      // Pago en revisión o rechazado: solo registramos el id, sin activar.
+      userDoc.subscription = {
+        ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+        mercadoPagoPaymentId: currentPaymentId,
+      };
+      await userDoc.save();
+    }
+
+    return res.json({
+      paymentId: currentPaymentId,
+      status,
+      statusDetail: mpPayment?.status_detail || null,
+      amount,
+      currencyId: "ARS",
+      discountApplied: resolvedPricing.discountApplied,
+      baseAmount: resolvedPricing.baseArs,
+      couponApplied: coupon ? coupon.code : null,
     });
   } catch (err) {
     return next(err);
@@ -860,7 +1353,15 @@ export async function publicCreateRecurringSubscriptionCheckout(req, res, next) 
       couponDiscountPercent: Number(coupon?.discountPercent || 0),
       couponDiscountAmountUsdReference: Number(coupon?.discountAmountUsdReference || 0),
     });
-    const amount = Number(resolvedPricing.effectiveArs || 0);
+    const additionalBusinessesPricing = resolveAdditionalBusinessesArs({
+      plan,
+      pricing,
+      subscription: userDoc.subscription,
+    });
+    const amount = Number(
+      (Number(resolvedPricing.effectiveArs || 0) +
+        Number(additionalBusinessesPricing.ars || 0)).toFixed(2),
+    );
 
     const canActivateForFree =
       Boolean(coupon) &&
@@ -974,6 +1475,7 @@ export async function publicListBarbers(req, res, next) {
         dayScheduleOverrides: 1,
         barberClosedDays: 1,
         bookingBufferMinutes: 1,
+        bookingSlotIntervalMinutes: 1,
         barberTimeBlocks: 1,
         workDays: 1,
       })
@@ -1007,6 +1509,68 @@ export async function publicListServices(req, res, next) {
   }
 }
 
+export async function publicValidateBookingCoupon(req, res, next) {
+  try {
+    const shop = await findActiveShop(req.params.shopSlug);
+    if (!shop) return res.status(404).json({ error: "Negocio no encontrado" });
+
+    const coupon = findActiveBookingCoupon(shop, req.body?.code);
+    if (!coupon) {
+      return res.status(404).json({ error: "Cupón inválido o vencido." });
+    }
+
+    const serviceIds = Array.isArray(req.body?.serviceIds)
+      ? [
+          ...new Set(
+            req.body.serviceIds
+              .map((id) => String(id || "").trim())
+              .filter(Boolean),
+          ),
+        ]
+      : [];
+    if (!serviceIds.length) {
+      return res
+        .status(400)
+        .json({ error: "Seleccioná un servicio para aplicar el cupón." });
+    }
+
+    const invalidId = serviceIds.find(
+      (id) => !mongoose.Types.ObjectId.isValid(id),
+    );
+    if (invalidId) {
+      return res.status(400).json({ error: "Servicio inválido." });
+    }
+
+    const ownerId = toObjectId(shop._id);
+    const services = await ServiceModel.find({
+      _id: { $in: serviceIds.map((id) => toObjectId(id)) },
+      owner: ownerId,
+      isActive: true,
+    })
+      .select({ _id: 1, name: 1, price: 1 })
+      .lean();
+
+    if (services.length !== serviceIds.length) {
+      return res
+        .status(400)
+        .json({ error: "Algún servicio seleccionado ya no está disponible." });
+    }
+
+    const byId = new Map(services.map((service) => [String(service._id), service]));
+    const orderedServices = serviceIds.map((id) => byId.get(id)).filter(Boolean);
+    const quote = buildCouponQuote(coupon, orderedServices);
+    if (!quote) {
+      return res.status(400).json({
+        error: "Este cupón no aplica a los servicios seleccionados.",
+      });
+    }
+
+    return res.json({ coupon: quote });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 export async function publicBarberAppointments(req, res, next) {
   try {
     const { barberId, shopSlug } = req.params;
@@ -1034,6 +1598,7 @@ export async function publicBarberAppointments(req, res, next) {
         dayScheduleOverrides: 1,
         barberClosedDays: 1,
         bookingBufferMinutes: 1,
+        bookingSlotIntervalMinutes: 1,
         barberTimeBlocks: 1,
         workDays: 1,
       })
@@ -1103,6 +1668,7 @@ export async function publicCreateAppointment(req, res, next) {
       email,
       paymentMethod,
       servicePrice,
+      couponCode,
     } = req.body;
 
     if (!barberId)
@@ -1125,6 +1691,7 @@ export async function publicCreateAppointment(req, res, next) {
         dayScheduleOverrides: 1,
         barberClosedDays: 1,
         bookingBufferMinutes: 1,
+        bookingSlotIntervalMinutes: 1,
         barberTimeBlocks: 1,
         workDays: 1,
       })
@@ -1138,10 +1705,16 @@ export async function publicCreateAppointment(req, res, next) {
       servicePrice,
       durationMinutes,
       serviceItems,
+      couponCode,
+      shop,
     });
     const normalizedDuration = Number(resolvedServices.totalDuration) || 30;
     const serviceLabel = resolvedServices.serviceLabel;
     const resolvedServicePrice = Number(resolvedServices.totalPrice || 0);
+    const resolvedOriginalPrice = Number(
+      resolvedServices.totalOriginalPrice ?? resolvedServices.totalPrice ?? 0,
+    );
+    const appliedCouponQuote = resolvedServices.couponQuote || null;
     const selectedServiceIds = resolvedServices.items
       .map((item) => String(item.serviceId || ""))
       .filter(Boolean);
@@ -1254,6 +1827,10 @@ export async function publicCreateAppointment(req, res, next) {
       durationMinutes: normalizedDuration,
       bufferAfterMinutesApplied: bufferAfterMinutes,
       servicePrice: resolvedServicePrice,
+      originalServicePrice: resolvedOriginalPrice,
+      couponCode: appliedCouponQuote?.code || null,
+      couponName: appliedCouponQuote?.name || null,
+      couponDiscountAmount: appliedCouponQuote?.totalDiscount || 0,
       amountTotal: resolvedServicePrice,
       amountPaid: 0,
       amountPending: resolvedServicePrice,

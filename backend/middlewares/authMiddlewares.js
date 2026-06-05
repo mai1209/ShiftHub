@@ -1,5 +1,7 @@
 import { verifyAccessToken } from "../token/jwtManager.js";
 import { UserModel } from "../models/User.js";
+import { ShopModel } from "../models/Shop.js";
+import { getRequestedShopId } from "../utils/shopContext.js";
 import { normalizeAppRole, resolveEffectiveOwnerId } from "../utils/userRoles.js";
 import {
   buildFreeSubscriptionPatch,
@@ -73,6 +75,32 @@ export async function requireAuth(req, res, next) {
       shopOwnerId: user.shopOwnerId ? user.shopOwnerId.toString() : null,
       subscription,
     };
+
+    // Multi-local: si el front pide un local concreto (X-Shop-Id) validamos que
+    // pertenezca al dueño y lo dejamos en req.activeShopId para scopear queries.
+    // Si no se pide local, queda sin scope y todo se filtra solo por owner
+    // (comportamiento previo intacto: la app móvil no manda X-Shop-Id).
+    const requestedShopId = getRequestedShopId(req);
+    if (requestedShopId) {
+      const shop = await ShopModel.findOne({
+        _id: requestedShopId,
+        owner: req.user.ownerId,
+        isActive: true,
+      })
+        .select({ _id: 1, slug: 1, name: 1 })
+        .lean();
+
+      if (!shop) {
+        return res.status(403).json({ error: "No tenés acceso a ese negocio." });
+      }
+
+      req.activeShopId = shop._id;
+      req.activeShop = {
+        _id: shop._id.toString(),
+        slug: shop.slug,
+        name: shop.name,
+      };
+    }
 
     return next();
   } catch (err) {

@@ -22,6 +22,7 @@ import {
   PanResponder,
   Linking,
   Modal,
+  TextInput,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -32,7 +33,7 @@ import {
   getUserProfile,
   subscribeToUserProfile,
 } from '../services/authStorage';
-import { hasProPlanAccess, isFreePlan } from '../services/planAccess';
+import { isFreePlan } from '../services/planAccess';
 import ProFeatureModal from '../components/ProFeatureModal';
 import {
   getCurrentUser,
@@ -45,7 +46,6 @@ import {
 } from '../services/api';
 import {
   CheckCircle2,
-  TrendingUp,
   Share2,
   Users,
   Clock,
@@ -53,6 +53,10 @@ import {
   CreditCard,
   Link2,
   CircleDashed,
+  BarChart3,
+  TrendingUp,
+  UserRound,
+  Wallet,
 } from 'lucide-react-native';
 import { PUBLIC_WEB_BASE_URL } from '../utils/publicLinks';
 
@@ -108,10 +112,24 @@ function buildWaitingReminderMessage({
   return `Hola ${customerName}, te escribimos de ${shopName}. No te olvides de tu turno, ya te estamos esperando.`;
 }
 
+function formatAppointmentPrice(value: number) {
+  return `$${Math.max(0, Number(value || 0)).toLocaleString('es-AR')}`;
+}
+
 function getPaymentSnapshot(appointment: Appointment) {
   if (appointment.status === 'completed') {
     if (appointment.paymentStatus === 'unpaid') {
       return { label: 'Sin cobrar', tone: 'neutral' as const };
+    }
+    if (appointment.paymentMethodCollected === 'mixed') {
+      const cash = Number(appointment.cashAmount || 0);
+      const transfer = Number(appointment.transferAmount || 0);
+      return {
+        label: `Pago mixto · Efvo ${formatAppointmentPrice(
+          cash,
+        )} + Transf ${formatAppointmentPrice(transfer)}`,
+        tone: 'transfer' as const,
+      };
     }
     if (appointment.paymentMethodCollected === 'transfer') {
       return {
@@ -164,7 +182,6 @@ function Home({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [hasProAccess, setHasProAccess] = useState(false);
   const [setupSummary, setSetupSummary] = useState({
     loading: true,
     serviceCount: 0,
@@ -174,9 +191,20 @@ function Home({ navigation }: Props) {
     paymentLabel: 'Revisá tus métodos de cobro',
   });
   const [welcomeModalVisible, setWelcomeModalVisible] = useState(false);
+  const [showDataModal, setShowDataModal] = useState(false);
   const [proModalVariant, setProModalVariant] = useState<
     null | 'metrics' | 'history'
   >(null);
+
+  // Modal de cobro (con pago mixto)
+  const [paymentModal, setPaymentModal] = useState<{
+    appointmentId: string;
+    total: number;
+  } | null>(null);
+  const [mixedMode, setMixedMode] = useState(false);
+  const [cashInput, setCashInput] = useState('');
+  const [transferInput, setTransferInput] = useState('');
+  const [savingPayment, setSavingPayment] = useState(false);
 
   const selectedDateRef = useRef(selectedDate);
   const didInitDateEffect = useRef(false);
@@ -414,7 +442,6 @@ function Home({ navigation }: Props) {
       }>();
       if (isMounted && storedUser) {
         if (storedUser?.fullName) setFullName(storedUser.fullName);
-        setHasProAccess(hasProPlanAccess(storedUser));
         const paymentSettings = storedUser?.paymentSettings ?? {};
         const cashEnabled = paymentSettings.cashEnabled !== false;
         const mercadoPagoConnected =
@@ -462,7 +489,6 @@ function Home({ navigation }: Props) {
 
   useEffect(() => {
     return subscribeToUserProfile(user => {
-      setHasProAccess(hasProPlanAccess(user));
       setFullName(user?.fullName || '');
       const paymentSettings = user?.paymentSettings ?? {};
       const cashEnabled = paymentSettings.cashEnabled !== false;
@@ -481,10 +507,6 @@ function Home({ navigation }: Props) {
             : 'Revisá tus métodos de cobro.',
       }));
     });
-  }, []);
-
-  const handleOpenProModal = useCallback((variant: 'metrics' | 'history') => {
-    setProModalVariant(variant);
   }, []);
 
   const handleCloseProModal = useCallback(() => {
@@ -525,7 +547,61 @@ function Home({ navigation }: Props) {
 
   const greetingName = fullName || 'Barbería';
 
-  const handleComplete = async (appointmentId: string) => {
+  const applyPayment = async (
+    appointmentId: string,
+    extras: {
+      paymentMethodCollected?: 'cash' | 'transfer' | 'mixed';
+      paymentStatus?: 'unpaid' | 'partial' | 'paid' | 'refunded';
+      amountPaid?: number;
+      cashAmount?: number;
+      transferAmount?: number;
+    },
+  ) => {
+    try {
+      setSavingPayment(true);
+      await updateAppointmentStatus(appointmentId, 'completed', extras);
+      setPaymentModal(null);
+      await loadData(true, selectedDateRef.current);
+    } catch (err: any) {
+      setError(err?.message ?? 'Error');
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
+  const openPaymentModal = (appointmentId: string) => {
+    const appointment = appointments.find(item => item._id === appointmentId);
+    const totalAmount = Number(
+      appointment?.amountTotal ?? appointment?.servicePrice ?? 0,
+    );
+    setMixedMode(false);
+    setCashInput('');
+    setTransferInput('');
+    setPaymentModal({ appointmentId, total: totalAmount });
+  };
+
+  const confirmMixedPayment = () => {
+    if (!paymentModal) return;
+    const cash = Number(cashInput.replace(',', '.')) || 0;
+    const transfer = Number(transferInput.replace(',', '.')) || 0;
+    const sum = Number((cash + transfer).toFixed(2));
+    if (sum <= 0) {
+      Alert.alert(
+        'Montos inválidos',
+        'Ingresá cuánto se pagó en efectivo y/o transferencia.',
+      );
+      return;
+    }
+    applyPayment(paymentModal.appointmentId, {
+      paymentMethodCollected: 'mixed',
+      paymentStatus: 'paid',
+      amountPaid: sum,
+      cashAmount: cash,
+      transferAmount: transfer,
+    });
+  };
+
+  const handleComplete = (appointmentId: string) => {
     Alert.alert(
       'Finalizar turno',
       '¿Deseas marcar este turno como completado?',
@@ -533,78 +609,7 @@ function Home({ navigation }: Props) {
         { text: 'No', style: 'cancel' },
         {
           text: 'Sí, finalizar',
-          onPress: () => {
-            const appointment = appointments.find(
-              item => item._id === appointmentId,
-            );
-            const totalAmount = Number(
-              appointment?.amountTotal ?? appointment?.servicePrice ?? 0,
-            );
-
-            Alert.alert(
-              '¿Cómo pagó este cliente?',
-              'Esto define las métricas reales del local.',
-              [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                  text: 'Efectivo',
-                  onPress: async () => {
-                    try {
-                      await updateAppointmentStatus(
-                        appointmentId,
-                        'completed',
-                        {
-                          paymentMethodCollected: 'cash',
-                          paymentStatus: 'paid',
-                          amountPaid: totalAmount,
-                        },
-                      );
-                      await loadData(true, selectedDateRef.current);
-                    } catch (err: any) {
-                      setError(err?.message ?? 'Error');
-                    }
-                  },
-                },
-                {
-                  text: 'Transferencia / adelantado',
-                  onPress: async () => {
-                    try {
-                      await updateAppointmentStatus(
-                        appointmentId,
-                        'completed',
-                        {
-                          paymentMethodCollected: 'transfer',
-                          paymentStatus: 'paid',
-                          amountPaid: totalAmount,
-                        },
-                      );
-                      await loadData(true, selectedDateRef.current);
-                    } catch (err: any) {
-                      setError(err?.message ?? 'Error');
-                    }
-                  },
-                },
-                {
-                  text: 'Aún no pagó',
-                  onPress: async () => {
-                    try {
-                      await updateAppointmentStatus(
-                        appointmentId,
-                        'completed',
-                        {
-                          paymentStatus: 'unpaid',
-                          amountPaid: 0,
-                        },
-                      );
-                      await loadData(true, selectedDateRef.current);
-                    } catch (err: any) {
-                      setError(err?.message ?? 'Error');
-                    }
-                  },
-                },
-              ],
-            );
-          },
+          onPress: () => openPaymentModal(appointmentId),
         },
       ],
     );
@@ -839,11 +844,13 @@ function Home({ navigation }: Props) {
           <Text style={styles.welcomeText}>¡Hola,</Text>
           <Text style={styles.nameText}>{greetingName}!</Text>
         </View>
-        <Image
-          source={theme.logo}
-          style={styles.logo as any}
-          resizeMode="contain"
-        />
+        <Pressable
+          style={styles.headerSettingsBtn}
+          onPress={() => setShowDataModal(true)}
+          hitSlop={10}
+        >
+          <BarChart3 size={24} color={theme.textPrimary} />
+        </Pressable>
       </View>
 
       <ScrollView
@@ -933,53 +940,10 @@ function Home({ navigation }: Props) {
           </View>
         ) : null}
 
-        {(!isIOS || hasProAccess) ? (
-          <View style={styles.compactCardsRow}>
-          <Pressable
-            style={[
-              styles.dualCompactCard,
-              !hasProAccess && styles.dualCompactCardLocked,
-            ]}
-            onPress={() =>
-              hasProAccess
-                ? navigation.navigate('Owner-Metrics')
-                : handleOpenProModal('metrics')
-            }
-          >
-            <View style={styles.metricsIconBox}>
-              <TrendingUp size={20} color={theme.primary} />
-            </View>
-            <Text style={styles.metricsTitleCompact}>Métricas</Text>
-            {!hasProAccess ? (
-              <Text style={styles.proBadgeCompact}>PRO</Text>
-            ) : null}
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.dualCompactCard,
-              !hasProAccess && styles.dualCompactCardLocked,
-            ]}
-            onPress={() =>
-              hasProAccess
-                ? navigation.navigate('Customer-History')
-                : handleOpenProModal('history')
-            }
-          >
-            <View style={styles.metricsIconBox}>
-              <Users size={20} color={theme.primary} />
-            </View>
-            <Text style={styles.metricsTitleCompact}>Historial</Text>
-            {!hasProAccess ? (
-              <Text style={styles.proBadgeCompact}>PRO</Text>
-            ) : null}
-          </Pressable>
-          </View>
-        ) : null}
+        {/* Métricas e Historial ahora se acceden desde el botón "Datos" del menú inferior. */}
 
         <View style={styles.section}>
           <View style={styles.agendaTopRow}>
-            <Text style={styles.sectionTitle}>Agenda de turnos</Text>
             {!isToday && (
               <Pressable style={styles.todayButton} onPress={handleGoToToday}>
                 <Text style={styles.todayButtonText}>Volver a hoy</Text>
@@ -1103,6 +1067,242 @@ function Home({ navigation }: Props) {
             </View>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={paymentModal !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPaymentModal(null)}
+      >
+        <Pressable
+          style={styles.pmOverlay}
+          onPress={() => (savingPayment ? null : setPaymentModal(null))}
+        >
+          <Pressable style={styles.pmCard} onPress={() => {}}>
+            <Text style={styles.pmTitle}>¿Cómo pagó este cliente?</Text>
+            <Text style={styles.pmSubtitle}>
+              Total del turno: {formatAppointmentPrice(paymentModal?.total ?? 0)}
+            </Text>
+
+            {!mixedMode ? (
+              <>
+                <Pressable
+                  style={styles.pmOption}
+                  disabled={savingPayment}
+                  onPress={() =>
+                    paymentModal &&
+                    applyPayment(paymentModal.appointmentId, {
+                      paymentMethodCollected: 'cash',
+                      paymentStatus: 'paid',
+                      amountPaid: paymentModal.total,
+                    })
+                  }
+                >
+                  <Text style={styles.pmOptionText}>Efectivo</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.pmOption}
+                  disabled={savingPayment}
+                  onPress={() =>
+                    paymentModal &&
+                    applyPayment(paymentModal.appointmentId, {
+                      paymentMethodCollected: 'transfer',
+                      paymentStatus: 'paid',
+                      amountPaid: paymentModal.total,
+                    })
+                  }
+                >
+                  <Text style={styles.pmOptionText}>
+                    Transferencia / adelantado
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={[styles.pmOption, styles.pmOptionMixed]}
+                  disabled={savingPayment}
+                  onPress={() => {
+                    setMixedMode(true);
+                    setCashInput('');
+                    setTransferInput('');
+                  }}
+                >
+                  <Text style={[styles.pmOptionText, styles.pmOptionTextMixed]}>
+                    Pago mixto (efectivo + transferencia)
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.pmOptionGhost}
+                  disabled={savingPayment}
+                  onPress={() =>
+                    paymentModal &&
+                    applyPayment(paymentModal.appointmentId, {
+                      paymentStatus: 'unpaid',
+                      amountPaid: 0,
+                    })
+                  }
+                >
+                  <Text style={styles.pmOptionGhostText}>Aún no pagó</Text>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <View style={styles.pmInputRow}>
+                  <Text style={styles.pmInputLabel}>Efectivo</Text>
+                  <TextInput
+                    style={styles.pmInput}
+                    placeholder="0"
+                    placeholderTextColor={theme.placeholder}
+                    keyboardType="numeric"
+                    value={cashInput}
+                    onChangeText={setCashInput}
+                  />
+                </View>
+                <View style={styles.pmInputRow}>
+                  <Text style={styles.pmInputLabel}>Transferencia</Text>
+                  <TextInput
+                    style={styles.pmInput}
+                    placeholder="0"
+                    placeholderTextColor={theme.placeholder}
+                    keyboardType="numeric"
+                    value={transferInput}
+                    onChangeText={setTransferInput}
+                  />
+                </View>
+
+                {(() => {
+                  const cash = Number(cashInput.replace(',', '.')) || 0;
+                  const transfer = Number(transferInput.replace(',', '.')) || 0;
+                  const sum = cash + transfer;
+                  const total = paymentModal?.total ?? 0;
+                  const diff = Number((total - sum).toFixed(2));
+                  return (
+                    <View style={styles.pmHintRow}>
+                      <Text style={styles.pmHintText}>
+                        Ingresado: {formatAppointmentPrice(sum)}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.pmHintText,
+                          diff === 0 ? styles.pmHintOk : styles.pmHintWarn,
+                        ]}
+                      >
+                        {diff === 0
+                          ? 'Coincide con el total'
+                          : diff > 0
+                          ? `Falta ${formatAppointmentPrice(diff)}`
+                          : `Sobra ${formatAppointmentPrice(Math.abs(diff))}`}
+                      </Text>
+                    </View>
+                  );
+                })()}
+
+                <Pressable
+                  style={[styles.pmConfirmBtn, savingPayment && { opacity: 0.6 }]}
+                  disabled={savingPayment}
+                  onPress={confirmMixedPayment}
+                >
+                  <Text style={styles.pmConfirmText}>
+                    {savingPayment ? 'Guardando...' : 'Confirmar pago mixto'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={styles.pmBackBtn}
+                  disabled={savingPayment}
+                  onPress={() => setMixedMode(false)}
+                >
+                  <Text style={styles.pmBackText}>Volver</Text>
+                </Pressable>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Modal: Datos del negocio (Métricas / Historial / Caja) */}
+      <Modal
+        visible={showDataModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDataModal(false)}
+      >
+        <Pressable
+          style={styles.dataModalOverlay}
+          onPress={() => setShowDataModal(false)}
+        >
+          <Pressable
+            style={[
+              styles.dataModalSheet,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <Text style={[styles.dataModalTitle, { color: theme.textPrimary }]}>
+              Datos del negocio
+            </Text>
+
+            <Pressable
+              style={[styles.dataModalOption, { borderColor: theme.border }]}
+              onPress={() => {
+                setShowDataModal(false);
+                navigation.navigate('Owner-Metrics');
+              }}
+            >
+              <TrendingUp size={22} color={theme.primary} />
+              <View style={styles.dataModalOptionTextWrap}>
+                <Text
+                  style={[styles.dataModalOptionTitle, { color: theme.textPrimary }]}
+                >
+                  Métricas
+                </Text>
+                <Text style={[styles.dataModalOptionSub, { color: theme.textMuted }]}>
+                  Facturación y turnos
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={[styles.dataModalOption, { borderColor: theme.border }]}
+              onPress={() => {
+                setShowDataModal(false);
+                navigation.navigate('Customer-History');
+              }}
+            >
+              <UserRound size={22} color={theme.primary} />
+              <View style={styles.dataModalOptionTextWrap}>
+                <Text
+                  style={[styles.dataModalOptionTitle, { color: theme.textPrimary }]}
+                >
+                  Historial
+                </Text>
+                <Text style={[styles.dataModalOptionSub, { color: theme.textMuted }]}>
+                  Servicios y clientes
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={[styles.dataModalOption, { borderColor: theme.border }]}
+              onPress={() => {
+                setShowDataModal(false);
+                navigation.navigate('Caja');
+              }}
+            >
+              <Wallet size={22} color={theme.primary} />
+              <View style={styles.dataModalOptionTextWrap}>
+                <Text
+                  style={[styles.dataModalOptionTitle, { color: theme.textPrimary }]}
+                >
+                  Caja
+                </Text>
+                <Text style={[styles.dataModalOptionSub, { color: theme.textMuted }]}>
+                  Ingresos, egresos y ganancia
+                </Text>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -1633,6 +1833,147 @@ const createStyles = (theme: Theme) =>
     emptyTitle: { color: theme.textMuted, fontSize: 14, fontWeight: '600' },
     errorText: { color: '#ff7b7b', textAlign: 'center', marginBottom: 10 },
     logo: { width: 42, height: 42 },
+    headerSettingsBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+
+    // Modal de cobro (pago mixto)
+    pmOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+    },
+    pmCard: {
+      backgroundColor: theme.card,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 20,
+      gap: 10,
+    },
+    pmTitle: { color: theme.textPrimary, fontSize: 18, fontWeight: '800' },
+    pmSubtitle: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      fontWeight: '600',
+      marginBottom: 6,
+    },
+    pmOption: {
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 14,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    pmOptionText: {
+      color: theme.textPrimary,
+      fontSize: 15,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    pmOptionMixed: {
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+      borderColor: theme.primary,
+    },
+    pmOptionTextMixed: { color: theme.primary },
+    pmOptionGhost: { paddingVertical: 12, alignItems: 'center', marginTop: 2 },
+    pmOptionGhostText: {
+      color: theme.textMuted,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    pmInputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    pmInputLabel: { color: theme.textPrimary, fontSize: 15, fontWeight: '700' },
+    pmInput: {
+      flex: 1,
+      maxWidth: 160,
+      backgroundColor: theme.input,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      color: theme.textPrimary,
+      fontSize: 16,
+      fontWeight: '700',
+      textAlign: 'right',
+    },
+    pmHintRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 4,
+      marginBottom: 6,
+    },
+    pmHintText: { color: theme.textMuted, fontSize: 13, fontWeight: '600' },
+    pmHintOk: { color: '#16a34a' },
+    pmHintWarn: { color: theme.primary },
+    pmConfirmBtn: {
+      paddingVertical: 14,
+      borderRadius: 14,
+      backgroundColor: theme.primary,
+      alignItems: 'center',
+    },
+    pmConfirmText: {
+      color: theme.textOnPrimary,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    pmBackBtn: { paddingVertical: 10, alignItems: 'center' },
+    pmBackText: { color: theme.textMuted, fontSize: 14, fontWeight: '600' },
+
+    // Modal: Datos del negocio (Métricas / Historial / Caja)
+    dataModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      justifyContent: 'flex-end',
+      padding: 18,
+      paddingBottom: Platform.OS === 'ios' ? 40 : 28,
+    },
+    dataModalSheet: {
+      borderRadius: 24,
+      borderWidth: 1,
+      padding: 18,
+      gap: 12,
+    },
+    dataModalTitle: {
+      fontSize: 17,
+      fontWeight: '800',
+      marginBottom: 4,
+    },
+    dataModalOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      borderWidth: 1,
+      borderRadius: 16,
+      padding: 16,
+    },
+    dataModalOptionTextWrap: {
+      flex: 1,
+    },
+    dataModalOptionTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    dataModalOptionSub: {
+      fontSize: 12.5,
+      marginTop: 2,
+    },
   });
 
 export default Home;

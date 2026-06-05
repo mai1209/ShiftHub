@@ -8,6 +8,13 @@ const appointmentSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // Local/sucursal (multi-local). Opcional para compatibilidad con datos previos.
+    shop: {
+      type: mongoose.Types.ObjectId,
+      ref: "Shop",
+      default: null,
+      index: true,
+    },
     barber: {
       type: mongoose.Types.ObjectId,
       ref: "Barber",
@@ -81,6 +88,26 @@ const appointmentSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    originalServicePrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    couponCode: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    couponName: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    couponDiscountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     notes: {
       type: String,
       trim: true,
@@ -93,8 +120,18 @@ const appointmentSchema = new mongoose.Schema(
     },
     paymentMethodCollected: {
       type: String,
-      enum: ["cash", "transfer", null],
+      enum: ["cash", "transfer", "mixed", null],
       default: null,
+    },
+    cashAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    transferAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     paymentStatus: {
       type: String,

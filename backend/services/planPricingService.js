@@ -5,6 +5,8 @@ const DEFAULT_PRICING_VALUES = {
   basicPriceUsdReference: 25,
   proPriceArs: 35000,
   proPriceUsdReference: 35,
+  additionalBusinessPriceArs: 10000,
+  additionalBusinessPriceUsdReference: 10,
 };
 
 export function serializePlanPricing(doc) {
@@ -25,6 +27,16 @@ export function serializePlanPricing(doc) {
     custom: {
       ars: null,
       usdReference: null,
+    },
+    additionalBusiness: {
+      ars: Number(
+        source.additionalBusinessPriceArs ??
+          DEFAULT_PRICING_VALUES.additionalBusinessPriceArs,
+      ),
+      usdReference: Number(
+        source.additionalBusinessPriceUsdReference ??
+          DEFAULT_PRICING_VALUES.additionalBusinessPriceUsdReference,
+      ),
     },
     updatedAt: source.updatedAt ?? null,
   };

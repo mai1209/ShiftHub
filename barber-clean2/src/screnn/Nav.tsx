@@ -1,5 +1,5 @@
 // NAV.tsx
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -7,8 +7,15 @@ import {
   View,
   Animated,
   Platform,
+  Modal,
 } from 'react-native';
-import { House, Plus, UserRound, Settings } from 'lucide-react-native';
+import {
+  Plus,
+  UserRound,
+  Settings,
+  Clock,
+  CalendarDays,
+} from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
 import type { AppRole } from '../services/subscriptionAccess';
@@ -18,7 +25,7 @@ type MainRoute = 'Home' | 'Barber-Home' | 'List-Barber' | 'Reservas' | 'Settings
 type Props = {
   currentRouteName?: string;
   role?: AppRole;
-  onNavigate: (routeName: any) => void;
+  onNavigate: (routeName: any, params?: any) => void;
 };
 
 const HIDDEN_ROUTES = new Set([
@@ -135,6 +142,7 @@ const NavButton = ({
 
 function Nav({ currentRouteName, role = 'admin', onNavigate }: Props) {
   const { theme, businessCopy } = useTheme();
+  const [showNewTurnModal, setShowNewTurnModal] = useState(false);
 
   if (!currentRouteName || HIDDEN_ROUTES.has(currentRouteName)) {
     return null;
@@ -173,14 +181,14 @@ function Nav({ currentRouteName, role = 'admin', onNavigate }: Props) {
               <NavButton
                 isActive={activeRoute === 'Home'}
                 onPress={() => onNavigate('Home')}
-                label="Inicio"
-                Icon={House}
+                label="Agenda"
+                Icon={CalendarDays}
                 theme={theme}
               />
 
               <NavButton
                 isActive={activeRoute === 'Reservas'}
-                onPress={() => onNavigate('Reservas')}
+                onPress={() => setShowNewTurnModal(true)}
                 label="Nuevo Turno"
                 Icon={Plus}
                 theme={theme}
@@ -210,6 +218,71 @@ function Nav({ currentRouteName, role = 'admin', onNavigate }: Props) {
           {businessCopy.brandName} by CODEX®
         </Text>
       </View>
+
+      {/* Modal: elegir cómo cargar el turno (con horario u orden de llegada) */}
+      <Modal
+        visible={showNewTurnModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNewTurnModal(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowNewTurnModal(false)}
+        >
+          <Pressable
+            style={[
+              styles.modalSheet,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>
+              ¿Qué querés cargar?
+            </Text>
+
+            <Pressable
+              style={[styles.modalOption, { borderColor: theme.border }]}
+              onPress={() => {
+                setShowNewTurnModal(false);
+                onNavigate('Reservas', { walkin: true });
+              }}
+            >
+              <Clock size={22} color={theme.primary} />
+              <View style={styles.modalOptionTextWrap}>
+                <Text
+                  style={[styles.modalOptionTitle, { color: theme.textPrimary }]}
+                >
+                  Orden de llegada
+                </Text>
+                <Text style={[styles.modalOptionSub, { color: theme.textMuted }]}>
+                  Cliente que llegó ahora — carga rápida
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={[styles.modalOption, { borderColor: theme.border }]}
+              onPress={() => {
+                setShowNewTurnModal(false);
+                onNavigate('Reservas');
+              }}
+            >
+              <CalendarDays size={22} color={theme.primary} />
+              <View style={styles.modalOptionTextWrap}>
+                <Text
+                  style={[styles.modalOptionTitle, { color: theme.textPrimary }]}
+                >
+                  Turno con horario
+                </Text>
+                <Text style={[styles.modalOptionSub, { color: theme.textMuted }]}>
+                  Elegí fecha y horario disponible
+                </Text>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
     </View>
   );
 }
@@ -259,6 +332,43 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 2,
     textTransform: 'uppercase',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+    padding: 18,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 28,
+  },
+  modalSheet: {
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 18,
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+  },
+  modalOptionTextWrap: {
+    flex: 1,
+  },
+  modalOptionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  modalOptionSub: {
+    fontSize: 12.5,
+    marginTop: 2,
   },
 });
 

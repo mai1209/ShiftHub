@@ -39,6 +39,7 @@ function Register({ navigation }: any) {
   const { applyUserTheme } = useTheme();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [businessType, setBusinessType] = useState<BusinessType>('beauty_center');
@@ -59,7 +60,7 @@ function Register({ navigation }: any) {
   const handleRegister = async () => {
     if (loading) return;
 
-    if (!fullName || !email || !password || !confirmPassword) {
+    if (!fullName || !email || !phone || !password || !confirmPassword) {
       setError('Completa todos los campos');
       return;
     }
@@ -73,7 +74,13 @@ function Register({ navigation }: any) {
       setLoading(true);
       setError('');
 
-      const response = await registerUser({ fullName, email, password, businessType });
+      const response = await registerUser({
+        fullName,
+        email,
+        phone,
+        password,
+        businessType,
+      });
       if (response?.token) {
         await saveToken(response.token);
       }
@@ -161,6 +168,24 @@ function Register({ navigation }: any) {
                 value={email}
                 onChangeText={setEmail}
                 onFocus={() => setFocusedField('email')}
+                onBlur={() => setFocusedField(null)}
+              />
+            </View>
+
+            {/* Teléfono */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Teléfono</Text>
+              <TextInput
+                style={[
+                  styles.input,
+                  focusedField === 'phone' && styles.inputFocused,
+                ]}
+                placeholder="Ej: 11 2345 6789"
+                placeholderTextColor="#555"
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={setPhone}
+                onFocus={() => setFocusedField('phone')}
                 onBlur={() => setFocusedField(null)}
               />
             </View>

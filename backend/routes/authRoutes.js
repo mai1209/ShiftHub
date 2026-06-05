@@ -14,6 +14,8 @@ import {
   handleMercadoPagoOAuthCallback,
   loginUser,
   listSubscriptionCouponsAdmin,
+  listOwnShops,
+  createOwnShop,
   requestPasswordRecovery,
   requestAccountDeletion,
   registerUser,
@@ -60,6 +62,8 @@ router.get("/subscription/lifecycle/run", runSubscriptionLifecycle);
 router.post("/subscription/lifecycle/run", runSubscriptionLifecycle);
 router.get("/mail-debug", requireAuth, getMailDebug);
 router.get("/me", requireAuth, getCurrentUser);
+router.get("/shops", requireAuth, listOwnShops);
+router.post("/shops", requireAuth, requireAdminRole, createOwnShop);
 router.get("/mercadopago/status", requireAuth, requireActiveSubscription, getMercadoPagoConnectionStatus);
 router.get("/mercadopago/connect", requireAuth, requireActiveSubscription, getMercadoPagoConnectUrl);
 router.delete("/mercadopago/connect", requireAuth, requireActiveSubscription, disconnectMercadoPago);

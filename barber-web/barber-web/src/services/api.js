@@ -128,6 +128,13 @@ export async function fetchServices() {
   return request(buildShopPath('/services'));
 }
 
+export async function validateBookingCoupon(payload) {
+  return request(buildShopPath('/coupons/validate'), {
+    method: 'POST',
+    body: payload,
+  });
+}
+
 // En tu api.js
 export async function fetchBarberAppointments(barberId, date) {
   // Verificá que date sea "YYYY-MM-DD"
@@ -168,6 +175,20 @@ export async function fetchPlanPricing() {
 
 export async function createPublicSubscriptionCheckout(payload) {
   return request('/subscriptions/checkout', {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+export async function createPublicSubscriptionPayment(payload) {
+  return request('/subscriptions/payment', {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+export async function fetchPublicSubscriptionQuote(payload) {
+  return request('/subscriptions/quote', {
     method: 'POST',
     body: payload,
   });

@@ -31,7 +31,7 @@ import {
 } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
-import { Pencil, Trash2 } from 'lucide-react-native';
+import { Pencil, Trash2, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import ProFeatureModal from '../components/ProFeatureModal';
 import { isFreePlan } from '../services/planAccess';
@@ -99,6 +99,7 @@ function ListBarber({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [accessFilter, setAccessFilter] = useState<AccessFilter>('all');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
   const openedSwipeableIdRef = useRef<string | null>(null);
@@ -254,13 +255,15 @@ function ListBarber({ navigation }: Props) {
           }
         >
           <View style={styles.header}>
+            <View style={styles.headerText}>
+              <Text style={[styles.headerSubtitle, { color: theme.primary }]}>
+                EQUIPO PROFESIONAL
+              </Text>
+              <Text style={styles.headerTitle}>
+                {businessCopy.staffPluralCapitalized}
+              </Text>
+            </View>
             <Image style={styles.logo} source={theme.logo} />
-            <Text style={[styles.headerSubtitle, { color: theme.primary }]}>
-              EQUIPO PROFESIONAL
-            </Text>
-            <Text style={styles.headerTitle}>
-              {businessCopy.staffPluralCapitalized}
-            </Text>
           </View>
 
           <View style={styles.mainCard}>
@@ -357,6 +360,7 @@ function ListBarber({ navigation }: Props) {
                 ) : (
                   filteredBarbers.map(barber => {
                     const accessStatus = resolveAccessStatus(barber);
+                    const isExpanded = expandedId === barber._id;
 
                     return (
                       <Swipeable
@@ -376,73 +380,94 @@ function ListBarber({ navigation }: Props) {
                       >
                         <View style={styles.barberItem}>
                           <View style={styles.barberMainAction}>
-                            <View style={styles.barberInfo}>
-                              <View style={styles.avatarCircle}>
-                                {barber.photoUrl ? (
-                                  <Image
-                                    source={{ uri: barber.photoUrl }}
-                                    style={styles.avatarImage}
-                                  />
-                                ) : (
-                                  <Text style={styles.avatarText}>
-                                    {barber.fullName.charAt(0).toUpperCase()}
+                            <Pressable
+                              style={styles.barberHeaderRow}
+                              onPress={() =>
+                                setExpandedId(prev =>
+                                  prev === barber._id ? null : barber._id,
+                                )
+                              }
+                            >
+                              <View style={styles.barberInfo}>
+                                <View style={styles.avatarCircle}>
+                                  {barber.photoUrl ? (
+                                    <Image
+                                      source={{ uri: barber.photoUrl }}
+                                      style={styles.avatarImage}
+                                    />
+                                  ) : (
+                                    <Text style={styles.avatarText}>
+                                      {barber.fullName.charAt(0).toUpperCase()}
+                                    </Text>
+                                  )}
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Text
+                                    style={styles.barberName}
+                                    numberOfLines={1}
+                                  >
+                                    {barber.fullName}
                                   </Text>
+                                  <View style={styles.accessMetaRow}>
+                                    <View
+                                      style={[
+                                        styles.statusBadge,
+                                        accessStatus.variant === 'active'
+                                          ? styles.statusBadgeActive
+                                          : accessStatus.variant === 'pending'
+                                          ? styles.statusBadgePending
+                                          : styles.statusBadgeDisabled,
+                                      ]}
+                                    >
+                                      <Text
+                                        style={[
+                                          styles.statusBadgeText,
+                                          accessStatus.variant === 'active'
+                                            ? styles.statusBadgeTextActive
+                                            : accessStatus.variant === 'pending'
+                                            ? styles.statusBadgeTextPending
+                                            : styles.statusBadgeTextDisabled,
+                                        ]}
+                                      >
+                                        {accessStatus.label}
+                                      </Text>
+                                    </View>
+                                  </View>
+                                </View>
+                                {isExpanded ? (
+                                  <ChevronUp size={20} color={theme.textMuted} />
+                                ) : (
+                                  <ChevronDown
+                                    size={20}
+                                    color={theme.textMuted}
+                                  />
                                 )}
                               </View>
-                              <View style={{ flex: 1 }}>
-                                <Text
-                                  style={styles.barberName}
-                                  numberOfLines={1}
+                            </Pressable>
+
+                            {isExpanded ? (
+                              <View style={styles.barberExpanded}>
+                                <View
+                                  style={[
+                                    styles.accessChip,
+                                    barber.loginAccess?.enabled
+                                      ? styles.accessChipEnabled
+                                      : styles.accessChipDisabled,
+                                  ]}
                                 >
-                                  {barber.fullName}
-                                </Text>
-                                <View style={styles.accessMetaRow}>
-                                  <View
+                                  <Text
                                     style={[
-                                      styles.statusBadge,
-                                      accessStatus.variant === 'active'
-                                        ? styles.statusBadgeActive
-                                        : accessStatus.variant === 'pending'
-                                        ? styles.statusBadgePending
-                                        : styles.statusBadgeDisabled,
-                                    ]}
-                                  >
-                                    <Text
-                                      style={[
-                                        styles.statusBadgeText,
-                                        accessStatus.variant === 'active'
-                                          ? styles.statusBadgeTextActive
-                                          : accessStatus.variant === 'pending'
-                                          ? styles.statusBadgeTextPending
-                                          : styles.statusBadgeTextDisabled,
-                                      ]}
-                                    >
-                                      {accessStatus.label}
-                                    </Text>
-                                  </View>
-                                  <View
-                                    style={[
-                                      styles.accessChip,
+                                      styles.accessChipText,
                                       barber.loginAccess?.enabled
-                                        ? styles.accessChipEnabled
-                                        : styles.accessChipDisabled,
+                                        ? styles.accessChipTextEnabled
+                                        : styles.accessChipTextDisabled,
                                     ]}
+                                    numberOfLines={1}
                                   >
-                                    <Text
-                                      style={[
-                                        styles.accessChipText,
-                                        barber.loginAccess?.enabled
-                                          ? styles.accessChipTextEnabled
-                                          : styles.accessChipTextDisabled,
-                                      ]}
-                                      numberOfLines={1}
-                                    >
-                                      {barber.loginAccess?.enabled
-                                        ? barber.loginAccess?.email ||
-                                          'Con acceso'
-                                        : 'Sin credenciales'}
-                                    </Text>
-                                  </View>
+                                    {barber.loginAccess?.enabled
+                                      ? barber.loginAccess?.email || 'Con acceso'
+                                      : 'Sin credenciales de acceso'}
+                                  </Text>
                                 </View>
                                 {barber.loginAccess?.enabled ? (
                                   <Text style={styles.lastAccessText}>
@@ -463,60 +488,65 @@ function ListBarber({ navigation }: Props) {
                                         .join(' · ') || 'Servicios asignados'
                                     : 'Atiende todos los servicios'}
                                 </Text>
+
+                                <View style={styles.barberActions}>
+                                  <Pressable
+                                    style={({ pressed }) => [
+                                      barber.loginAccess?.enabled
+                                        ? styles.accessActionBtn
+                                        : styles.accessActionBtnPrimary,
+                                      { opacity: pressed ? 0.7 : 1 },
+                                    ]}
+                                    onPress={() => handleManageAccess(barber)}
+                                  >
+                                    <Text
+                                      style={
+                                        barber.loginAccess?.enabled
+                                          ? styles.accessActionBtnText
+                                          : styles.accessActionBtnPrimaryText
+                                      }
+                                    >
+                                      {barber.loginAccess?.enabled
+                                        ? 'Gestionar acceso'
+                                        : 'Crear acceso'}
+                                    </Text>
+                                  </Pressable>
+
+                                  <View style={styles.secondaryActionsRow}>
+                                    <Pressable
+                                      style={({ pressed }) => [
+                                        styles.editBtn,
+                                        { opacity: pressed ? 0.5 : 1 },
+                                      ]}
+                                      onPress={() => handleEditBarber(barber)}
+                                    >
+                                      <Pencil
+                                        size={12}
+                                        color={theme.textMuted}
+                                      />
+                                      <Text style={styles.editBtnText}>
+                                        Editar
+                                      </Text>
+                                    </Pressable>
+
+                                    <Pressable
+                                      style={({ pressed }) => [
+                                        styles.openBtn,
+                                        pressed && {
+                                          transform: [{ scale: 0.96 }],
+                                          opacity: 0.9,
+                                        },
+                                      ]}
+                                      onPress={() => handleOpenBarber(barber)}
+                                    >
+                                      <Text style={styles.openBtnText}>
+                                        Abrir panel
+                                      </Text>
+                                    </Pressable>
+                                  </View>
+                                </View>
                               </View>
-                            </View>
-
-                            <View style={styles.barberActions}>
-                              <Pressable
-                                style={({ pressed }) => [
-                                  barber.loginAccess?.enabled
-                                    ? styles.accessActionBtn
-                                    : styles.accessActionBtnPrimary,
-                                  { opacity: pressed ? 0.7 : 1 },
-                                ]}
-                                onPress={() => handleManageAccess(barber)}
-                              >
-                                <Text
-                                  style={
-                                    barber.loginAccess?.enabled
-                                      ? styles.accessActionBtnText
-                                      : styles.accessActionBtnPrimaryText
-                                  }
-                                >
-                                  {barber.loginAccess?.enabled
-                                    ? 'Gestionar acceso'
-                                    : 'Crear acceso'}
-                                </Text>
-                              </Pressable>
-
-                              <View style={styles.secondaryActionsRow}>
-                                <Pressable
-                                  style={({ pressed }) => [
-                                    styles.editBtn,
-                                    { opacity: pressed ? 0.5 : 1 },
-                                  ]}
-                                  onPress={() => handleEditBarber(barber)}
-                                >
-                                  <Pencil size={12} color={theme.textMuted} />
-                                  <Text style={styles.editBtnText}>Editar</Text>
-                                </Pressable>
-
-                                <Pressable
-                                  style={({ pressed }) => [
-                                    styles.openBtn,
-                                    pressed && {
-                                      transform: [{ scale: 0.96 }],
-                                      opacity: 0.9,
-                                    },
-                                  ]}
-                                  onPress={() => handleOpenBarber(barber)}
-                                >
-                                  <Text style={styles.openBtnText}>
-                                    Abrir panel
-                                  </Text>
-                                </Pressable>
-                              </View>
-                            </View>
+                            ) : null}
                           </View>
                         </View>
                       </Swipeable>
@@ -547,10 +577,15 @@ const createStyles = (theme: Theme) =>
     header: {
       marginTop: Platform.OS === 'ios' ? 60 : 20,
       paddingHorizontal: 25,
+      flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'space-between',
       marginBottom: 20,
     },
-    logo: { width: 50, height: 50, marginBottom: 15, resizeMode: 'contain' },
+    headerText: {
+      flex: 1,
+    },
+    logo: { width: 46, height: 46, resizeMode: 'contain' },
     headerSubtitle: {
       color: theme.primary,
       fontSize: 12,
@@ -643,10 +678,20 @@ const createStyles = (theme: Theme) =>
       padding: 14,
       gap: 14,
     },
+    barberHeaderRow: {
+      width: '100%',
+    },
     barberInfo: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       gap: 12,
+    },
+    barberExpanded: {
+      marginTop: 12,
+      paddingTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+      gap: 10,
     },
     barberActions: {
       gap: 10,

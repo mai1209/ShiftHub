@@ -8,6 +8,13 @@ const barberSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // Local/sucursal (multi-local). Opcional para compatibilidad con datos previos.
+    shop: {
+      type: mongoose.Types.ObjectId,
+      ref: "Shop",
+      default: null,
+      index: true,
+    },
     fullName: {
       type: String,
       required: true,
@@ -80,6 +87,18 @@ const barberSchema = new mongoose.Schema(
       default: 0,
       min: 0,
       max: 120,
+    },
+    bookingSlotIntervalMinutes: {
+      type: Number,
+      enum: [15, 30],
+      default: 15,
+    },
+    // Comisión del profesional (% del cobro que se lleva; el resto es del local).
+    commissionPercent: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
     },
     barberTimeBlocks: {
       type: [

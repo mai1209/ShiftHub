@@ -33,7 +33,10 @@ import { resolveUserRole } from '../services/subscriptionAccess';
 
 const hexToRgba = (hex: string, alpha: number) => {
   const sanitized = hex.replace('#', '');
-  const bigint = parseInt(sanitized.length === 3 ? sanitized.repeat(2) : sanitized, 16);
+  const bigint = parseInt(
+    sanitized.length === 3 ? sanitized.repeat(2) : sanitized,
+    16,
+  );
   const r = (bigint >> 16) & 255;
   const g = (bigint >> 8) & 255;
   const b = bigint & 255;
@@ -48,7 +51,7 @@ const formatPrice = (value?: number) =>
   }).format(Number(value || 0));
 
 const SHOP_TZ = 'America/Argentina/Cordoba';
-const SLOT_INTERVAL_MINUTES = 15;
+const DEFAULT_SLOT_INTERVAL_MINUTES = 15;
 
 function formatTimeInShopTZ(value: string | number | Date): string {
   const parts = new Intl.DateTimeFormat('es-AR', {
@@ -83,7 +86,8 @@ function getOffsetMinutesInShopTZ(date: Date): number {
     minute: '2-digit',
   }).formatToParts(date);
 
-  const offsetText = parts.find(part => part.type === 'timeZoneName')?.value ?? 'GMT';
+  const offsetText =
+    parts.find(part => part.type === 'timeZoneName')?.value ?? 'GMT';
   const match = offsetText.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/);
 
   if (!match) return 0;
@@ -143,11 +147,18 @@ function getWeekdayInShopTZ(value: string | number | Date): number {
   return map[weekday] ?? new Date(value).getDay();
 }
 
-function buildIsoFromShopDateAndTime(dateValue: Date, slotLabel: string): string {
-  const [year, month, day] = formatDateInShopTZ(dateValue).split('-').map(Number);
+function buildIsoFromShopDateAndTime(
+  dateValue: Date,
+  slotLabel: string,
+): string {
+  const [year, month, day] = formatDateInShopTZ(dateValue)
+    .split('-')
+    .map(Number);
   const [hour, minute] = slotLabel.split(':').map(Number);
   const startUtcGuess = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
-  const offsetMinutes = getReliableOffsetMinutesInShopTZ(new Date(startUtcGuess));
+  const offsetMinutes = getReliableOffsetMinutesInShopTZ(
+    new Date(startUtcGuess),
+  );
   return new Date(startUtcGuess - offsetMinutes * 60_000).toISOString();
 }
 
@@ -197,18 +208,19 @@ function getPaymentOptions(settings?: PaymentSettings | null): PaymentOption[] {
     options.push({
       value: 'cash',
       label: 'Cobro en el local',
-      helper: 'Las reservas cargadas desde la app se cobran presencialmente en el local.',
+      helper:
+        'Las reservas cargadas desde la app se cobran presencialmente en el local.',
     });
   }
 
   return options;
 }
 
-function normalizeScheduleRanges(input?: ResolvedBarberSchedule['scheduleRanges']) {
+function normalizeScheduleRanges(
+  input?: ResolvedBarberSchedule['scheduleRanges'],
+) {
   if (!Array.isArray(input)) return [];
-  return input.filter(
-    item => item?.start?.trim() && item?.end?.trim(),
-  );
+  return input.filter(item => item?.start?.trim() && item?.end?.trim());
 }
 
 function normalizeOverrideValidFrom(value?: string | null) {
@@ -245,7 +257,9 @@ function resolveBarberScheduleForDate(
 
     const scheduleRanges = normalizeScheduleRanges(override.scheduleRanges);
     return {
-      scheduleRange: scheduleRanges.length ? null : override.scheduleRange ?? null,
+      scheduleRange: scheduleRanges.length
+        ? null
+        : override.scheduleRange ?? null,
       scheduleRanges,
     };
   }
@@ -260,6 +274,8 @@ function ReservasForm({ navigation, route }: any) {
   const { theme, businessCopy } = useTheme();
   const routeBarberId = route?.params?.barberId ?? null;
   const routeLockBarber = Boolean(route?.params?.lockBarber);
+  // Orden de llegada: el turno se carga "ahora" sin elegir fecha/horario.
+  const isWalkin = Boolean(route?.params?.walkin);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
@@ -268,15 +284,21 @@ function ReservasForm({ navigation, route }: any) {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [selectedBarber, setSelectedBarber] = useState<string | null>(null);
   const [services, setServices] = useState<ServiceOption[]>([]);
-  const [selectedService, setSelectedService] = useState<ServiceOption | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [selectedService, setSelectedService] = useState<ServiceOption | null>(
+    null,
+  );
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
+    null,
+  );
   const [paymentOptions, setPaymentOptions] = useState<PaymentOption[]>([]);
   const [servicePickerVisible, setServicePickerVisible] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [occupiedRanges, setOccupiedRanges] = useState<OccupiedRange[]>([]);
-  const [barberTimeBlocks, setBarberTimeBlocks] = useState<BarberTimeBlock[]>([]);
+  const [barberTimeBlocks, setBarberTimeBlocks] = useState<BarberTimeBlock[]>(
+    [],
+  );
   const [selectedBarberSchedule, setSelectedBarberSchedule] =
     useState<ResolvedBarberSchedule | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -304,7 +326,10 @@ function ReservasForm({ navigation, route }: any) {
         const [resS, barberResponse, resB] = await Promise.all([
           fetchServices(),
           nextIsBarberUser && ownBarberId
-            ? fetchBarberAppointments(ownBarberId, formatDateInShopTZ(new Date())).catch(() => null)
+            ? fetchBarberAppointments(
+                ownBarberId,
+                formatDateInShopTZ(new Date()),
+              ).catch(() => null)
             : Promise.resolve(null),
           !nextIsBarberUser ? fetchBarbers() : Promise.resolve(null),
         ]);
@@ -326,6 +351,7 @@ function ReservasForm({ navigation, route }: any) {
 
         const paymentSettings =
           currentUserRes?.user?.paymentSettings ??
+          barberResponse?.shopSettings?.paymentSettings ??
           storedUser?.paymentSettings ??
           null;
         const nextOptions = getPaymentOptions(paymentSettings);
@@ -350,9 +376,9 @@ function ReservasForm({ navigation, route }: any) {
           ? res.shopClosure.message ||
             'Este día el local permanecerá cerrado. Elegí otro turno disponible.'
           : res.barberClosure?.isClosed
-            ? res.barberClosure.message ||
-              'Este barbero no atenderá ese día. Elegí otro profesional o seleccioná otra fecha.'
-            : '';
+          ? res.barberClosure.message ||
+            'Este barbero no atenderá ese día. Elegí otro profesional o seleccioná otra fecha.'
+          : '';
         setClosedDayNotice(closureMessage);
         const busyRanges: OccupiedRange[] = [];
         res.appointments.forEach(a => {
@@ -403,11 +429,15 @@ function ReservasForm({ navigation, route }: any) {
     if (!selectedService?._id) return barbers;
     return barbers.filter(barber => {
       const serviceIds = (barber.serviceIds || []).map(String);
-      return serviceIds.length === 0 || serviceIds.includes(selectedService._id);
+      return (
+        serviceIds.length === 0 || serviceIds.includes(selectedService._id)
+      );
     });
   }, [barbers, selectedService]);
 
-  const visibleBarbers = isBarberSelectionLocked ? barbers : barbersForSelectedService;
+  const visibleBarbers = isBarberSelectionLocked
+    ? barbers
+    : barbersForSelectedService;
 
   useEffect(() => {
     if (isBarberSelectionLocked) return;
@@ -452,11 +482,20 @@ function ReservasForm({ navigation, route }: any) {
     [selectedBarberData, selectedService],
   );
 
+  // El intervalo de turnos es por empleado/recurso (Barber.bookingSlotIntervalMinutes).
+  const bookingSlotIntervalMinutes = useMemo<15 | 30>(
+    () =>
+      Number(selectedBarberData?.bookingSlotIntervalMinutes) === 30
+        ? 30
+        : DEFAULT_SLOT_INTERVAL_MINUTES,
+    [selectedBarberData],
+  );
+
   // Genera grupos de slots — soporta horario corrido y turno cortado
   const horarioGroups = useMemo((): SlotGroup[] => {
     if (!isWorkDay || !selectedBarberData) return [];
 
-    const step = SLOT_INTERVAL_MINUTES;
+    const step = bookingSlotIntervalMinutes;
 
     const buildSlots = (startStr: string, endStr: string): string[] => {
       const parse = (t: string) => {
@@ -490,7 +529,13 @@ function ReservasForm({ navigation, route }: any) {
     const parts = range.split('-');
     if (parts.length < 2) return [];
     return [{ label: '', slots: buildSlots(parts[0], parts[1]) }];
-  }, [isWorkDay, selectedBarberData, selectedRequiredMinutes, resolvedBarberSchedule]);
+  }, [
+    bookingSlotIntervalMinutes,
+    isWorkDay,
+    selectedBarberData,
+    selectedRequiredMinutes,
+    resolvedBarberSchedule,
+  ]);
 
   // Lista plana para validaciones
   const allSlots = useMemo(
@@ -548,22 +593,32 @@ function ReservasForm({ navigation, route }: any) {
       if (paymentMethod !== null) setPaymentMethod(null);
       return;
     }
-    const currentOption = paymentOptions.find(option => option.value === paymentMethod);
+    const currentOption = paymentOptions.find(
+      option => option.value === paymentMethod,
+    );
     if (!currentOption) {
       setPaymentMethod(paymentOptions[0].value);
     }
   }, [paymentMethod, paymentOptions]);
 
   const handleSubmit = async () => {
-    if (!customerName.trim() || !selectedSlot) {
-      Alert.alert('Error', 'Por favor ingresa tu nombre y elige un horario.');
+    if (!customerName.trim() || (!isWalkin && !selectedSlot)) {
+      Alert.alert(
+        'Error',
+        isWalkin
+          ? 'Ingresá el nombre del cliente.'
+          : 'Por favor ingresa tu nombre y elige un horario.',
+      );
       return;
     }
     if (!selectedBarber) {
-      Alert.alert('Error', 'Seleccioná un profesional disponible para este servicio.');
+      Alert.alert(
+        'Error',
+        'Seleccioná un profesional disponible para este servicio.',
+      );
       return;
     }
-    if (closedDayNotice) {
+    if (!isWalkin && closedDayNotice) {
       Alert.alert('No disponible', closedDayNotice);
       return;
     }
@@ -580,7 +635,9 @@ function ReservasForm({ navigation, route }: any) {
         barberId: selectedBarber!,
         customerName: customerName.trim(),
         service: selectedService?.name || 'Corte',
-        startTime: buildIsoFromShopDateAndTime(selectedDate, selectedSlot),
+        startTime: isWalkin
+          ? buildIsoFromShopDateAndTime(new Date(), formatTimeInShopTZ(new Date()))
+          : buildIsoFromShopDateAndTime(selectedDate, selectedSlot as string),
         servicePrice: selectedService?.price ?? 0,
         notes: phone,
         email: customerEmail.trim(),
@@ -591,7 +648,8 @@ function ReservasForm({ navigation, route }: any) {
         { text: 'Cerrar', onPress: () => navigation.goBack() },
       ]);
     } catch (e: any) {
-      const msg = e?.message || 'No se pudo realizar la reserva. Intenta de nuevo.';
+      const msg =
+        e?.message || 'No se pudo realizar la reserva. Intenta de nuevo.';
       Alert.alert('Error', msg);
     } finally {
       setSaving(false);
@@ -712,8 +770,26 @@ function ReservasForm({ navigation, route }: any) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <Text style={styles.headerSubtitle}>Reserva tu lugar</Text>
-            <Text style={styles.headerTitle}>Nueva Cita</Text>
+            <Text style={styles.headerSubtitle}>
+              {isWalkin ? 'Carga rápida' : 'Reserva tu lugar'}
+            </Text>
+            <Text style={styles.headerTitle}>
+              {isWalkin ? 'Turno por orden de llegada' : 'Nueva Cita'}
+            </Text>
+            {isWalkin ? (
+              <Text
+                style={{
+                  color: hexToRgba(theme.primary, 0.7),
+                  fontSize: 13,
+                  marginTop: 8,
+                  textAlign: 'center',
+                  lineHeight: 18,
+                }}
+              >
+                El turno se carga para ahora. Solo elegí profesional, servicio y
+                nombre.
+              </Text>
+            ) : null}
           </View>
 
           <View style={styles.mainCard}>
@@ -730,7 +806,8 @@ function ReservasForm({ navigation, route }: any) {
                   </Text>
                   {selectedService ? (
                     <Text style={styles.selectorMeta}>
-                      {selectedService.durationMinutes} min · {formatPrice(selectedService.price)}
+                      {selectedService.durationMinutes} min ·{' '}
+                      {formatPrice(selectedService.price)}
                     </Text>
                   ) : null}
                 </View>
@@ -773,7 +850,11 @@ function ReservasForm({ navigation, route }: any) {
                   styles.input,
                   focusedField === 'email' && styles.inputFocused,
                 ]}
-                placeholder="Tu Email (para el comprobante)"
+                placeholder={
+                  isWalkin
+                    ? 'Email del cliente (opcional)'
+                    : 'Tu Email (opcional, para el comprobante)'
+                }
                 placeholderTextColor="#666"
                 keyboardType="email-address"
                 autoCapitalize="none"
@@ -794,7 +875,8 @@ function ReservasForm({ navigation, route }: any) {
                         key={option.value}
                         style={[
                           styles.paymentChip,
-                          paymentMethod === option.value && styles.paymentChipActive,
+                          paymentMethod === option.value &&
+                            styles.paymentChipActive,
                         ]}
                         onPress={() => setPaymentMethod(option.value)}
                       >
@@ -812,8 +894,9 @@ function ReservasForm({ navigation, route }: any) {
                   </View>
                   <Text style={styles.paymentHelperText}>
                     {
-                      paymentOptions.find(option => option.value === paymentMethod)
-                        ?.helper
+                      paymentOptions.find(
+                        option => option.value === paymentMethod,
+                      )?.helper
                     }
                   </Text>
                   <Text style={styles.paymentMiniNote}>
@@ -844,55 +927,57 @@ function ReservasForm({ navigation, route }: any) {
               </Text>
               {isBarberUser ? (
                 <Text style={styles.sectionHelperText}>
-                  Los turnos manuales que cargues desde tu cuenta quedan asignados a tu agenda.
+                  Los turnos manuales que cargues desde tu cuenta quedan
+                  asignados a tu agenda.
                 </Text>
               ) : null}
               {!isBarberSelectionLocked && selectedService ? (
                 <Text style={styles.sectionHelperText}>
-                  Mostramos solo profesionales que realizan {selectedService.name}.
+                  Mostramos solo profesionales que realizan{' '}
+                  {selectedService.name}.
                 </Text>
               ) : null}
               {visibleBarbers.length ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {visibleBarbers.map(b => (
-                  <Pressable
-                    key={b._id}
-                    style={styles.barberCard}
-                    disabled={isBarberSelectionLocked}
-                    onPress={() => {
-                      if (isBarberSelectionLocked) return;
-                      setSelectedBarber(b._id);
-                      setSelectedSlot(null);
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.avatar,
-                        selectedBarber === b._id && styles.avatarActive,
-                      ]}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {visibleBarbers.map(b => (
+                    <Pressable
+                      key={b._id}
+                      style={styles.barberCard}
+                      disabled={isBarberSelectionLocked}
+                      onPress={() => {
+                        if (isBarberSelectionLocked) return;
+                        setSelectedBarber(b._id);
+                        setSelectedSlot(null);
+                      }}
                     >
-                      {b.photoUrl ? (
-                        <Image
-                          source={{ uri: b.photoUrl }}
-                          style={styles.avatarImage}
-                        />
-                      ) : (
-                        <Text style={styles.avatarText}>
-                          {b.fullName.charAt(0)}
-                        </Text>
-                      )}
-                    </View>
-                    <Text
-                      style={[
-                        styles.barberName,
-                        selectedBarber === b._id && styles.barberNameActive,
-                      ]}
-                    >
-                      {b.fullName.split(' ')[0]}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+                      <View
+                        style={[
+                          styles.avatar,
+                          selectedBarber === b._id && styles.avatarActive,
+                        ]}
+                      >
+                        {b.photoUrl ? (
+                          <Image
+                            source={{ uri: b.photoUrl }}
+                            style={styles.avatarImage}
+                          />
+                        ) : (
+                          <Text style={styles.avatarText}>
+                            {b.fullName.charAt(0)}
+                          </Text>
+                        )}
+                      </View>
+                      <Text
+                        style={[
+                          styles.barberName,
+                          selectedBarber === b._id && styles.barberNameActive,
+                        ]}
+                      >
+                        {b.fullName.split(' ')[0]}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
               ) : (
                 <Text style={styles.emptyBarberText}>
                   No hay profesionales asignados a este servicio.
@@ -900,12 +985,13 @@ function ReservasForm({ navigation, route }: any) {
               )}
             </View>
 
-            {/* FECHA Y HORARIOS */}
+            {/* FECHA Y HORARIOS (se oculta en orden de llegada) */}
+            {!isWalkin ? (
             <View style={styles.section}>
               <View style={styles.dateHeader}>
-                  <Text style={[styles.sectionLabel, styles.scheduleHeaderLabel]}>
-                    Horarios{'\n'}Disponibles
-                  </Text>
+                <Text style={[styles.sectionLabel, styles.scheduleHeaderLabel]}>
+                  Horarios{'\n'}Disponibles
+                </Text>
                 <View style={styles.dateControls}>
                   <Pressable
                     hitSlop={12}
@@ -940,7 +1026,9 @@ function ReservasForm({ navigation, route }: any) {
               {closedDayNotice ? (
                 <View style={styles.notWorkingBox}>
                   <Text style={styles.notWorkingIcon}>🔒</Text>
-                  <Text style={styles.notWorkingText}>ESTE TURNO NO ESTA DISPONIBLE ESE DIA</Text>
+                  <Text style={styles.notWorkingText}>
+                    ESTE TURNO NO ESTA DISPONIBLE ESE DIA
+                  </Text>
                   <Text
                     style={{
                       color: hexToRgba(theme.primary, 0.56),
@@ -984,18 +1072,24 @@ function ReservasForm({ navigation, route }: any) {
                 </Text>
               )}
             </View>
+            ) : null}
 
             <Pressable
               style={[
                 styles.submitBtn,
                 (!paymentMethod ||
                   saving ||
-                  Boolean(closedDayNotice) ||
+                  (!isWalkin && Boolean(closedDayNotice)) ||
                   !selectedBarber) &&
                   styles.submitBtnDisabled,
               ]}
               onPress={handleSubmit}
-              disabled={saving || !paymentMethod || Boolean(closedDayNotice) || !selectedBarber}
+              disabled={
+                saving ||
+                !paymentMethod ||
+                (!isWalkin && Boolean(closedDayNotice)) ||
+                !selectedBarber
+              }
             >
               {saving ? (
                 <ActivityIndicator color={theme.textOnPrimary} />
@@ -1058,8 +1152,16 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: theme.border,
     },
-    selectorMainText: { color: theme.textPrimary, fontWeight: '600', fontSize: 16 },
-    selectorMeta: { color: hexToRgba(theme.primary, 0.54), fontSize: 12, marginTop: 2 },
+    selectorMainText: {
+      color: theme.textPrimary,
+      fontWeight: '600',
+      fontSize: 16,
+    },
+    selectorMeta: {
+      color: hexToRgba(theme.primary, 0.54),
+      fontSize: 12,
+      marginTop: 2,
+    },
     arrowIcon: { color: theme.primary, fontSize: 14 },
     input: {
       backgroundColor: theme.input,
@@ -1141,15 +1243,31 @@ const createStyles = (theme: Theme) =>
       borderColor: 'transparent',
       overflow: 'hidden',
     },
-    avatarActive: { borderColor: theme.primary, backgroundColor: theme.primary },
+    avatarActive: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primary,
+    },
     avatarImage: {
       width: '100%',
       height: '100%',
     },
-    avatarText: { color: theme.textOnPrimary, fontSize: 19, fontWeight: 'bold' },
-    barberName: { color: hexToRgba(theme.primary, 0.52), marginTop: 6, fontSize: 14, fontWeight: '600' },
+    avatarText: {
+      color: theme.textOnPrimary,
+      fontSize: 19,
+      fontWeight: 'bold',
+    },
+    barberName: {
+      color: hexToRgba(theme.primary, 0.52),
+      marginTop: 6,
+      fontSize: 14,
+      fontWeight: '600',
+    },
     barberNameActive: { color: theme.textPrimary },
-    barberSchedule: { color: hexToRgba(theme.primary, 0.35), fontSize: 10, marginTop: 2 },
+    barberSchedule: {
+      color: hexToRgba(theme.primary, 0.35),
+      fontSize: 10,
+      marginTop: 2,
+    },
     emptyBarberText: {
       color: theme.textMuted,
       fontSize: 13,
@@ -1194,7 +1312,12 @@ const createStyles = (theme: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    navBtn: { color: theme.primary, fontSize: 34, fontWeight: 'bold', lineHeight: 36 },
+    navBtn: {
+      color: theme.primary,
+      fontSize: 34,
+      fontWeight: 'bold',
+      lineHeight: 36,
+    },
     dateText: {
       color: theme.textPrimary,
       fontSize: 16,
@@ -1215,15 +1338,26 @@ const createStyles = (theme: Theme) =>
       borderWidth: 1,
       borderColor: theme.border,
     },
-    timeChipActive: { backgroundColor: '#00000081', borderColor: theme.primary },
+    timeChipActive: {
+      backgroundColor: '#00000081',
+      borderColor: theme.primary,
+    },
     timeChipBooked: {
       backgroundColor: theme.surfaceAlt,
       borderColor: theme.border,
       opacity: 0.5,
     },
     timeText: { color: theme.textPrimary, fontWeight: '700' },
-    timeTextBooked: { color: theme.textMuted, textDecorationLine: 'line-through' },
-    timeDuration: { color: hexToRgba(theme.primary, 0.5), fontSize: 9, marginTop: 2, fontWeight: '600' },
+    timeTextBooked: {
+      color: theme.textMuted,
+      textDecorationLine: 'line-through',
+    },
+    timeDuration: {
+      color: hexToRgba(theme.primary, 0.5),
+      fontSize: 9,
+      marginTop: 2,
+      fontWeight: '600',
+    },
     shiftGroupLabel: {
       color: theme.primary,
       fontSize: 10,
@@ -1296,7 +1430,11 @@ const createStyles = (theme: Theme) =>
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
     },
-    serviceItemText: { color: theme.textPrimary, fontSize: 16, fontWeight: '600' },
+    serviceItemText: {
+      color: theme.textPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
   });
 
 export default ReservasForm;

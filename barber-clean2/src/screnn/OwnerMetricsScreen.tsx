@@ -9,7 +9,6 @@ import {
   Text,
   Image,
   View,
-  Dimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -24,36 +23,32 @@ import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
 import {
   LayoutDashboard,
-  ArrowLeft,
   Calendar,
   Users,
+  ChevronLeft,
   ChevronRight,
   TrendingUp,
   Banknote,
   CreditCard,
-  Store,
 } from 'lucide-react-native';
-
-const { width } = Dimensions.get('window');
 
 type Props = {
   navigation: any;
 };
 
-const MONTH_LABELS = [
-  'ENE',
-  'FEB',
-  'MAR',
-  'ABR',
-  'MAY',
-  'JUN',
-  'JUL',
-  'AGO',
-  'SEP',
-  'OCT',
-  'NOV',
-  'DIC',
+type RangeMode = 'daily' | 'weekly' | 'monthly' | 'annual';
+
+const RANGE_OPTIONS: { key: RangeMode; label: string }[] = [
+  { key: 'daily', label: 'Día' },
+  { key: 'weekly', label: 'Semana' },
+  { key: 'monthly', label: 'Mes' },
+  { key: 'annual', label: 'Año' },
 ];
+
+const toYmd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`;
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('es-AR', {
@@ -77,15 +72,38 @@ const hexToRgba = (hex: string, alpha: number) => {
 function OwnerMetricsScreen({ navigation }: Props) {
   const { theme } = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
-  const now = useMemo(() => new Date(), []);
-
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
-  const [annual, setAnnual] = useState(false);
+  const [rangeMode, setRangeMode] = useState<RangeMode>('monthly');
+  const [refDate, setRefDate] = useState(() => new Date());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [data, setData] = useState<CurrentMonthOverviewResponse | null>(null);
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+
+  const buildRangeParams = useCallback(() => {
+    if (rangeMode === 'daily')
+      return { range: 'daily' as const, date: toYmd(refDate) };
+    if (rangeMode === 'weekly')
+      return { range: 'weekly' as const, date: toYmd(refDate) };
+    if (rangeMode === 'annual')
+      return { range: 'annual' as const, year: refDate.getFullYear() };
+    return {
+      range: 'monthly' as const,
+      year: refDate.getFullYear(),
+      month: refDate.getMonth() + 1,
+    };
+  }, [rangeMode, refDate]);
+
+  const shiftPeriod = (dir: number) => {
+    setRefDate(prev => {
+      const d = new Date(prev);
+      if (rangeMode === 'daily') d.setDate(d.getDate() + dir);
+      else if (rangeMode === 'weekly') d.setDate(d.getDate() + dir * 7);
+      else if (rangeMode === 'annual') d.setFullYear(d.getFullYear() + dir);
+      else d.setMonth(d.getMonth() + dir);
+      return d;
+    });
+  };
 
   const loadData = useCallback(
     async (isRefresh = false) => {
@@ -96,11 +114,7 @@ function OwnerMetricsScreen({ navigation }: Props) {
         const canUseFeature = hasProPlanAccess(currentUser?.user);
         setHasAccess(canUseFeature);
         if (!canUseFeature) return;
-        const response = await fetchOwnerMetricsOverview({
-          year: now.getFullYear(),
-          month: selectedMonth,
-          annual,
-        });
+        const response = await fetchOwnerMetricsOverview(buildRangeParams());
         setData(response);
       } catch (err: any) {
         setError(err?.message ?? 'No se pudo cargar el resumen');
@@ -109,7 +123,7 @@ function OwnerMetricsScreen({ navigation }: Props) {
         setRefreshing(false);
       }
     },
-    [annual, now, selectedMonth],
+    [buildRangeParams],
   );
 
   useFocusEffect(
@@ -129,11 +143,7 @@ function OwnerMetricsScreen({ navigation }: Props) {
     );
   }
 
-  const periodLabel =
-    data?.period.label ||
-    (annual
-      ? `Año ${now.getFullYear()}`
-      : `${MONTH_LABELS[selectedMonth - 1]} ${now.getFullYear()}`);
+  const periodLabel = data?.period.label || toYmd(refDate);
 
   return (
     <View style={styles.screen}>
@@ -171,51 +181,39 @@ function OwnerMetricsScreen({ navigation }: Props) {
               <Calendar size={14} color={theme.primary} />
               <Text style={styles.filterHeaderText}>Periodo de análisis</Text>
             </View>
-            <Pressable
-              style={[styles.annualChip, annual && styles.annualChipActive]}
-              onPress={() => setAnnual(prev => !prev)}
-            >
-              <Text
-                style={[
-                  styles.annualChipText,
-                  annual && styles.annualChipTextActive,
-                ]}
-              >
-                ANUAL
-              </Text>
-            </Pressable>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.monthStrip}
-          >
-            {MONTH_LABELS.map((label, index) => {
-              const monthNumber = index + 1;
-              const isSelected = !annual && selectedMonth === monthNumber;
+          <View style={styles.rangeTabs}>
+            {RANGE_OPTIONS.map(opt => {
+              const active = rangeMode === opt.key;
               return (
                 <Pressable
-                  key={label}
-                  style={[styles.monthBox, isSelected && styles.monthBoxActive]}
-                  onPress={() => {
-                    setAnnual(false);
-                    setSelectedMonth(monthNumber);
-                  }}
+                  key={opt.key}
+                  style={[styles.rangeTab, active && styles.rangeTabActive]}
+                  onPress={() => setRangeMode(opt.key)}
                 >
                   <Text
                     style={[
-                      styles.monthText,
-                      isSelected && styles.monthTextActive,
+                      styles.rangeTabText,
+                      active && styles.rangeTabTextActive,
                     ]}
                   >
-                    {label}
+                    {opt.label}
                   </Text>
-                  {isSelected && <View style={styles.activeIndicator} />}
                 </Pressable>
               );
             })}
-          </ScrollView>
+          </View>
+
+          <View style={styles.periodNav}>
+            <Pressable style={styles.periodNavBtn} onPress={() => shiftPeriod(-1)}>
+              <ChevronLeft size={18} color={theme.textPrimary} />
+            </Pressable>
+            <Text style={styles.periodNavLabel}>{periodLabel}</Text>
+            <Pressable style={styles.periodNavBtn} onPress={() => shiftPeriod(1)}>
+              <ChevronRight size={18} color={theme.textPrimary} />
+            </Pressable>
+          </View>
         </View>
 
         {loading ? (
@@ -297,6 +295,45 @@ function OwnerMetricsScreen({ navigation }: Props) {
                   <Text style={styles.paymentSub}>
                     {data?.totals.transferCount ?? 0} cobros
                   </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* 2b. COMISIONES Y GANANCIA DEL LOCAL */}
+            <View style={styles.paymentRow}>
+              <View style={styles.paymentCard}>
+                <View
+                  style={[
+                    styles.paymentIconWrap,
+                    { backgroundColor: hexToRgba(theme.primary, 0.12) },
+                  ]}
+                >
+                  <Users size={16} color={theme.primary} />
+                </View>
+                <View>
+                  <Text style={styles.paymentLabel}>Comisiones</Text>
+                  <Text style={styles.paymentValue}>
+                    {formatCurrency(data?.totals.commission ?? 0)}
+                  </Text>
+                  <Text style={styles.paymentSub}>de los profesionales</Text>
+                </View>
+              </View>
+
+              <View style={styles.paymentCard}>
+                <View
+                  style={[
+                    styles.paymentIconWrap,
+                    { backgroundColor: hexToRgba(theme.primary, 0.12) },
+                  ]}
+                >
+                  <TrendingUp size={16} color={theme.primary} />
+                </View>
+                <View>
+                  <Text style={styles.paymentLabel}>Ganancia del local</Text>
+                  <Text style={styles.paymentValue}>
+                    {formatCurrency(data?.totals.localRevenue ?? 0)}
+                  </Text>
+                  <Text style={styles.paymentSub}>neto de comisiones</Text>
                 </View>
               </View>
             </View>
@@ -408,57 +445,60 @@ const makeStyles = (theme: Theme) =>
       fontSize: 13,
       fontWeight: '600',
     },
-    annualChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 10,
+    rangeTabs: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 20,
+      marginBottom: 12,
+    },
+    rangeTab: {
+      flex: 1,
+      paddingVertical: 9,
+      borderRadius: 12,
+      alignItems: 'center',
       backgroundColor: theme.surfaceAlt,
       borderWidth: 1,
       borderColor: theme.border,
     },
-    annualChipActive: {
-      backgroundColor: hexToRgba(theme.primary, 0.1),
+    rangeTabActive: {
+      backgroundColor: hexToRgba(theme.primary, 0.12),
       borderColor: theme.primary,
     },
-    annualChipText: {
-      color: theme.textMuted,
-      fontSize: 10,
-      fontWeight: '800',
-    },
-    annualChipTextActive: {
-      color: theme.primary,
-    },
-    monthStrip: {
-      paddingHorizontal: 20,
-      gap: 12,
-    },
-    monthBox: {
-      paddingHorizontal: 18,
-      paddingVertical: 10,
-      borderRadius: 14,
-      backgroundColor: theme.card,
-      borderWidth: 1,
-      borderColor: theme.border,
-      alignItems: 'center',
-    },
-    monthBoxActive: {
-      borderColor: theme.primary,
-      backgroundColor: hexToRgba(theme.primary, 0.05),
-    },
-    monthText: {
+    rangeTabText: {
       color: theme.textMuted,
       fontSize: 13,
-      fontWeight: '800',
+      fontWeight: '700',
     },
-    monthTextActive: {
+    rangeTabTextActive: {
       color: theme.primary,
     },
-    activeIndicator: {
-      width: 12,
-      height: 2,
-      backgroundColor: theme.primary,
-      marginTop: 4,
-      borderRadius: 1,
+    periodNav: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginHorizontal: 20,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    periodNavBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.card,
+    },
+    periodNavLabel: {
+      flex: 1,
+      textAlign: 'center',
+      color: theme.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+      textTransform: 'capitalize',
     },
 
     // Main Content

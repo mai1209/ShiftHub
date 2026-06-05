@@ -10,14 +10,17 @@ import ReservasForm from '../screnn/ReservasForm';
 import RegisterEmployed from '../screnn/RegisterEmployed';
 import BarberAccessScreen from '../screnn/BarberAccessScreen';
 import ListBarber from '../screnn/ListBarber';
+import ShopSelectionScreen from '../screnn/ShopSelectionScreen';
 import Nav from '../screnn/Nav';
 import BarberDashboard from '../screnn/BarberDashboard';
 import MetricsScreen from '../screnn/MetricsScreen';
 import OwnerMetricsScreen from '../screnn/OwnerMetricsScreen';
 import CustomerHistoryScreen from '../screnn/CustomerHistoryScreen';
+import CajaScreen from '../screnn/CajaScreen';
 import AppearanceSettingsScreen from '../screnn/AppearanceSettingsScreen';
 import PublicProfileSettingsScreen from '../screnn/PublicProfileSettingsScreen';
 import ServiceSettingsScreen from '../screnn/ServiceSettingsScreen';
+import CouponSettingsScreen from '../screnn/CouponSettingsScreen';
 import PaymentSettingsScreen from '../screnn/PaymentSettingsScreen';
 import NotificationSettingsScreen from '../screnn/NotificationSettingsScreen';
 import BarberProfileSettingsScreen from '../screnn/BarberProfileSettingsScreen';
@@ -53,6 +56,7 @@ export type RootStackParamList = {
     | undefined;
   'Barber-Access': { barber: Barber; returnLabel?: string };
   'List-Barber': undefined;
+  'Shop-Select': undefined;
   'Barber-Home':
     | {
         barberId: string;
@@ -68,10 +72,12 @@ export type RootStackParamList = {
     | undefined;
   'Owner-Metrics': undefined;
   'Customer-History': undefined;
+  Caja: undefined;
   Settings: undefined;
   'Appearance-Settings': undefined;
   'Public-Profile-Settings': undefined;
   'Service-Settings': undefined;
+  'Coupon-Settings': undefined;
   'Payment-Settings': undefined;
   'Notification-Settings': undefined;
   'Barber-Profile-Settings': undefined;
@@ -135,15 +141,18 @@ export default function StackNavigator({
               <Stack.Screen name="Register-Employed" component={RegisterEmployed} />
               <Stack.Screen name="Barber-Access" component={BarberAccessScreen} />
               <Stack.Screen name="List-Barber" component={ListBarber} />
+              <Stack.Screen name="Shop-Select" component={ShopSelectionScreen} />
               <Stack.Screen name="Barber-Home" component={BarberDashboard} />
               <Stack.Screen name="Metrics" component={MetricsScreen} />
               <Stack.Screen name="Owner-Metrics" component={OwnerMetricsScreen} />
               <Stack.Screen name="Customer-History" component={CustomerHistoryScreen} />
+              <Stack.Screen name="Caja" component={CajaScreen} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Usage-Guide" component={UsageGuideScreen} />
               <Stack.Screen name="Appearance-Settings" component={AppearanceSettingsScreen} />
               <Stack.Screen name="Public-Profile-Settings" component={PublicProfileSettingsScreen} />
               <Stack.Screen name="Service-Settings" component={ServiceSettingsScreen} />
+              <Stack.Screen name="Coupon-Settings" component={CouponSettingsScreen} />
               <Stack.Screen name="Payment-Settings" component={PaymentSettingsScreen} />
               <Stack.Screen name="Notification-Settings" component={NotificationSettingsScreen} />
               <Stack.Screen name="Barber-Profile-Settings" component={BarberProfileSettingsScreen} />
@@ -169,8 +178,8 @@ export default function StackNavigator({
       </View>
 
       {showNav ? (
-        <Nav currentRouteName={currentRouteName} role={currentUserRole} onNavigate={routeName => {
-          navigationRef.navigate(routeName as never);
+        <Nav currentRouteName={currentRouteName} role={currentUserRole} onNavigate={(routeName, params) => {
+          (navigationRef.navigate as any)(routeName, params);
         }} />
       ) : null}
     </View>

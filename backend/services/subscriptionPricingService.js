@@ -31,6 +31,28 @@ export function applyFixedDiscountByUsdReference({
   return Math.max(0, Number((safeAmountArs - discountArs).toFixed(2)));
 }
 
+export const ADDITIONAL_BUSINESS_PRICE_USD_REFERENCE = 10;
+
+// Recargo por locales/negocios adicionales: USD 10 por local, convertido a ARS
+// con el ratio del plan (mismo criterio que muestra el panel admin).
+export function resolveAdditionalBusinessesArs({ pricing, subscription = {} }) {
+  const count = Math.max(0, Math.trunc(Number(subscription?.additionalBusinesses) || 0));
+  if (!count) return { count: 0, usdReference: 0, ars: 0 };
+
+  // El precio del local adicional se administra desde el panel admin
+  // (PlanPricing.additionalBusiness). Si no está cargado, cae al default.
+  const unitArs = Number(pricing?.additionalBusiness?.ars || 0);
+  const unitUsd = Number(
+    pricing?.additionalBusiness?.usdReference || ADDITIONAL_BUSINESS_PRICE_USD_REFERENCE,
+  );
+
+  return {
+    count,
+    usdReference: count * unitUsd,
+    ars: Number((count * unitArs).toFixed(2)),
+  };
+}
+
 export function resolvePlanPricingForSubscription({
   plan,
   pricing,

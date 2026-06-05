@@ -28,6 +28,16 @@ const planPricingSchema = new mongoose.Schema(
       default: 35,
       min: 0,
     },
+    additionalBusinessPriceArs: {
+      type: Number,
+      default: 10000,
+      min: 0,
+    },
+    additionalBusinessPriceUsdReference: {
+      type: Number,
+      default: 10,
+      min: 0,
+    },
   },
   {
     timestamps: true,

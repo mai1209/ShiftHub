@@ -3,6 +3,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -11,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Info, X } from 'lucide-react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -84,6 +86,7 @@ export default function BarberAccessScreen({ navigation, route }: Props) {
   const [accessPassword, setAccessPassword] = useState('');
   const [generatedAccessPassword, setGeneratedAccessPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [infoVisible, setInfoVisible] = useState(false);
   const backLabel = route.params?.returnLabel || 'Volver';
 
   const hasAccessUser = Boolean(barber?.loginAccess?.enabled);
@@ -324,6 +327,93 @@ export default function BarberAccessScreen({ navigation, route }: Props) {
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <Pressable
+        style={styles.infoButton}
+        onPress={() => setInfoVisible(true)}
+        hitSlop={10}
+        accessibilityLabel="Cómo funciona la gestión de acceso"
+      >
+        <Info size={18} color={theme.primary} />
+      </Pressable>
+
+      <Modal
+        visible={infoVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInfoVisible(false)}
+      >
+        <Pressable
+          style={styles.infoOverlay}
+          onPress={() => setInfoVisible(false)}
+        >
+          <Pressable style={styles.infoCard} onPress={() => {}}>
+            <View style={styles.infoCardHeader}>
+              <Text style={styles.infoCardTitle}>¿Cómo funciona el acceso?</Text>
+              <Pressable
+                onPress={() => setInfoVisible(false)}
+                hitSlop={10}
+                style={styles.infoCloseBtn}
+              >
+                <X size={18} color={theme.textMuted} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.infoIntro}>
+              {`Desde acá le das un usuario y contraseña propios al ${businessCopy.staffSingular} para que entre a la app y vea solo su agenda.`}
+            </Text>
+
+            <ScrollView
+              style={styles.infoStepsScroll}
+              showsVerticalScrollIndicator={false}
+            >
+              {[
+                {
+                  t: 'Cargá el email',
+                  d: `Ingresá el email que va a usar el ${businessCopy.staffSingular} para iniciar sesión. Es su usuario.`,
+                },
+                {
+                  t: 'Generá la contraseña',
+                  d: 'Tocá "Generar contraseña" para crear una temporal, o escribí una vos mismo.',
+                },
+                {
+                  t: 'Guardá el acceso',
+                  d: 'Guardá los cambios. El acceso queda activo al instante.',
+                },
+                {
+                  t: 'Compartí los datos',
+                  d: `Pasale el email y la contraseña al ${businessCopy.staffSingular} (podés enviárselos por WhatsApp con el botón).`,
+                },
+                {
+                  t: `Cómo entra el ${businessCopy.staffSingular}`,
+                  d: 'Abre la app, va a "Iniciar sesión" y entra con ese email y contraseña. Solo ve su propia agenda y sus turnos, no el resto del negocio.',
+                },
+                {
+                  t: 'Resetear o desactivar',
+                  d: `Si se olvida la clave, generás una nueva. Si ya no trabaja con vos, desactivás el acceso y deja de poder entrar.`,
+                },
+              ].map((step, index) => (
+                <View key={step.t} style={styles.infoStepRow}>
+                  <View style={styles.infoStepNumber}>
+                    <Text style={styles.infoStepNumberText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.infoStepBody}>
+                    <Text style={styles.infoStepTitle}>{step.t}</Text>
+                    <Text style={styles.infoStepText}>{step.d}</Text>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+
+            <Pressable
+              style={styles.infoGotItBtn}
+              onPress={() => setInfoVisible(false)}
+            >
+              <Text style={styles.infoGotItText}>Entendido</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -475,6 +565,111 @@ const createStyles = (theme: Theme) =>
     screen: {
       flex: 1,
       backgroundColor: theme.background,
+    },
+    infoButton: {
+      position: 'absolute',
+      top: Platform.OS === 'ios' ? 54 : 18,
+      right: 18,
+      zIndex: 20,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    infoOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 22,
+    },
+    infoCard: {
+      width: '100%',
+      maxWidth: 440,
+      maxHeight: '82%',
+      borderRadius: 24,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 20,
+    },
+    infoCardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    infoCardTitle: {
+      flex: 1,
+      color: theme.textPrimary,
+      fontSize: 19,
+      fontWeight: '900',
+    },
+    infoCloseBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.input,
+    },
+    infoIntro: {
+      color: theme.textMuted,
+      fontSize: 13,
+      lineHeight: 19,
+      marginBottom: 14,
+    },
+    infoStepsScroll: {
+      flexGrow: 0,
+    },
+    infoStepRow: {
+      flexDirection: 'row',
+      gap: 12,
+      marginBottom: 16,
+    },
+    infoStepNumber: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor: hexToRgba(theme.primary, 0.14),
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 2,
+    },
+    infoStepNumberText: {
+      color: theme.primary,
+      fontSize: 13,
+      fontWeight: '900',
+    },
+    infoStepBody: {
+      flex: 1,
+    },
+    infoStepTitle: {
+      color: theme.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+      marginBottom: 2,
+    },
+    infoStepText: {
+      color: theme.textMuted,
+      fontSize: 13,
+      lineHeight: 19,
+    },
+    infoGotItBtn: {
+      marginTop: 8,
+      borderRadius: 16,
+      backgroundColor: theme.primary,
+      paddingVertical: 14,
+      alignItems: 'center',
+    },
+    infoGotItText: {
+      color: theme.textOnPrimary,
+      fontSize: 14,
+      fontWeight: '900',
     },
     screenFallback: {
       flex: 1,

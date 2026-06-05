@@ -62,6 +62,11 @@ const paymentSettingsSchema = new mongoose.Schema(
       default: "percent",
     },
     advanceValue: { type: Number, default: 30, min: 0 },
+    bookingSlotIntervalMinutes: {
+      type: Number,
+      enum: [15, 30],
+      default: 15,
+    },
     mercadoPagoConnectionStatus: {
       type: String,
       enum: ["disconnected", "pending", "connected"],
@@ -69,6 +74,26 @@ const paymentSettingsSchema = new mongoose.Schema(
     },
     mercadoPagoSellerId: { type: String, default: null },
     mercadoPagoPublicKey: { type: String, default: null },
+    bookingCoupons: {
+      type: [
+        new mongoose.Schema(
+          {
+            code: { type: String, trim: true, uppercase: true, maxlength: 32 },
+            name: { type: String, trim: true, maxlength: 80 },
+            discountType: {
+              type: String,
+              enum: ["percent", "fixed"],
+              default: "percent",
+            },
+            discountValue: { type: Number, default: 0, min: 0 },
+            serviceIds: { type: [String], default: [] },
+            isActive: { type: Boolean, default: true },
+          },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
   },
   {
     _id: false,
@@ -186,6 +211,17 @@ const subscriptionSchema = new mongoose.Schema(
       type: String,
       enum: ["mercadopago", "astropay", "apple", "google", null],
       default: null,
+    },
+    additionalBusinesses: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // Nombres de los locales adicionales elegidos en el checkout (autoservicio).
+    // Al aprobarse el pago se crean los Shop con estos nombres y se vacía.
+    pendingBusinessNames: {
+      type: [String],
+      default: [],
     },
     customPriceArs: {
       type: Number,

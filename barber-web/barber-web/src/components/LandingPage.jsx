@@ -7,6 +7,7 @@ import { CUSTOM_PLAN_URL } from "../utils/publicLinks";
 
 const REGISTER_URL = "/registro";
 const PLANS_URL = "/planes";
+const PANEL_URL = "/panel";
 const APP_STORE_URL = "https://apps.apple.com/ar/app/shifthub/id6767229780";
 
 function LandingPage() {
@@ -14,6 +15,7 @@ function LandingPage() {
     basic: { ars: 25000, usdReference: 25 },
     pro: { ars: 35000, usdReference: 35 },
   });
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const plans = [
     {
@@ -231,11 +233,39 @@ function LandingPage() {
           </div>
           <span className={styles.navLogoText}>{SHIFT_APP_BRAND_NAME}</span>
         </div>
-        <div className={styles.navActions}>
-          <a href={PLANS_URL} className={styles.navPlanLink}>
+
+        <button
+          type="button"
+          className={styles.navBurger}
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-label="Abrir menú"
+          aria-expanded={menuOpen}
+        >
+          {menuOpen ? '✕' : '☰'}
+        </button>
+
+        <div
+          className={`${styles.navActions} ${menuOpen ? styles.navActionsOpen : ''}`}
+        >
+          <a
+            href={PANEL_URL}
+            className={styles.navPlanLink}
+            onClick={() => setMenuOpen(false)}
+          >
+            Entrar al panel
+          </a>
+          <a
+            href={PLANS_URL}
+            className={styles.navPlanLink}
+            onClick={() => setMenuOpen(false)}
+          >
             Pagar plan
           </a>
-          <a href={REGISTER_URL} className={styles.navCta}>
+          <a
+            href={REGISTER_URL}
+            className={styles.navCta}
+            onClick={() => setMenuOpen(false)}
+          >
             Registrate
           </a>
           <a

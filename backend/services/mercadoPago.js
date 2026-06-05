@@ -260,6 +260,22 @@ export async function getMercadoPagoPayment({ accessToken, paymentId }) {
   });
 }
 
+export async function createMercadoPagoPayment({ accessToken, payload, idempotencyKey }) {
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+  if (idempotencyKey) {
+    headers["X-Idempotency-Key"] = idempotencyKey;
+  }
+  return mercadoPagoFetch("/v1/payments", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function getMercadoPagoPreapproval({ accessToken, preapprovalId }) {
   return mercadoPagoFetch(`/preapproval/${preapprovalId}`, {
     method: "GET",
@@ -302,6 +318,11 @@ export async function createMercadoPagoSystemPreference({ payload }) {
 export async function getMercadoPagoSystemPayment({ paymentId }) {
   const accessToken = getMercadoPagoSubscriptionsAccessToken();
   return getMercadoPagoPayment({ accessToken, paymentId });
+}
+
+export async function createMercadoPagoSystemPayment({ payload, idempotencyKey }) {
+  const accessToken = getMercadoPagoSubscriptionsAccessToken();
+  return createMercadoPagoPayment({ accessToken, payload, idempotencyKey });
 }
 
 export async function createMercadoPagoSystemPreapproval({ payload }) {

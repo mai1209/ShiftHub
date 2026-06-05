@@ -76,6 +76,18 @@ async function normalizeAssignedServiceIds(rawValue, ownerId) {
   return uniqueIds.map((id) => new mongoose.Types.ObjectId(id));
 }
 
+function normalizeBookingSlotInterval(value) {
+  const parsed = Number(value);
+  return parsed === 30 ? 30 : 15;
+}
+
+// Comisión del profesional (% del cobro que se lleva; 0–100).
+function normalizeCommissionPercent(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(100, parsed));
+}
+
 function serializeBarber(doc, accessByBarberId = new Map()) {
   if (!doc) return null;
   const barberId = String(doc._id || "");
@@ -87,6 +99,10 @@ function serializeBarber(doc, accessByBarberId = new Map()) {
     scheduleRanges: normalizeScheduleRanges(doc.scheduleRanges),
     dayScheduleOverrides: normalizeDayScheduleOverrides(doc.dayScheduleOverrides),
     bookingBufferMinutes: Number(doc.bookingBufferMinutes || 0),
+    bookingSlotIntervalMinutes: normalizeBookingSlotInterval(
+      doc.bookingSlotIntervalMinutes,
+    ),
+    commissionPercent: normalizeCommissionPercent(doc.commissionPercent),
     barberTimeBlocks: serializeBarberTimeBlocks(doc.barberTimeBlocks),
     barberClosedDays: normalizeBarberClosedDays(doc.barberClosedDays),
     workDays: Array.from(new Set(doc.workDays || []))
@@ -113,10 +129,12 @@ export async function listBarbers(req, res, next) {
     const ownerId = req.user?.id;
     if (!ownerId) return res.status(401).json({ error: "Auth requerida" });
 
-    const barbersDocs = await BarberModel.find({
-      owner: ownerId,
-      isActive: true,
-    }).lean();
+    const includeInactive =
+      String(req.query?.includeInactive || "") === "true";
+    const barbersFilter = { owner: ownerId };
+    if (!includeInactive) barbersFilter.isActive = true;
+
+    const barbersDocs = await BarberModel.find(barbersFilter).lean();
     const barberIds = barbersDocs.map(item => item._id);
     const accessUsers = await UserModel.find({
       shopOwnerId: ownerId,
@@ -177,6 +195,12 @@ export async function createBarber(req, res, next) {
       0,
       Math.min(120, Number(req.body?.bookingBufferMinutes ?? 0) || 0),
     );
+    const bookingSlotIntervalMinutes = normalizeBookingSlotInterval(
+      req.body?.bookingSlotIntervalMinutes,
+    );
+    const commissionPercent = normalizeCommissionPercent(
+      req.body?.commissionPercent,
+    );
     const barberTimeBlocks = normalizeBarberTimeBlocks(req.body?.barberTimeBlocks);
     const barberClosedDays = normalizeBarberClosedDays(req.body?.barberClosedDays);
 
@@ -215,6 +239,8 @@ export async function createBarber(req, res, next) {
       scheduleRanges,
       dayScheduleOverrides,
       bookingBufferMinutes,
+      bookingSlotIntervalMinutes,
+      commissionPercent,
       barberTimeBlocks,
       barberClosedDays,
       workDays: cleanWorkDays,
@@ -273,6 +299,12 @@ export async function updateBarber(req, res, next) {
       0,
       Math.min(120, Number(req.body?.bookingBufferMinutes ?? 0) || 0),
     );
+    const bookingSlotIntervalMinutes = normalizeBookingSlotInterval(
+      req.body?.bookingSlotIntervalMinutes,
+    );
+    const commissionPercent = normalizeCommissionPercent(
+      req.body?.commissionPercent,
+    );
     const barberTimeBlocks = normalizeBarberTimeBlocks(req.body?.barberTimeBlocks);
     const barberClosedDays = normalizeBarberClosedDays(req.body?.barberClosedDays);
 
@@ -305,6 +337,8 @@ export async function updateBarber(req, res, next) {
         scheduleRanges,
         dayScheduleOverrides,
         bookingBufferMinutes,
+        bookingSlotIntervalMinutes,
+        commissionPercent,
         barberTimeBlocks,
         barberClosedDays,
         workDays: cleanWorkDays,
@@ -356,6 +390,37 @@ export async function deactivateBarber(req, res, next) {
   }
 }
 
+export async function reactivateBarber(req, res, next) {
+  try {
+    const ownerId = req.user?.id;
+    const { barberId } = req.params;
+
+    if (!ownerId) return res.status(401).json({ error: "Auth requerida" });
+
+    const barber = await BarberModel.findOneAndUpdate(
+      {
+        _id: barberId,
+        owner: ownerId,
+        isActive: false,
+      },
+      {
+        isActive: true,
+      },
+      {
+        new: true,
+      },
+    ).lean();
+
+    if (!barber) {
+      return res.status(404).json({ error: "Barbero no encontrado" });
+    }
+
+    return res.json({ barber: serializeBarber(barber) });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 // --- ESTA ES LA FUNCIÓN QUE FALTABA Y QUE USA TU FORMULARIO DE RESERVAS ---
 export async function listBarberAppointments(req, res, next) {
   try {
@@ -380,7 +445,7 @@ export async function listBarberAppointments(req, res, next) {
     if (!barber)
       return res.status(404).json({ error: "Barbero no encontrado" });
     const ownerDoc = await UserModel.findById(ownerId)
-      .select({ shopClosedDays: 1 })
+      .select({ shopClosedDays: 1, paymentSettings: 1 })
       .lean();
     const shopClosure = resolveShopClosureForDate(
       ownerDoc,
@@ -421,6 +486,15 @@ export async function listBarberAppointments(req, res, next) {
       shopClosure: serializeShopClosure(shopClosure),
       barberClosure: serializeBarberClosure(barberClosure),
       barberTimeBlocks: serializeBarberTimeBlocks(barberTimeBlocks),
+      shopSettings: {
+        paymentSettings: {
+          bookingSlotIntervalMinutes: [15, 30].includes(
+            Number(ownerDoc?.paymentSettings?.bookingSlotIntervalMinutes),
+          )
+            ? Number(ownerDoc.paymentSettings.bookingSlotIntervalMinutes)
+            : 15,
+        },
+      },
       appointments,
     });
   } catch (err) {

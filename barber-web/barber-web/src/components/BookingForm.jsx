@@ -9,13 +9,11 @@ import {
   fetchShopInfo,
   fetchShopMedia,
   fetchServices,
+  validateBookingCoupon,
   resolveApiMediaUrl,
   setShopSlug,
 } from "../services/api";
-import {
-  getBusinessCopy,
-  SHIFT_APP_BRAND_NAME,
-} from "../utils/businessCopy";
+import { getBusinessCopy, SHIFT_APP_BRAND_NAME } from "../utils/businessCopy";
 
 const SHOP_TZ = "America/Argentina/Cordoba";
 
@@ -38,7 +36,13 @@ const minutesToLabel = (totalMinutes) => {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 };
 
-const SLOT_INTERVAL_MINUTES = 15;
+const DEFAULT_SLOT_INTERVAL_MINUTES = 15;
+
+// El intervalo de turnos es por empleado/recurso (Barber.bookingSlotIntervalMinutes).
+function normalizeSlotIntervalMinutes(value) {
+  return Number(value) === 30 ? 30 : DEFAULT_SLOT_INTERVAL_MINUTES;
+}
+
 const DEFAULT_BOOKING_BANNER = null;
 const DEFAULT_BOOKING_LOGO = null;
 
@@ -67,10 +71,14 @@ const WEB_STYLE_PRESETS = {
     "--text-soft": "#d8d8de",
     "--text-dim": "#92929c",
     "--text-faint": "#5f5f69",
-    "--glow-1": "radial-gradient(circle, rgba(57, 224, 31, 0.16) 0%, transparent 72%)",
-    "--glow-2": "radial-gradient(circle, rgba(242, 140, 40, 0.12) 0%, transparent 72%)",
-    "--card-bg": "linear-gradient(180deg, rgba(20, 20, 24, 0.98) 0%, rgba(10, 10, 12, 0.99) 100%)",
-    "--card-shadow": "0 30px 80px rgba(0, 0, 0, 0.46), inset 0 1px 0 rgba(255, 255, 255, 0.03)",
+    "--glow-1":
+      "radial-gradient(circle, rgba(57, 224, 31, 0.16) 0%, transparent 72%)",
+    "--glow-2":
+      "radial-gradient(circle, rgba(242, 140, 40, 0.12) 0%, transparent 72%)",
+    "--card-bg":
+      "linear-gradient(180deg, rgba(20, 20, 24, 0.98) 0%, rgba(10, 10, 12, 0.99) 100%)",
+    "--card-shadow":
+      "0 30px 80px rgba(0, 0, 0, 0.46), inset 0 1px 0 rgba(255, 255, 255, 0.03)",
     "--card-grid":
       "linear-gradient(rgba(57, 224, 31, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(57, 224, 31, 0.04) 1px, transparent 1px)",
     "--eyebrow-bg": "rgba(57, 224, 31, 0.1)",
@@ -90,17 +98,20 @@ const WEB_STYLE_PRESETS = {
     "--warning-bg": "rgba(255, 138, 0, 0.08)",
     "--warning-text": "#f0cf9d",
     "--avatar-bg": "rgba(255, 255, 255, 0.06)",
-    "--active-button-gradient": "linear-gradient(135deg, #39e01f 0%, #f28c28 100%)",
+    "--active-button-gradient":
+      "linear-gradient(135deg, #39e01f 0%, #f28c28 100%)",
     "--active-button-shadow": "0 12px 24px rgba(57, 224, 31, 0.25)",
     "--muted-on-accent": "rgba(255, 255, 255, 0.72)",
-    "--empty-card-bg": "linear-gradient(180deg, rgba(29, 29, 34, 0.96) 0%, rgba(20, 20, 24, 0.98) 100%)",
+    "--empty-card-bg":
+      "linear-gradient(180deg, rgba(29, 29, 34, 0.96) 0%, rgba(20, 20, 24, 0.98) 100%)",
     "--submit-gradient": "linear-gradient(135deg, #39e01f 0%, #f28c28 100%)",
     "--submit-shadow": "0 18px 34px rgba(57, 224, 31, 0.28)",
     "--submit-shadow-hover": "0 22px 42px rgba(57, 224, 31, 0.34)",
     "--submit-disabled-bg": "#252525",
     "--submit-disabled-text": "#4c4c56",
     "--modal-backdrop": "rgba(0, 0, 0, 0.82)",
-    "--modal-card-bg": "linear-gradient(180deg, rgba(19, 19, 23, 0.98) 0%, rgba(11, 11, 13, 1) 100%)",
+    "--modal-card-bg":
+      "linear-gradient(180deg, rgba(19, 19, 23, 0.98) 0%, rgba(11, 11, 13, 1) 100%)",
     "--modal-close-bg": "rgba(255, 255, 255, 0.06)",
     "--modal-close-bg-hover": "rgba(255, 255, 255, 0.12)",
     "--service-active-meta": "rgba(255, 171, 214, 0.88)",
@@ -120,10 +131,14 @@ const WEB_STYLE_PRESETS = {
     "--text-soft": "#1f2937",
     "--text-dim": "#64748b",
     "--text-faint": "#94a3b8",
-    "--glow-1": "radial-gradient(circle, rgba(57, 224, 31, 0.12) 0%, transparent 72%)",
-    "--glow-2": "radial-gradient(circle, rgba(242, 140, 40, 0.14) 0%, transparent 72%)",
-    "--card-bg": "linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 1) 100%)",
-    "--card-shadow": "0 24px 60px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.8)",
+    "--glow-1":
+      "radial-gradient(circle, rgba(57, 224, 31, 0.12) 0%, transparent 72%)",
+    "--glow-2":
+      "radial-gradient(circle, rgba(242, 140, 40, 0.14) 0%, transparent 72%)",
+    "--card-bg":
+      "linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 1) 100%)",
+    "--card-shadow":
+      "0 24px 60px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.8)",
     "--card-grid":
       "linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px)",
     "--eyebrow-bg": "rgba(15, 23, 42, 0.05)",
@@ -143,17 +158,20 @@ const WEB_STYLE_PRESETS = {
     "--warning-bg": "rgba(245, 158, 11, 0.08)",
     "--warning-text": "#92400e",
     "--avatar-bg": "rgba(15, 23, 42, 0.05)",
-    "--active-button-gradient": "linear-gradient(135deg, #39e01f 0%, #f28c28 100%)",
+    "--active-button-gradient":
+      "linear-gradient(135deg, #39e01f 0%, #f28c28 100%)",
     "--active-button-shadow": "0 12px 24px rgba(57, 224, 31, 0.18)",
     "--muted-on-accent": "rgba(255, 255, 255, 0.78)",
-    "--empty-card-bg": "linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 1) 100%)",
+    "--empty-card-bg":
+      "linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 245, 249, 1) 100%)",
     "--submit-gradient": "linear-gradient(135deg, #39e01f 0%, #f28c28 100%)",
     "--submit-shadow": "0 18px 34px rgba(57, 224, 31, 0.16)",
     "--submit-shadow-hover": "0 22px 42px rgba(57, 224, 31, 0.22)",
     "--submit-disabled-bg": "#e5e7eb",
     "--submit-disabled-text": "#94a3b8",
     "--modal-backdrop": "rgba(15, 23, 42, 0.35)",
-    "--modal-card-bg": "linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(248, 250, 252, 1) 100%)",
+    "--modal-card-bg":
+      "linear-gradient(180deg, rgba(255, 255, 255, 0.99) 0%, rgba(248, 250, 252, 1) 100%)",
     "--modal-close-bg": "rgba(15, 23, 42, 0.06)",
     "--modal-close-bg-hover": "rgba(15, 23, 42, 0.12)",
     "--service-active-meta": "#475569",
@@ -173,10 +191,14 @@ const WEB_STYLE_PRESETS = {
     "--text-soft": "#5b3f2b",
     "--text-dim": "#8b6a54",
     "--text-faint": "#b59a83",
-    "--glow-1": "radial-gradient(circle, rgba(184, 138, 95, 0.20) 0%, transparent 72%)",
-    "--glow-2": "radial-gradient(circle, rgba(222, 196, 160, 0.24) 0%, transparent 72%)",
-    "--card-bg": "linear-gradient(180deg, rgba(255, 250, 241, 0.98) 0%, rgba(244, 233, 216, 1) 100%)",
-    "--card-shadow": "0 26px 60px rgba(98, 67, 44, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.65)",
+    "--glow-1":
+      "radial-gradient(circle, rgba(184, 138, 95, 0.20) 0%, transparent 72%)",
+    "--glow-2":
+      "radial-gradient(circle, rgba(222, 196, 160, 0.24) 0%, transparent 72%)",
+    "--card-bg":
+      "linear-gradient(180deg, rgba(255, 250, 241, 0.98) 0%, rgba(244, 233, 216, 1) 100%)",
+    "--card-shadow":
+      "0 26px 60px rgba(98, 67, 44, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.65)",
     "--card-grid":
       "linear-gradient(rgba(139, 94, 52, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(139, 94, 52, 0.05) 1px, transparent 1px)",
     "--eyebrow-bg": "rgba(139, 94, 52, 0.10)",
@@ -196,17 +218,20 @@ const WEB_STYLE_PRESETS = {
     "--warning-bg": "rgba(251, 191, 36, 0.10)",
     "--warning-text": "#7c4a16",
     "--avatar-bg": "rgba(139, 94, 52, 0.08)",
-    "--active-button-gradient": "linear-gradient(135deg, #8b5e34 0%, #6d4020 100%)",
+    "--active-button-gradient":
+      "linear-gradient(135deg, #8b5e34 0%, #6d4020 100%)",
     "--active-button-shadow": "0 12px 24px rgba(139, 94, 52, 0.24)",
     "--muted-on-accent": "rgba(255, 244, 230, 0.82)",
-    "--empty-card-bg": "linear-gradient(180deg, rgba(255, 249, 238, 0.98) 0%, rgba(244, 233, 216, 1) 100%)",
+    "--empty-card-bg":
+      "linear-gradient(180deg, rgba(255, 249, 238, 0.98) 0%, rgba(244, 233, 216, 1) 100%)",
     "--submit-gradient": "linear-gradient(135deg, #8b5e34 0%, #6d4020 100%)",
     "--submit-shadow": "0 18px 34px rgba(139, 94, 52, 0.22)",
     "--submit-shadow-hover": "0 22px 42px rgba(139, 94, 52, 0.28)",
     "--submit-disabled-bg": "#d8c7b4",
     "--submit-disabled-text": "#8f7a64",
     "--modal-backdrop": "rgba(62, 43, 31, 0.40)",
-    "--modal-card-bg": "linear-gradient(180deg, rgba(255, 250, 241, 0.99) 0%, rgba(244, 233, 216, 1) 100%)",
+    "--modal-card-bg":
+      "linear-gradient(180deg, rgba(255, 250, 241, 0.99) 0%, rgba(244, 233, 216, 1) 100%)",
     "--modal-close-bg": "rgba(139, 94, 52, 0.08)",
     "--modal-close-bg-hover": "rgba(139, 94, 52, 0.16)",
     "--service-active-meta": "#8b6a54",
@@ -282,8 +307,7 @@ const getPublicPaymentOptions = (shopInfo, businessCopy) => {
     options.push({
       value: "cash",
       label: "Efectivo / transferencia en el local",
-      helper:
-        `Reservás ahora y pagás presencialmente ${businessCopy.atBusiness} cuando llegás a tu turno.`,
+      helper: `Reservás ahora y pagás presencialmente ${businessCopy.atBusiness} cuando llegás a tu turno.`,
     });
   }
 
@@ -484,6 +508,10 @@ function BookingForm({ shopSlug, onNotFound }) {
   const [paymentResultMessage, setPaymentResultMessage] = useState("");
   const [shopUnavailable, setShopUnavailable] = useState(false);
   const [closedDayNotice, setClosedDayNotice] = useState("");
+  const [couponInput, setCouponInput] = useState("");
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
   const businessCopy = useMemo(
     () => getBusinessCopy(shopInfo?.businessType),
     [shopInfo?.businessType],
@@ -494,17 +522,65 @@ function BookingForm({ shopSlug, onNotFound }) {
       (sum, item) => sum + Number(item?.durationMinutes || 0),
       0,
     );
-    return total || SLOT_INTERVAL_MINUTES;
+    return total || DEFAULT_SLOT_INTERVAL_MINUTES;
   }, [selectedServices]);
 
   const currentTotalPrice = useMemo(
     () =>
-      selectedServices.reduce(
-        (sum, item) => sum + Number(item?.price || 0),
-        0,
-      ),
+      selectedServices.reduce((sum, item) => sum + Number(item?.price || 0), 0),
     [selectedServices],
   );
+  // Precio final (con cupón aplicado, si lo hay).
+  const currentServicePrice = useMemo(
+    () =>
+      appliedCoupon?.totalFinal != null
+        ? Number(appliedCoupon.totalFinal || 0)
+        : currentTotalPrice,
+    [appliedCoupon, currentTotalPrice],
+  );
+  const couponDiscountsByServiceId = useMemo(() => {
+    const entries = Array.isArray(appliedCoupon?.serviceDiscounts)
+      ? appliedCoupon.serviceDiscounts
+      : [];
+    return new Map(entries.map((item) => [String(item.serviceId), item]));
+  }, [appliedCoupon]);
+
+  // Si cambian los servicios, el cupón aplicado deja de ser válido.
+  useEffect(() => {
+    setAppliedCoupon(null);
+    setCouponError("");
+  }, [selectedServices]);
+
+  const handleApplyCoupon = useCallback(async () => {
+    const serviceIds = selectedServices
+      .map((item) => getEntityId(item))
+      .filter(Boolean);
+    const code = couponInput.trim().toUpperCase();
+
+    if (!serviceIds.length) {
+      setCouponError("Seleccioná un servicio antes de aplicar el cupón.");
+      return;
+    }
+    if (!code) {
+      setCouponError("Ingresá el código del cupón.");
+      return;
+    }
+
+    try {
+      setCouponLoading(true);
+      setCouponError("");
+      const response = await validateBookingCoupon({ code, serviceIds });
+      setAppliedCoupon(response?.coupon ?? null);
+    } catch (err) {
+      setAppliedCoupon(null);
+      setCouponError(
+        err?.details?.error || err?.message || "No pudimos aplicar el cupón.",
+      );
+    } finally {
+      setCouponLoading(false);
+    }
+  }, [couponInput, selectedServices]);
+
   const selectedServiceLabel = useMemo(() => {
     if (!selectedServices.length) return "Seleccionar servicios";
     if (selectedServices.length === 1) return selectedServices[0].name;
@@ -513,10 +589,10 @@ function BookingForm({ shopSlug, onNotFound }) {
 
   const selectedServiceSummary = useMemo(() => {
     if (!selectedServices.length) {
-      return `${SLOT_INTERVAL_MINUTES} minutos · ${formatPrice(0)}`;
+      return `${DEFAULT_SLOT_INTERVAL_MINUTES} minutos · ${formatPrice(0)}`;
     }
-    return `${currentDuration} minutos · ${formatPrice(currentTotalPrice)}`;
-  }, [currentDuration, currentTotalPrice, selectedServices.length]);
+    return `${currentDuration} minutos · ${formatPrice(currentServicePrice)}`;
+  }, [currentDuration, currentServicePrice, selectedServices.length]);
 
   // 2. USEMEMO
   const selectedBarberData = useMemo(
@@ -537,12 +613,17 @@ function BookingForm({ shopSlug, onNotFound }) {
   );
 
   const selectedServiceIds = useMemo(
-    () => new Set(selectedServices.map((service) => getEntityId(service)).filter(Boolean)),
+    () =>
+      new Set(
+        selectedServices.map((service) => getEntityId(service)).filter(Boolean),
+      ),
     [selectedServices],
   );
 
   const compatibleBarbers = useMemo(() => {
-    const ids = selectedServices.map((service) => getEntityId(service)).filter(Boolean);
+    const ids = selectedServices
+      .map((service) => getEntityId(service))
+      .filter(Boolean);
     if (!ids.length) return barbers;
 
     return barbers.filter((barber) => {
@@ -567,7 +648,9 @@ function BookingForm({ shopSlug, onNotFound }) {
     const currentDayOfWeek = selectedDate.getDay();
     if (!workDays.includes(currentDayOfWeek)) return [];
 
-    const step = SLOT_INTERVAL_MINUTES;
+    const step = normalizeSlotIntervalMinutes(
+      selectedBarberData?.bookingSlotIntervalMinutes,
+    );
     const buildSlots = (startStr, endStr) => {
       const parse = (t) => {
         const [h, m] = t.trim().split(":").map(Number);
@@ -628,13 +711,16 @@ function BookingForm({ shopSlug, onNotFound }) {
   );
 
   const desktopBannerSrc =
-    resolveApiMediaUrl(shopInfo?.themeConfig?.bannerDataUrl) || DEFAULT_BOOKING_BANNER;
+    resolveApiMediaUrl(shopInfo?.themeConfig?.bannerDataUrl) ||
+    DEFAULT_BOOKING_BANNER;
   const mobileBannerSrc =
     resolveApiMediaUrl(
-      shopInfo?.themeConfig?.mobileBannerDataUrl || shopInfo?.themeConfig?.bannerDataUrl,
+      shopInfo?.themeConfig?.mobileBannerDataUrl ||
+        shopInfo?.themeConfig?.bannerDataUrl,
     ) || DEFAULT_BOOKING_BANNER;
   const shopProfileSrc =
-    resolveApiMediaUrl(shopInfo?.themeConfig?.logoDataUrl) || DEFAULT_BOOKING_LOGO;
+    resolveApiMediaUrl(shopInfo?.themeConfig?.logoDataUrl) ||
+    DEFAULT_BOOKING_LOGO;
   const publicProfile = shopInfo?.publicProfile || {};
   const shopSubtitle = String(publicProfile.subtitle || "").trim();
   const shopAddress = String(publicProfile.address || "").trim();
@@ -720,7 +806,10 @@ function BookingForm({ shopSlug, onNotFound }) {
             );
           })
           .catch((mediaError) => {
-            console.warn("No se pudo cargar la media pública:", mediaError?.message || mediaError);
+            console.warn(
+              "No se pudo cargar la media pública:",
+              mediaError?.message || mediaError,
+            );
           });
       } catch (err) {
         console.error(err);
@@ -802,7 +891,7 @@ function BookingForm({ shopSlug, onNotFound }) {
           const [baseHour, baseMinute] = startLabel.split(":").map(Number);
           const startMinutes = baseHour * 60 + baseMinute;
           const occupiedDuration =
-            (app.durationMinutes ?? SLOT_INTERVAL_MINUTES) +
+            (app.durationMinutes ?? DEFAULT_SLOT_INTERVAL_MINUTES) +
             (app.bufferAfterMinutesApplied ?? 0);
           busyRanges.push({
             start: startMinutes,
@@ -892,7 +981,9 @@ function BookingForm({ shopSlug, onNotFound }) {
 
       const overlapsBlockedTime = barberTimeBlocks.some((block) => {
         if (block?.date !== formatDateParam(selectedDate)) return false;
-        const [blockStartHour, blockStartMinute] = String(block.start || "00:00")
+        const [blockStartHour, blockStartMinute] = String(
+          block.start || "00:00",
+        )
           .split(":")
           .map(Number);
         const [blockEndHour, blockEndMinute] = String(block.end || "00:00")
@@ -976,7 +1067,8 @@ function BookingForm({ shopSlug, onNotFound }) {
         })),
         startTime: finalDateUTC,
         durationMinutes: currentDuration,
-        servicePrice: currentTotalPrice,
+        servicePrice: currentServicePrice,
+        couponCode: appliedCoupon?.code || null,
         notes: phone.trim(),
         email: emailReview.normalized,
         paymentMethod,
@@ -1089,10 +1181,14 @@ function BookingForm({ shopSlug, onNotFound }) {
                   className={`${styles.serviceItem} ${selectedServiceIds.has(service._id) ? styles.serviceItemActive : ""}`}
                   onClick={() => {
                     setSelectedServices((current) => {
-                      const exists = current.some((item) => item._id === service._id);
+                      const exists = current.some(
+                        (item) => item._id === service._id,
+                      );
                       if (exists) {
                         if (current.length === 1) return current;
-                        return current.filter((item) => item._id !== service._id);
+                        return current.filter(
+                          (item) => item._id !== service._id,
+                        );
                       }
                       return [...current, service];
                     });
@@ -1104,7 +1200,23 @@ function BookingForm({ shopSlug, onNotFound }) {
                     </span>
                     <span className={styles.serviceItemMeta}>
                       {service.durationMinutes} min ·{" "}
-                      {formatPrice(service.price)}
+                      {couponDiscountsByServiceId.get(String(service._id))
+                        ?.discountAmount > 0 ? (
+                        <>
+                          <span className={styles.oldPrice}>
+                            {formatPrice(
+                              couponDiscountsByServiceId.get(String(service._id))
+                                .originalPrice,
+                            )}
+                          </span>{" "}
+                          {formatPrice(
+                            couponDiscountsByServiceId.get(String(service._id))
+                              .finalPrice,
+                          )}
+                        </>
+                      ) : (
+                        formatPrice(service.price)
+                      )}
                     </span>
                   </div>
                   <span className={styles.serviceCheck}>
@@ -1138,7 +1250,10 @@ function BookingForm({ shopSlug, onNotFound }) {
         <div className={style.navLogo}>
           <span className={`${style.navLogoMark} ${styles.bookingNavLogoMark}`}>
             {shopProfileSrc ? (
-              <img src={shopProfileSrc} alt={shopInfo?.name || SHIFT_APP_BRAND_NAME} />
+              <img
+                src={shopProfileSrc}
+                alt={shopInfo?.name || SHIFT_APP_BRAND_NAME}
+              />
             ) : (
               <span className={styles.logoPlaceholderText}>
                 {(shopInfo?.name || SHIFT_APP_BRAND_NAME).charAt(0)}
@@ -1153,7 +1268,9 @@ function BookingForm({ shopSlug, onNotFound }) {
           <div className={styles.shopHeroMedia}>
             {desktopBannerSrc || mobileBannerSrc ? (
               <picture className={styles.shopHeroPicture}>
-                {mobileBannerSrc ? <source media="(max-width: 768px)" srcSet={mobileBannerSrc} /> : null}
+                {mobileBannerSrc ? (
+                  <source media="(max-width: 768px)" srcSet={mobileBannerSrc} />
+                ) : null}
                 <img
                   className={styles.shopHeroBanner}
                   src={desktopBannerSrc || mobileBannerSrc}
@@ -1168,7 +1285,11 @@ function BookingForm({ shopSlug, onNotFound }) {
               {shopProfileSrc ? (
                 <img
                   src={shopProfileSrc}
-                  alt={shopInfo?.name ? `Logo de ${shopInfo.name}` : "Logo del negocio"}
+                  alt={
+                    shopInfo?.name
+                      ? `Logo de ${shopInfo.name}`
+                      : "Logo del negocio"
+                  }
                 />
               ) : (
                 <span className={styles.heroAvatarPlaceholderText}>
@@ -1188,54 +1309,114 @@ function BookingForm({ shopSlug, onNotFound }) {
                 </h2>
               </div>
               {shopSubtitle ? (
-                <p className={styles.shopHeroSubtitle}>
-                  {shopSubtitle}
-                </p>
+                <p className={styles.shopHeroSubtitle}>{shopSubtitle}</p>
               ) : null}
               {hasGoogleRating ? (
-                <div className={styles.shopRating} aria-label={`Valoración ${googleRating.toFixed(1)} de 5`}>
-                  <span className={styles.shopRatingStars} aria-hidden="true">★★★★★</span>
+                <div
+                  className={styles.shopRating}
+                  aria-label={`Valoración ${googleRating.toFixed(1)} de 5`}
+                >
+                  <span className={styles.shopRatingStars} aria-hidden="true">
+                    ★★★★★
+                  </span>
                   <strong>{googleRating.toFixed(1)}</strong>
-                  {googleReviewCount > 0 ? <span>{googleReviewCount} reseñas</span> : null}
+                  {googleReviewCount > 0 ? (
+                    <span>{googleReviewCount} reseñas</span>
+                  ) : null}
                 </div>
               ) : null}
               {shopAddress || shopPhone ? (
                 <div className={styles.shopContactMeta}>
                   {shopAddress ? (
                     <span>
-                      <span className={styles.contactIcon} aria-hidden="true"><img className={style.icon} src="mapa.png" alt="mapa" /></span>
+                      <span className={styles.contactIcon} aria-hidden="true">
+                        <img className={style.icon} src="mapa.png" alt="mapa" />
+                      </span>
                       {shopAddress}
                     </span>
                   ) : null}
                   {shopPhone ? (
                     <span>
-                      <span className={styles.contactIcon} aria-hidden="true"><img className={style.icon}  src="telefonoNegro.png" alt="telefono" /></span>
+                      <span className={styles.contactIcon} aria-hidden="true">
+                        <img
+                          className={style.icon}
+                          src="telefonoNegro.png"
+                          alt="telefono"
+                        />
+                      </span>
                       {shopPhone}
                     </span>
                   ) : null}
                 </div>
               ) : null}
             </div>
-            {hasMapLink || hasReviewsLink || hasInstagramLink || hasLinktreeLink ? (
+            {hasMapLink ||
+            hasReviewsLink ||
+            hasInstagramLink ||
+            hasLinktreeLink ? (
               <div className={styles.shopSecondaryLinks}>
                 {hasMapLink ? (
-                  <a href={googleMapsUrl} target="_blank" rel="noreferrer" aria-label="Cómo llegar" title="Cómo llegar">
-                    <span aria-hidden="true"><img className={style.icon}  src="mapa.png" alt="mapa" /></span>
+                  <a
+                    href={googleMapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Cómo llegar"
+                    title="Cómo llegar"
+                  >
+                    <span aria-hidden="true">
+                      <img className={style.icon} src="mapa.png" alt="mapa" />
+                    </span>
                   </a>
                 ) : null}
                 {hasReviewsLink ? (
-                  <a href={googleReviewsUrl} target="_blank" rel="noreferrer" aria-label="Ver reseñas" title="Ver reseñas">
-                    <span aria-hidden="true"><img className={style.icon}  src="estrella.png" alt="estrella" /></span>
+                  <a
+                    href={googleReviewsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Ver reseñas"
+                    title="Ver reseñas"
+                  >
+                    <span aria-hidden="true">
+                      <img
+                        className={style.icon}
+                        src="estrella.png"
+                        alt="estrella"
+                      />
+                    </span>
                   </a>
                 ) : null}
                 {hasInstagramLink ? (
-                  <a href={instagramUrl} target="_blank" rel="noreferrer" aria-label="Instagram" title="Instagram">
-                    <span aria-hidden="true"><img className={style.icon}  src="instagram.png" alt="instagram" /></span>
+                  <a
+                    href={instagramUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Instagram"
+                    title="Instagram"
+                  >
+                    <span aria-hidden="true">
+                      <img
+                        className={style.icon}
+                        src="instagram.png"
+                        alt="instagram"
+                      />
+                    </span>
                   </a>
                 ) : null}
                 {hasLinktreeLink ? (
-                  <a href={linktreeUrl} target="_blank" rel="noreferrer" aria-label="Linktree" title="Linktree">
-                    <span aria-hidden="true"><img className={style.icon}  src="linktree.png" alt="linktree" /></span>
+                  <a
+                    href={linktreeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Linktree"
+                    title="Linktree"
+                  >
+                    <span aria-hidden="true">
+                      <img
+                        className={style.icon}
+                        src="linktree.png"
+                        alt="linktree"
+                      />
+                    </span>
                   </a>
                 ) : null}
               </div>
@@ -1270,6 +1451,65 @@ function BookingForm({ shopSlug, onNotFound }) {
             </div>
           ) : null}
         </div>
+
+        {shopInfo?.paymentSettings?.bookingCouponsEnabled ? (
+          <div className={styles.couponBox}>
+            <div className={styles.couponHeader}>
+              <div>
+                <span className={styles.couponTitle}>¿Tenés un cupón?</span>
+                <span className={styles.couponHint}>
+                  Ingresalo para ver el precio con descuento.
+                </span>
+              </div>
+              {appliedCoupon ? (
+                <button
+                  type="button"
+                  className={styles.couponClearButton}
+                  onClick={() => {
+                    setAppliedCoupon(null);
+                    setCouponInput("");
+                    setCouponError("");
+                  }}
+                >
+                  Quitar
+                </button>
+              ) : null}
+            </div>
+            <div className={styles.couponRow}>
+              <input
+                className={styles.couponInput}
+                value={couponInput}
+                placeholder="Código del cupón"
+                onChange={(event) =>
+                  setCouponInput(event.target.value.toUpperCase())
+                }
+              />
+              <button
+                type="button"
+                className={styles.couponApplyButton}
+                onClick={handleApplyCoupon}
+                disabled={couponLoading}
+              >
+                {couponLoading ? "Aplicando..." : "Aplicar"}
+              </button>
+            </div>
+            {couponError ? (
+              <p className={styles.couponError}>{couponError}</p>
+            ) : null}
+            {appliedCoupon ? (
+              <div className={styles.couponApplied}>
+                <span>
+                  {appliedCoupon.name || appliedCoupon.code}: ahorrás{" "}
+                  {formatPrice(appliedCoupon.totalDiscount)}
+                </span>
+                <strong>
+                  {formatPrice(appliedCoupon.totalOriginal)} →{" "}
+                  {formatPrice(appliedCoupon.totalFinal)}
+                </strong>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className={styles.twoColumn}>
           <div className={styles.fieldGroup}>

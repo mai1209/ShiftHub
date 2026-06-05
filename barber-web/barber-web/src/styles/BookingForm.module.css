@@ -1196,3 +1196,105 @@ span img{
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ====== Cupón de reserva (descuento al cliente) ====== */
+.couponBox {
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface-2);
+  padding: 16px;
+  margin: -4px 0 22px;
+}
+
+.couponHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.couponTitle {
+  display: block;
+  color: var(--text);
+  font-weight: 900;
+  font-size: 0.95rem;
+}
+
+.couponHint {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  margin-top: 3px;
+}
+
+.couponRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.couponInput {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 12px 14px;
+  font-weight: 800;
+  min-width: 0;
+  text-transform: uppercase;
+}
+
+.couponApplyButton {
+  border: none;
+  border-radius: 14px;
+  background: var(--submit-gradient);
+  color: #fff;
+  padding: 12px 16px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.couponApplyButton:disabled {
+  opacity: 0.62;
+  cursor: wait;
+}
+
+.couponClearButton {
+  border: 1px solid var(--pink);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--pink);
+  padding: 8px 12px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.couponError {
+  color: #c53333;
+  font-size: 0.82rem;
+  font-weight: 800;
+  margin: 10px 0 0;
+}
+
+.couponApplied {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(22, 163, 74, 0.28);
+  border-radius: 16px;
+  background: rgba(22, 163, 74, 0.11);
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 800;
+  margin-top: 12px;
+  padding: 11px 12px;
+}
+
+.oldPrice {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
