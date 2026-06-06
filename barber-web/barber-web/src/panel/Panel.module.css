@@ -905,6 +905,13 @@
   font-weight: 800;
 }
 
+.infoValue {
+  margin: 4px 0 14px;
+  color: var(--panel-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
 .planStatusNote {
   margin-top: 14px;
   padding: 10px 12px;

@@ -618,6 +618,13 @@ function ReservasForm({ navigation, route }: any) {
       );
       return;
     }
+    if (!phone.trim()) {
+      Alert.alert(
+        'Falta el teléfono',
+        'Ingresá el teléfono/WhatsApp del cliente para poder contactarlo.',
+      );
+      return;
+    }
     if (!isWalkin && closedDayNotice) {
       Alert.alert('No disponible', closedDayNotice);
       return;

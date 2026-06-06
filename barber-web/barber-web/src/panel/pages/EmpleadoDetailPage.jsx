@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Trash2 } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import {
   fetchBarbers,
   updateBarber,
@@ -67,7 +67,6 @@ function EmpleadoDetailPage() {
   const [m2, setM2] = useState({ start: '', end: '' });
   // Bloqueos
   const [blocks, setBlocks] = useState([]);
-  const [nb, setNb] = useState({ date: '', start: '', end: '' });
 
   // Acceso
   const [accessEmail, setAccessEmail] = useState('');
@@ -118,11 +117,6 @@ function EmpleadoDetailPage() {
     load();
   }, [load]);
 
-  const toggleDay = (n) =>
-    setWorkDays((prev) =>
-      prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n].sort(),
-    );
-
   const handlePhoto = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -133,15 +127,6 @@ function EmpleadoDetailPage() {
       alert('No se pudo procesar la imagen.');
     }
   };
-
-  const addBlock = () => {
-    if (!nb.date || !nb.start || !nb.end) {
-      return alert('Completá fecha, desde y hasta del bloqueo.');
-    }
-    setBlocks((prev) => [...prev, { ...nb }]);
-    setNb({ date: '', start: '', end: '' });
-  };
-  const removeBlock = (i) => setBlocks((prev) => prev.filter((_, idx) => idx !== i));
 
   const handleSave = async () => {
     if (!fullName.trim()) return alert('El nombre es obligatorio.');
@@ -275,64 +260,41 @@ function EmpleadoDetailPage() {
             onChange={(e) => setCommission(e.target.value)}
           />
 
-          <span className={styles.fieldLabel}>Días de trabajo</span>
-          <div className={styles.dayToggles}>
-            {WEEK.map((d) => (
-              <button
-                key={d.n}
-                type="button"
-                className={`${styles.dayToggle} ${
-                  workDays.includes(d.n) ? styles.dayToggleActive : ''
-                }`}
-                onClick={() => toggleDay(d.n)}
-              >
-                {d.l}
-              </button>
-            ))}
+          <div className={styles.infoNote}>
+            Los <strong>días y horarios de trabajo</strong> que ves abajo son
+            <strong> solo informativos</strong>. Para modificarlos, hacelo desde
+            la app (editarlos acá puede confundir). Acá podés cambiar el nombre,
+            la comisión y el acceso.
           </div>
 
-          {Array.isArray(barber?.dayScheduleOverrides) &&
-          barber.dayScheduleOverrides.some((o) => o && o.useBase === false) ? (
-            <div className={styles.infoNote}>
-              Este profesional tiene <strong>horarios distintos por día</strong>{' '}
-              configurados en la app. Acá editás el horario general; esos días
-              especiales se respetan y se siguen editando desde la app.
-            </div>
-          ) : null}
+          <span className={styles.fieldLabel}>Días de trabajo (informativo)</span>
+          <p className={styles.infoValue}>
+            {workDays.length
+              ? WEEK.filter((d) => workDays.includes(d.n))
+                  .map((d) => d.l)
+                  .join(' · ')
+              : 'Todos los días'}
+          </p>
 
-          <span className={styles.fieldLabel}>Horario — Mañana</span>
-          <div className={styles.twoCol}>
-            <input className={styles.input} type="time" value={m1.start} onChange={(e) => setM1((p) => ({ ...p, start: e.target.value }))} />
-            <input className={styles.input} type="time" value={m1.end} onChange={(e) => setM1((p) => ({ ...p, end: e.target.value }))} />
-          </div>
+          <span className={styles.fieldLabel}>Horario — Mañana (informativo)</span>
+          <p className={styles.infoValue}>
+            {m1.start && m1.end ? `${m1.start} – ${m1.end}` : 'No configurado'}
+          </p>
 
-          <span className={styles.fieldLabel}>Tarde (opcional — dejá vacío si es corrido)</span>
-          <div className={styles.twoCol}>
-            <input className={styles.input} type="time" value={m2.start} onChange={(e) => setM2((p) => ({ ...p, start: e.target.value }))} />
-            <input className={styles.input} type="time" value={m2.end} onChange={(e) => setM2((p) => ({ ...p, end: e.target.value }))} />
-          </div>
+          <span className={styles.fieldLabel}>Tarde (informativo)</span>
+          <p className={styles.infoValue}>
+            {m2.start && m2.end ? `${m2.start} – ${m2.end}` : 'Sin turno tarde'}
+          </p>
 
           <span className={styles.fieldLabel}>
-            Intervalo entre turnos (cada cuánto hay un horario)
+            Intervalo entre turnos (informativo)
           </span>
-          <div className={styles.segmented}>
-            {[
-              { v: 15, l: '15 min' },
-              { v: 30, l: '30 min' },
-            ].map((o) => (
-              <button
-                key={o.v}
-                type="button"
-                className={`${styles.segment} ${slotInterval === o.v ? styles.segmentActive : ''}`}
-                onClick={() => setSlotInterval(o.v)}
-              >
-                {o.l}
-              </button>
-            ))}
-          </div>
+          <p className={styles.infoValue}>Cada {slotInterval} min</p>
 
-          {/* Bloqueos */}
-          <span className={styles.fieldLabel}>Bloqueos (días/horas que no atiende)</span>
+          {/* Bloqueos (informativo) */}
+          <span className={styles.fieldLabel}>
+            Bloqueos (días/horas que no atiende) — informativo
+          </span>
           {blocks.length === 0 ? (
             <p className={styles.muted} style={{ marginTop: 0 }}>Sin bloqueos.</p>
           ) : (
@@ -342,21 +304,10 @@ function EmpleadoDetailPage() {
                   <span>
                     {bl.date} · {bl.start}–{bl.end}
                   </span>
-                  <button className={styles.iconBtn} onClick={() => removeBlock(i)}>
-                    <Trash2 size={15} />
-                  </button>
                 </div>
               ))}
             </div>
           )}
-          <div className={styles.blockAdd}>
-            <input className={styles.input} type="date" value={nb.date} onChange={(e) => setNb((p) => ({ ...p, date: e.target.value }))} />
-            <input className={styles.input} type="time" value={nb.start} onChange={(e) => setNb((p) => ({ ...p, start: e.target.value }))} />
-            <input className={styles.input} type="time" value={nb.end} onChange={(e) => setNb((p) => ({ ...p, end: e.target.value }))} />
-            <button className={styles.secondaryBtn} onClick={addBlock}>
-              Agregar
-            </button>
-          </div>
 
           {msg ? <div className={styles.okBox}>{msg}</div> : null}
           <button

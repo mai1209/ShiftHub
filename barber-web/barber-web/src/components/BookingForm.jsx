@@ -356,10 +356,11 @@ const reviewEmail = (value) => {
   const normalized = normalizeEmail(value);
 
   if (!normalized) {
+    // El email es opcional: si no lo cargan, el turno se reserva igual.
     return {
       normalized,
-      isValid: false,
-      message: "Ingresá un email para recibir la confirmación del turno.",
+      isValid: true,
+      message: "",
     };
   }
 
@@ -500,8 +501,7 @@ function BookingForm({ shopSlug, onNotFound }) {
   const [services, setServices] = useState([]);
   const [selectedServices, setSelectedServices] = useState([]);
   const [servicePickerOpen, setServicePickerOpen] = useState(false);
-  const [email, setEmail] = useState(""); // <-- AGREGAR ESTO
-  const [emailConfirmation, setEmailConfirmation] = useState("");
+  const [email, setEmail] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedBarberSchedule, setSelectedBarberSchedule] = useState(null);
@@ -741,9 +741,6 @@ function BookingForm({ shopSlug, onNotFound }) {
     [shopInfo?.themeConfig?.webPreset],
   );
   const emailReview = useMemo(() => reviewEmail(email), [email]);
-  const emailConfirmationMatches =
-    !emailConfirmation ||
-    normalizeEmail(email) === normalizeEmail(emailConfirmation);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1038,13 +1035,13 @@ function BookingForm({ shopSlug, onNotFound }) {
       return;
     }
 
-    if (!emailReview.isValid) {
-      alert(emailReview.message);
+    if (!phone.trim()) {
+      alert("Ingresá un teléfono/WhatsApp para que puedan contactarte.");
       return;
     }
 
-    if (emailReview.normalized !== normalizeEmail(emailConfirmation)) {
-      alert("Confirmá el email escribiéndolo igual en los dos campos.");
+    if (!emailReview.isValid) {
+      alert(emailReview.message);
       return;
     }
 
@@ -1103,7 +1100,6 @@ function BookingForm({ shopSlug, onNotFound }) {
       setCustomerName("");
       setPhone("");
       setEmail("");
-      setEmailConfirmation("");
       setSelectedServices([]);
       setSelectedBarber("");
       setSelectedSlot(null);
@@ -1293,7 +1289,7 @@ function BookingForm({ shopSlug, onNotFound }) {
                 />
               ) : (
                 <span className={styles.heroAvatarPlaceholderText}>
-                  {(shopInfo?.name || businessCopy.businessTypeLabel).charAt(0)}
+                  {(shopInfo?.name || SHIFT_APP_BRAND_NAME).charAt(0)}
                 </span>
               )}
             </div>
@@ -1305,7 +1301,7 @@ function BookingForm({ shopSlug, onNotFound }) {
                 <h2 className={styles.shopHeroName}>
                   {shopLoading
                     ? "Cargando negocio..."
-                    : shopInfo?.name || businessCopy.businessTypeLabel}
+                    : shopInfo?.name || SHIFT_APP_BRAND_NAME}
                 </h2>
               </div>
               {shopSubtitle ? (
@@ -1536,16 +1532,15 @@ function BookingForm({ shopSlug, onNotFound }) {
             />
           </div>
         </div>
-        {/* NUEVO CAMPO DE EMAIL */}
+        {/* CAMPO DE EMAIL (opcional) */}
         <div className={styles.fieldGroup}>
-          <label className={styles.label}>Email (para confirmación)</label>
+          <label className={styles.label}>Email (opcional, para el comprobante)</label>
           <input
             className={styles.input}
             type="email"
             placeholder="ejemplo@correo.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            required
           />
           {email ? (
             <p
@@ -1556,25 +1551,6 @@ function BookingForm({ shopSlug, onNotFound }) {
               }`}
             >
               {emailReview.message}
-            </p>
-          ) : null}
-        </div>
-
-        <div className={styles.fieldGroup}>
-          <label className={styles.label}>Confirmar email</label>
-          <input
-            className={styles.input}
-            type="email"
-            placeholder="Volvé a escribir tu email"
-            value={emailConfirmation}
-            onChange={(e) => setEmailConfirmation(e.target.value)}
-            required
-          />
-          {emailConfirmation && !emailConfirmationMatches ? (
-            <p
-              className={`${styles.emailFeedback} ${styles.emailFeedbackWarning}`}
-            >
-              Los emails no coinciden. Revisalos antes de confirmar el turno.
             </p>
           ) : null}
         </div>

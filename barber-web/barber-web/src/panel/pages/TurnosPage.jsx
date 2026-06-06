@@ -397,6 +397,8 @@ function TurnosPage() {
   const confirmCreate = async () => {
     if (!cBarberId) return alert('Elegí un profesional.');
     if (!customerName.trim()) return alert('Poné el nombre del cliente.');
+    if (!phone.trim())
+      return alert('Poné el WhatsApp/teléfono del cliente para poder contactarlo.');
     const svc = services.find((s) => s._id === serviceId);
     let startLocal;
     if (walkin) {
@@ -458,6 +460,16 @@ function TurnosPage() {
       `Hola ${a.customerName}, te recordamos tu turno en ${shopName} el ${when}. ¡Te esperamos!`,
     );
   };
+
+  // ¿El profesional elegido no trabaja el día seleccionado? (modo manual con fecha)
+  const cBarberObj = barbers.find((b) => b._id === cBarberId);
+  const cWorkDays = Array.isArray(cBarberObj?.workDays) ? cBarberObj.workDays : [];
+  const cWeekday = cDate ? new Date(`${cDate}T00:00:00`).getDay() : null;
+  const cBarberOffThisDay =
+    !walkin &&
+    cWeekday != null &&
+    cWorkDays.length > 0 &&
+    !cWorkDays.includes(cWeekday);
 
   return (
     <div>
@@ -718,7 +730,7 @@ function TurnosPage() {
                     rel="noreferrer"
                     style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                   >
-                    <MessageCircle size={15} /> Recordatorio
+                    <MessageCircle size={15} /> Comunicate con el cliente
                   </a>
                 ) : (
                   <span className={styles.apptActionHint}>Sin teléfono cargado</span>
@@ -801,6 +813,23 @@ function TurnosPage() {
               </>
             )}
 
+            {cBarberOffThisDay ? (
+              <p
+                style={{
+                  margin: '10px 0 0',
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  background: 'rgba(239,68,68,0.10)',
+                  border: '1px solid rgba(239,68,68,0.35)',
+                  color: '#b91c1c',
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                🚫 Este profesional no atiende este día. Elegí otra fecha.
+              </p>
+            ) : null}
+
             <span className={styles.fieldLabel}>Servicio</span>
             <select className={styles.input} value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
               {services.map((s) => (
@@ -815,7 +844,7 @@ function TurnosPage() {
 
             <div className={styles.twoCol} style={{ marginTop: 10 }}>
               <div>
-                <span className={styles.fieldLabel}>WhatsApp (opcional)</span>
+                <span className={styles.fieldLabel}>WhatsApp</span>
                 <input className={styles.input} placeholder="Ej: 342 000-0000" value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
               <div>
@@ -824,7 +853,12 @@ function TurnosPage() {
               </div>
             </div>
 
-            <button className={styles.primaryBtn} style={{ marginTop: 16, width: '100%' }} disabled={creating} onClick={confirmCreate}>
+            <button
+              className={styles.primaryBtn}
+              style={{ marginTop: 16, width: '100%' }}
+              disabled={creating || cBarberOffThisDay}
+              onClick={confirmCreate}
+            >
               {creating ? 'Creando…' : 'Crear turno'}
             </button>
           </div>
