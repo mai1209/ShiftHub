@@ -508,6 +508,8 @@ function BookingForm({ shopSlug, onNotFound }) {
   const [paymentResultMessage, setPaymentResultMessage] = useState("");
   const [shopUnavailable, setShopUnavailable] = useState(false);
   const [closedDayNotice, setClosedDayNotice] = useState("");
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [successEmail, setSuccessEmail] = useState("");
   const [couponInput, setCouponInput] = useState("");
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState("");
@@ -1022,9 +1024,6 @@ function BookingForm({ shopSlug, onNotFound }) {
     const serviceName =
       selectedServices.map((item) => item.name).join(" + ") || "Servicio";
 
-    // Detectamos si estamos en localhost
-    const isDev = window.location.hostname === "localhost";
-
     if (!selectedBarber || !selectedSlot) {
       alert(`Por favor selecciona ${businessCopy.staffSingular} y horario`);
       return;
@@ -1085,16 +1084,9 @@ function BookingForm({ shopSlug, onNotFound }) {
         );
       }
 
-      // --- MENSAJE PERSONALIZADO ---
-      if (isDev) {
-        alert(
-          "🛠️ [TEST EXITOSO]: Turno creado en Localhost. No te preocupes por el mail real ahora.",
-        );
-      } else {
-        alert(
-          `¡Listo! Tu turno fue reservado. Enviamos la confirmación a ${emailReview.normalized}.`,
-        );
-      }
+      // --- POPUP DE ÉXITO ---
+      setSuccessEmail(emailReview.normalized || "");
+      setSuccessOpen(true);
       // -----------------------------
 
       setCustomerName("");
@@ -1734,6 +1726,91 @@ function BookingForm({ shopSlug, onNotFound }) {
           </p>
         ) : null}
       </form>
+
+      {successOpen ? (
+        <div
+          onClick={() => {
+            setSuccessOpen(false);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            zIndex: 9999,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 380,
+              background: "#fff",
+              borderRadius: 22,
+              padding: "28px 24px",
+              textAlign: "center",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: "50%",
+                margin: "0 auto 14px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "rgba(22,163,74,0.14)",
+                color: "#16a34a",
+              }}
+            >
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M4 12.5l5 5 11-11"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <h3 style={{ margin: "0 0 8px", fontSize: "1.25rem", fontWeight: 900, color: "#111" }}>
+              ¡Tu reserva se confirmó!
+            </h3>
+            <p style={{ margin: "0 0 20px", fontSize: "0.95rem", color: "#555", lineHeight: 1.5 }}>
+              Tu turno quedó reservado con éxito.
+              {successEmail
+                ? ` Te enviamos la confirmación a ${successEmail}.`
+                : ""}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSuccessOpen(false);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              style={{
+                width: "100%",
+                border: "none",
+                borderRadius: 14,
+                padding: "13px 16px",
+                fontSize: "1rem",
+                fontWeight: 800,
+                color: "#fff",
+                background: "var(--indigo, #2FAA1F)",
+                cursor: "pointer",
+              }}
+            >
+              Aceptar
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
