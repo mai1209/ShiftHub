@@ -140,36 +140,6 @@ function ResumenPage() {
         ))}
       </div>
 
-      {isOwner ? (
-        <div className={styles.detailCard} style={{ marginBottom: 18 }}>
-          <div className={styles.resumenHead}>
-            <h3 className={styles.detailCardTitle}>Exportar reporte</h3>
-          </div>
-          <PeriodSelector
-            rangeMode={expRange}
-            setRangeMode={setExpRange}
-            shiftPeriod={shiftExp}
-            label={periodLabel(expRange, expRefDate)}
-          />
-          <div className={styles.exportRow} style={{ marginTop: 12 }}>
-            <button
-              className={styles.secondaryBtn}
-              onClick={() => doExport('pdf')}
-              disabled={exporting}
-            >
-              Exportar PDF
-            </button>
-            <button
-              className={styles.secondaryBtn}
-              onClick={() => doExport('excel')}
-              disabled={exporting}
-            >
-              Exportar Excel
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       <div className={styles.resumenCols}>
         {/* Próximos turnos */}
         <div className={styles.detailCard}>
@@ -224,6 +194,46 @@ function ResumenPage() {
           </div>
         </div>
       </div>
+
+      {isOwner ? (
+        <div className={styles.detailCard} style={{ marginTop: 18 }}>
+          <div className={styles.resumenHead}>
+            <h3 className={styles.detailCardTitle}>Exportar reporte</h3>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <PeriodSelector
+              rangeMode={expRange}
+              setRangeMode={setExpRange}
+              shiftPeriod={shiftExp}
+              label={periodLabel(expRange, expRefDate)}
+            />
+            <div className={styles.exportRow} style={{ margin: 0 }}>
+              <button
+                className={styles.secondaryBtn}
+                onClick={() => doExport('pdf')}
+                disabled={exporting}
+              >
+                Exportar PDF
+              </button>
+              <button
+                className={styles.secondaryBtn}
+                onClick={() => doExport('excel')}
+                disabled={exporting}
+              >
+                Exportar Excel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
