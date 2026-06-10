@@ -6,8 +6,9 @@ import {
   fetchServices,
   createAppointment,
   updateAppointmentStatus,
+  deleteAppointment,
 } from '../../services/panelApi';
-import { ChevronLeft, ChevronRight, X, Plus, MessageCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Plus, MessageCircle, RotateCcw, Trash2 } from 'lucide-react';
 import { formatCurrency } from '../usePeriod';
 import { useAuth } from '../AuthContext';
 import styles from '../Panel.module.css';
@@ -17,6 +18,10 @@ const FALLBACK_START = 9 * 60;
 const FALLBACK_END = 20 * 60;
 const ROW_H = 46;
 const DOW = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const BARBER_PALETTE = [
+  '#ec4899', '#3b82f6', '#10b981', '#f59e0b',
+  '#8b5cf6', '#ef4444', '#14b8a6', '#f97316',
+];
 
 function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
@@ -112,7 +117,7 @@ function TurnosPage() {
   const [cBarberName, setCBarberName] = useState('');
   const [cDate, setCDate] = useState('');
   const [cTime, setCTime] = useState('10:00');
-  const [serviceId, setServiceId] = useState('');
+  const [serviceIds, setServiceIds] = useState([]);
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -368,6 +373,36 @@ function TurnosPage() {
     }
   };
 
+  const undoPay = async () => {
+    if (!active) return;
+    if (!window.confirm('¿Deshacer el cobro? El turno vuelve a pendiente.')) return;
+    try {
+      setSaving(true);
+      await updateAppointmentStatus(active._id, 'pending');
+      setActive(null);
+      await load();
+    } catch (err) {
+      alert(err?.message || 'No se pudo deshacer el cobro.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeAppt = async () => {
+    if (!active) return;
+    if (!window.confirm('¿Eliminar este turno definitivamente?')) return;
+    try {
+      setSaving(true);
+      await deleteAppointment(active._id);
+      setActive(null);
+      await load();
+    } catch (err) {
+      alert(err?.message || 'No se pudo eliminar.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // crear
   const openSlot = (barber, min) => {
     setCMode('slot');
@@ -376,7 +411,7 @@ function TurnosPage() {
     setCBarberName(barber.fullName);
     setCDate(dateStr);
     setCTime(toHHMM(min));
-    setServiceId(services[0]?._id || '');
+    setServiceIds(services[0] ? [services[0]._id] : []);
     setCustomerName('');
     setPhone('');
     setEmail('');
@@ -388,7 +423,7 @@ function TurnosPage() {
     setCBarberId(barbers[0]?._id || '');
     setCDate(dateStr);
     setCTime('10:00');
-    setServiceId(services[0]?._id || '');
+    setServiceIds(services[0] ? [services[0]._id] : []);
     setCustomerName('');
     setPhone('');
     setEmail('');
@@ -399,7 +434,16 @@ function TurnosPage() {
     if (!customerName.trim()) return alert('Poné el nombre del cliente.');
     if (!phone.trim())
       return alert('Poné el WhatsApp/teléfono del cliente para poder contactarlo.');
-    const svc = services.find((s) => s._id === serviceId);
+    const chosen = serviceIds
+      .map((id) => services.find((s) => s._id === id))
+      .filter(Boolean);
+    if (!chosen.length) return alert('Elegí al menos un servicio.');
+    const totalDuration = chosen.reduce(
+      (sum, s) => sum + Number(s.durationMinutes || 0),
+      0,
+    );
+    const totalPrice = chosen.reduce((sum, s) => sum + Number(s.price || 0), 0);
+    const serviceLabel = chosen.map((s) => s.name).join(' + ');
     let startLocal;
     if (walkin) {
       startLocal = new Date(); // orden de llegada = ahora
@@ -413,13 +457,16 @@ function TurnosPage() {
       await createAppointment({
         barberId: cBarberId,
         customerName: customerName.trim(),
-        service: svc?.name || '',
-        serviceItems: svc
-          ? [{ serviceId: svc._id, name: svc.name, durationMinutes: Number(svc.durationMinutes || 0), price: Number(svc.price || 0) }]
-          : [],
+        service: serviceLabel,
+        serviceItems: chosen.map((s) => ({
+          serviceId: s._id,
+          name: s.name,
+          durationMinutes: Number(s.durationMinutes || 0),
+          price: Number(s.price || 0),
+        })),
         startTime: startLocal.toISOString(),
-        durationMinutes: Number(svc?.durationMinutes || GRID_STEP),
-        servicePrice: Number(svc?.price || 0),
+        durationMinutes: Number(totalDuration || GRID_STEP),
+        servicePrice: Number(totalPrice || 0),
         notes: phone.trim(),
         email: email.trim(),
         paymentMethod: 'cash',
@@ -470,6 +517,16 @@ function TurnosPage() {
     cWeekday != null &&
     cWorkDays.length > 0 &&
     !cWorkDays.includes(cWeekday);
+
+  // Color fijo por profesional (mismo orden que la paleta).
+  const barberColorMap = useMemo(() => {
+    const m = {};
+    barbers.forEach((b, i) => {
+      m[String(b._id)] = BARBER_PALETTE[i % BARBER_PALETTE.length];
+    });
+    return m;
+  }, [barbers]);
+  const colorFor = (id) => barberColorMap[String(id)] || BARBER_PALETTE[0];
 
   return (
     <div>
@@ -549,17 +606,36 @@ function TurnosPage() {
               </div>
               {visibleColumns.map((col) => (
                 <div key={col.barber._id} className={styles.calCol}>
-                  <div className={styles.calColHead}>{col.barber.fullName}</div>
+                  <div className={styles.calColHead}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        width: 9,
+                        height: 9,
+                        borderRadius: '50%',
+                        background: colorFor(col.barber._id),
+                        marginRight: 7,
+                        verticalAlign: 'middle',
+                      }}
+                    />
+                    {col.barber.fullName}
+                  </div>
                   {rows.map((t) => {
                     const cell = cellFor(col, t);
                     if (cell.kind === 'appt') {
                       const a = cell.appt;
                       const done = a.status === 'completed';
+                      const c = colorFor(col.barber._id);
                       return (
                         <button
                           key={t}
                           className={`${styles.calAppt} ${done ? styles.calApptDone : styles.calApptPending}`}
-                          style={{ height: ROW_H }}
+                          style={{
+                            height: ROW_H,
+                            ...(done
+                              ? {}
+                              : { borderLeft: `3px solid ${c}`, background: `${c}14` }),
+                          }}
                           onClick={() => openAppt(a)}
                         >
                           <span className={styles.calApptName}>{a.customerName}</span>
@@ -744,7 +820,24 @@ function TurnosPage() {
                   >
                     <X size={15} /> Liberar / cancelar
                   </button>
-                ) : null}
+                ) : (
+                  <button
+                    className={styles.apptActionBtn}
+                    disabled={saving}
+                    onClick={undoPay}
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    <RotateCcw size={15} /> Deshacer cobro
+                  </button>
+                )}
+                <button
+                  className={`${styles.apptActionBtn} ${styles.apptActionDanger}`}
+                  disabled={saving}
+                  onClick={removeAppt}
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
+                  <Trash2 size={15} /> Eliminar turno
+                </button>
               </div>
             ) : null}
           </div>
@@ -830,14 +923,30 @@ function TurnosPage() {
               </p>
             ) : null}
 
-            <span className={styles.fieldLabel}>Servicio</span>
-            <select className={styles.input} value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
-              {services.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.name} · {formatCurrency(s.price)}
-                </option>
-              ))}
-            </select>
+            <span className={styles.fieldLabel}>Servicios</span>
+            <div className={styles.serviceCheckList}>
+              {services.map((s) => {
+                const checked = serviceIds.includes(s._id);
+                return (
+                  <label key={s._id} className={styles.serviceCheckRow}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() =>
+                        setServiceIds((cur) =>
+                          cur.includes(s._id)
+                            ? cur.filter((x) => x !== s._id)
+                            : [...cur, s._id],
+                        )
+                      }
+                    />
+                    <span>
+                      {s.name} · {formatCurrency(s.price)}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
 
             <span className={styles.fieldLabel}>Cliente</span>
             <input className={styles.input} placeholder="Nombre" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />

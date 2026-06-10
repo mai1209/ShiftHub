@@ -248,6 +248,10 @@ export async function updateAppointmentStatus(appointmentId, status, extras) {
   });
 }
 
+export async function deleteAppointment(appointmentId) {
+  return request(`/appointments/${appointmentId}`, { method: 'DELETE' });
+}
+
 // --- Productos (POS interno) ---
 export async function fetchProducts() {
   return request('/products');
