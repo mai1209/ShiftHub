@@ -217,7 +217,7 @@ function ResumenPage() {
               style={{
                 margin: 0,
                 flexDirection: 'column',
-                alignItems: 'flex-end',
+                alignItems: 'stretch',
               }}
             >
               <button
