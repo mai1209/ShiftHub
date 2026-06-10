@@ -1,13 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import {
-  fetchMetrics,
-  fetchMonthOverview,
-  fetchCashSummary,
-} from '../../services/panelApi';
+import { fetchMetrics, fetchMonthOverview } from '../../services/panelApi';
 import { usePeriod, formatCurrency } from '../usePeriod';
 import PeriodSelector from '../components/PeriodSelector';
-import { exportMetricsExcel, exportMetricsPDF } from '../exportMetrics';
 import { useAuth } from '../AuthContext';
 import styles from '../Panel.module.css';
 
@@ -20,7 +15,6 @@ function MetricasPage() {
     usePeriod('monthly');
   const [metrics, setMetrics] = useState(null);
   const [overview, setOverview] = useState(null);
-  const [cash, setCash] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -30,17 +24,12 @@ function MetricasPage() {
       setError('');
       const params = buildParams();
       if (barberId) params.barberId = barberId;
-      // El desglose por profesional y la caja solo cuando no hay uno filtrado.
-      const ownerExtras = isOwner && !barberId;
       const reqs = [fetchMetrics(params)];
-      if (ownerExtras) {
-        reqs.push(fetchMonthOverview(params));
-        reqs.push(fetchCashSummary(buildParams()));
-      }
-      const results = await Promise.all(reqs);
-      setMetrics(results[0]);
-      setOverview(ownerExtras ? results[1] || null : null);
-      setCash(ownerExtras ? results[2] || null : null);
+      // El desglose por profesional solo cuando no hay uno filtrado.
+      if (isOwner && !barberId) reqs.push(fetchMonthOverview(params));
+      const [m, o] = await Promise.all(reqs);
+      setMetrics(m);
+      setOverview(o || null);
     } catch (err) {
       setError(err?.message || 'No pudimos cargar las métricas.');
     } finally {
@@ -52,22 +41,6 @@ function MetricasPage() {
   useEffect(() => {
     load();
   }, [load]);
-
-  const [exporting, setExporting] = useState(false);
-
-  const doExport = async (kind) => {
-    if (!metrics) return;
-    try {
-      setExporting(true);
-      const payload = { metrics, overview, cash };
-      if (kind === 'excel') await exportMetricsExcel(payload);
-      else await exportMetricsPDF(payload);
-    } catch (err) {
-      alert(err?.message || 'No se pudo exportar.');
-    } finally {
-      setExporting(false);
-    }
-  };
 
   const t = metrics?.totals;
 
@@ -120,23 +93,6 @@ function MetricasPage() {
       />
 
       {error ? <div className={styles.errorBox}>{error}</div> : null}
-
-      <div className={styles.exportRow}>
-        <button
-          className={styles.secondaryBtn}
-          onClick={() => doExport('pdf')}
-          disabled={loading || exporting || !metrics}
-        >
-          Exportar PDF
-        </button>
-        <button
-          className={styles.secondaryBtn}
-          onClick={() => doExport('excel')}
-          disabled={loading || exporting || !metrics}
-        >
-          Exportar Excel
-        </button>
-      </div>
 
       <div className={styles.cardsGrid}>
         {cards.map((c) => (

@@ -5,7 +5,9 @@ import {
   fetchBarberAppointments,
   fetchCashSummary,
 } from '../../services/panelApi';
-import { formatCurrency } from '../usePeriod';
+import { usePeriod, formatCurrency } from '../usePeriod';
+import PeriodSelector from '../components/PeriodSelector';
+import { runMetricsExport } from '../exportMetrics';
 import { useAuth } from '../AuthContext';
 import styles from '../Panel.module.css';
 
@@ -27,6 +29,26 @@ function ResumenPage() {
   const [dayCash, setDayCash] = useState(null);
   const [monthCash, setMonthCash] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Período + export del reporte (independiente de la vista de hoy).
+  const {
+    rangeMode: expRange,
+    setRangeMode: setExpRange,
+    buildParams: buildExpParams,
+    shiftPeriod: shiftExp,
+  } = usePeriod('monthly');
+  const [exporting, setExporting] = useState(false);
+
+  const doExport = async (kind) => {
+    try {
+      setExporting(true);
+      await runMetricsExport(kind, { params: buildExpParams(), isOwner });
+    } catch (err) {
+      alert(err?.message || 'No se pudo exportar.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -116,6 +138,35 @@ function ResumenPage() {
           </div>
         ))}
       </div>
+
+      {isOwner ? (
+        <div className={styles.detailCard} style={{ marginBottom: 18 }}>
+          <div className={styles.resumenHead}>
+            <h3 className={styles.detailCardTitle}>Exportar reporte</h3>
+          </div>
+          <PeriodSelector
+            rangeMode={expRange}
+            setRangeMode={setExpRange}
+            shiftPeriod={shiftExp}
+          />
+          <div className={styles.exportRow} style={{ marginTop: 12 }}>
+            <button
+              className={styles.secondaryBtn}
+              onClick={() => doExport('pdf')}
+              disabled={exporting}
+            >
+              Exportar PDF
+            </button>
+            <button
+              className={styles.secondaryBtn}
+              onClick={() => doExport('excel')}
+              disabled={exporting}
+            >
+              Exportar Excel
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className={styles.resumenCols}>
         {/* Próximos turnos */}

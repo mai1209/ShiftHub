@@ -1,6 +1,12 @@
 // Exportación de métricas a Excel / PDF desde el panel web.
 // Usa import dinámico para no cargar las libs hasta que se exporta.
 
+import {
+  fetchMetrics,
+  fetchMonthOverview,
+  fetchCashSummary,
+} from "../services/panelApi";
+
 // Zona horaria del local (igual que la app / backend).
 const SHOP_TZ = "America/Argentina/Cordoba";
 
@@ -201,4 +207,22 @@ export async function exportMetricsPDF({ metrics, overview, cash }) {
   }
 
   doc.save(`metricas-${label}.pdf`);
+}
+
+// Reúne métricas + desglose por profesional + caja del período y exporta.
+// Lo usan Resumen y Caja para no duplicar el armado del reporte.
+export async function runMetricsExport(kind, { params, isOwner }) {
+  const reqs = [fetchMetrics(params)];
+  if (isOwner) {
+    reqs.push(fetchMonthOverview(params));
+    reqs.push(fetchCashSummary(params));
+  }
+  const results = await Promise.all(reqs);
+  const payload = {
+    metrics: results[0],
+    overview: isOwner ? results[1] || null : null,
+    cash: isOwner ? results[2] || null : null,
+  };
+  if (kind === "excel") await exportMetricsExcel(payload);
+  else await exportMetricsPDF(payload);
 }

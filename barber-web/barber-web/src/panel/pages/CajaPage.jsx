@@ -11,6 +11,8 @@ import {
 import { Pencil, Trash2, X, Plus, RotateCcw } from 'lucide-react';
 import { usePeriod, formatCurrency } from '../usePeriod';
 import PeriodSelector from '../components/PeriodSelector';
+import { runMetricsExport } from '../exportMetrics';
+import { useAuth } from '../AuthContext';
 import styles from '../Panel.module.css';
 
 const EXPENSE_CATEGORIES = [
@@ -26,12 +28,25 @@ const INCOME_CATEGORIES = ['Producto', 'Propina', 'Otro'];
 const EMPTY_FORM = { type: 'expense', amount: '', description: '', category: '' };
 
 function CajaPage() {
+  const { isOwner } = useAuth();
   const { rangeMode, setRangeMode, refDate, buildParams, shiftPeriod } =
     usePeriod('monthly');
   const [summary, setSummary] = useState(null);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [exporting, setExporting] = useState(false);
+
+  const doExport = async (kind) => {
+    try {
+      setExporting(true);
+      await runMetricsExport(kind, { params: buildParams(), isOwner });
+    } catch (err) {
+      alert(err?.message || 'No se pudo exportar.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -175,6 +190,25 @@ function CajaPage() {
         shiftPeriod={shiftPeriod}
         label={summary?.period?.label}
       />
+
+      {isOwner ? (
+        <div className={styles.exportRow}>
+          <button
+            className={styles.secondaryBtn}
+            onClick={() => doExport('pdf')}
+            disabled={loading || exporting}
+          >
+            Exportar PDF
+          </button>
+          <button
+            className={styles.secondaryBtn}
+            onClick={() => doExport('excel')}
+            disabled={loading || exporting}
+          >
+            Exportar Excel
+          </button>
+        </div>
+      ) : null}
 
       {error ? <div className={styles.errorBox}>{error}</div> : null}
 
