@@ -75,7 +75,11 @@ function PanelLayout() {
         className={`${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ''}`}
       >
         <div className={styles.brand}>
-          <span className={styles.brandDot} />
+          <img
+            className={styles.brandLogo}
+            src={`${process.env.PUBLIC_URL}/logo.png`}
+            alt={SHIFT_APP_BRAND_NAME}
+          />
           <span className={styles.brandName}>{SHIFT_APP_BRAND_NAME}</span>
         </div>
 

@@ -10,6 +10,63 @@ const PLANS_URL = "/planes";
 const PANEL_URL = "/panel";
 const APP_STORE_URL = "https://apps.apple.com/ar/app/shifthub/id6767229780";
 
+const RUBROS = [
+  { icon: "💈", label: "Barberías" },
+  { icon: "💇", label: "Peluquerías" },
+  { icon: "💅", label: "Salón de uñas" },
+  { icon: "✨", label: "Centros de estética" },
+  { icon: "🧖", label: "Spa y masajes" },
+  { icon: "🖋️", label: "Tatuajes" },
+  { icon: "🏋️", label: "Fitness" },
+  { icon: "🩺", label: "Consultorios" },
+  { icon: "🦷", label: "Odontología" },
+  { icon: "🦴", label: "Kinesiología" },
+  { icon: "🧠", label: "Psicología" },
+  { icon: "🐾", label: "Veterinarias" },
+];
+
+const TOOL_SVG = {
+  calendar: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  ),
+  card: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" />
+    </svg>
+  ),
+  chart: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="6" y1="20" x2="6" y2="12" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="18" y1="20" x2="18" y2="14" />
+    </svg>
+  ),
+  wallet: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" />
+    </svg>
+  ),
+  chat: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" />
+    </svg>
+  ),
+  grid: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
+    </svg>
+  ),
+};
+
+const TOOLS = [
+  { icon: TOOL_SVG.calendar, label: "Turnos online" },
+  { icon: TOOL_SVG.card, label: "Cobro online" },
+  { icon: TOOL_SVG.chart, label: "Métricas" },
+  { icon: TOOL_SVG.wallet, label: "Caja y comisiones" },
+  { icon: TOOL_SVG.chat, label: "Recordatorios WhatsApp" },
+  { icon: TOOL_SVG.grid, label: "Panel web" },
+];
+
 function LandingPage() {
   const [pricing, setPricing] = useState({
     basic: { ars: 25000, usdReference: 25 },
@@ -355,6 +412,75 @@ function LandingPage() {
             <div className={styles.scrollThumb} />
           </div>
           <span>scroll</span>
+        </div>
+      </section>
+
+      {/* UNIVERSO DE HERRAMIENTAS */}
+      <section className={styles.toolsSection}>
+        <div className={`${styles.sectionLabel} ${styles.revealUp}`} data-animate>
+          Todo en un solo lugar
+        </div>
+        <h2
+          className={`${styles.sectionTitle} ${styles.revealUp} ${styles.animDelay1}`}
+          data-animate
+        >
+          Un universo de herramientas
+          <br />
+          para hacer crecer tu{" "}
+          <span className={styles.heroAccent}>negocio</span>
+        </h2>
+
+        <div className={styles.toolsGrid}>
+          {TOOLS.map((t, i) => (
+            <div
+              key={t.label}
+              className={`${styles.toolCard} ${styles.revealUp}`}
+              data-animate
+              style={{ "--delay": `${i * 0.08}s` }}
+            >
+              <span className={styles.toolIconBox}>{t.icon}</span>
+              <span className={styles.toolLabel}>{t.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* RUBROS / SE ADAPTA */}
+      <section className={styles.rubrosSection}>
+        <div className={`${styles.sectionLabel} ${styles.revealUp}`} data-animate>
+          Para todo tipo de negocio
+        </div>
+        <h2
+          className={`${styles.sectionTitle} ${styles.revealUp} ${styles.animDelay1}`}
+          data-animate
+        >
+          {SHIFT_APP_BRAND_NAME} se adapta a tu rubro
+        </h2>
+        <p className={`${styles.rubrosSubtitle} ${styles.revealUp}`} data-animate>
+          Barberías, peluquerías, spas, consultorios y mucho más. Si trabajás con
+          turnos, es para vos.
+        </p>
+
+        <div className={styles.rubrosMarquee}>
+          <div className={`${styles.rubrosTrack} ${styles.rubrosTrackLeft}`}>
+            {[...RUBROS, ...RUBROS].map((r, i) => (
+              <div key={`r1-${i}`} className={styles.rubroCard}>
+                <span className={styles.rubroIcon}>{r.icon}</span>
+                <span className={styles.rubroLabel}>{r.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.rubrosMarquee}>
+          <div className={`${styles.rubrosTrack} ${styles.rubrosTrackRight}`}>
+            {[...RUBROS, ...RUBROS].map((r, i) => (
+              <div key={`r2-${i}`} className={styles.rubroCard}>
+                <span className={styles.rubroIcon}>{r.icon}</span>
+                <span className={styles.rubroLabel}>{r.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

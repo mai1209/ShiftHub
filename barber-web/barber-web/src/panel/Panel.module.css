@@ -221,6 +221,14 @@
   box-shadow: 0 0 0 4px var(--panel-primary-soft);
 }
 
+.brandLogo {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+}
+
 .brandName {
   font-weight: 800;
   font-size: 1.05rem;
