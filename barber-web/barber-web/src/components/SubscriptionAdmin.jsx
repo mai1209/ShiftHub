@@ -860,10 +860,24 @@ export default function SubscriptionAdmin() {
 
     const label = contextLabel || user.fullName || user.email || 'esta cuenta';
     const confirmed = window.confirm(
-      `Vas a borrar ${label}. Esta acción elimina la cuenta de acceso del panel y no se puede deshacer desde acá.`,
+      `Vas a ELIMINAR DE LA BASE ${label} y todos sus datos (turnos, profesionales, caja, productos, locales). Esto NO se puede deshacer.`,
     );
 
     if (!confirmed) return;
+
+    // Doble confirmación: escribir el nombre exacto del negocio.
+    const expectedName = String(user.fullName || user.email || '').trim();
+    if (expectedName) {
+      const typed = window.prompt(
+        `Para confirmar, escribí el nombre exacto del negocio:\n\n${expectedName}`,
+      );
+      if (typed == null) return;
+      if (typed.trim() !== expectedName) {
+        setError('El nombre no coincide. No se borró nada.');
+        setSuccess('');
+        return;
+      }
+    }
 
     if (!secret.trim()) {
       setError('Ingresá el secret de administración para borrar cuentas.');
@@ -1772,6 +1786,16 @@ export default function SubscriptionAdmin() {
               </div>
 
               <div className={styles.yearList}>
+                <button
+                  type="button"
+                  className={`${styles.yearButton} ${!selectedYear ? styles.yearButtonActive : ''}`}
+                  onClick={() => {
+                    setSelectedYear('');
+                    setSelectedMonth('all');
+                  }}
+                >
+                  Todos los años
+                </button>
                 {yearOptions.map((year) => (
                   <button
                     key={year}
