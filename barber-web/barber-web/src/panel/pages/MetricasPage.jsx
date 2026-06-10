@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { fetchMetrics, fetchMonthOverview } from '../../services/panelApi';
+import {
+  fetchMetrics,
+  fetchMonthOverview,
+  fetchCashSummary,
+} from '../../services/panelApi';
 import { usePeriod, formatCurrency } from '../usePeriod';
 import PeriodSelector from '../components/PeriodSelector';
 import { exportMetricsExcel, exportMetricsPDF } from '../exportMetrics';
@@ -16,6 +20,7 @@ function MetricasPage() {
     usePeriod('monthly');
   const [metrics, setMetrics] = useState(null);
   const [overview, setOverview] = useState(null);
+  const [cash, setCash] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -25,12 +30,17 @@ function MetricasPage() {
       setError('');
       const params = buildParams();
       if (barberId) params.barberId = barberId;
+      // El desglose por profesional y la caja solo cuando no hay uno filtrado.
+      const ownerExtras = isOwner && !barberId;
       const reqs = [fetchMetrics(params)];
-      // El desglose por profesional solo cuando no hay uno filtrado.
-      if (isOwner && !barberId) reqs.push(fetchMonthOverview(params));
-      const [m, o] = await Promise.all(reqs);
-      setMetrics(m);
-      setOverview(o || null);
+      if (ownerExtras) {
+        reqs.push(fetchMonthOverview(params));
+        reqs.push(fetchCashSummary(buildParams()));
+      }
+      const results = await Promise.all(reqs);
+      setMetrics(results[0]);
+      setOverview(ownerExtras ? results[1] || null : null);
+      setCash(ownerExtras ? results[2] || null : null);
     } catch (err) {
       setError(err?.message || 'No pudimos cargar las métricas.');
     } finally {
@@ -49,7 +59,7 @@ function MetricasPage() {
     if (!metrics) return;
     try {
       setExporting(true);
-      const payload = { metrics, overview };
+      const payload = { metrics, overview, cash };
       if (kind === 'excel') await exportMetricsExcel(payload);
       else await exportMetricsPDF(payload);
     } catch (err) {
