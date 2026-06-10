@@ -212,20 +212,27 @@ function ResumenPage() {
               <Download size={16} />
               Elegí el período y descargá tu reporte en PDF o Excel.
             </p>
-            <div className={styles.exportRow} style={{ margin: 0 }}>
-              <button
-                className={styles.secondaryBtn}
-                onClick={() => doExport('pdf')}
-                disabled={exporting}
-              >
-                Exportar PDF
-              </button>
+            <div
+              className={styles.exportRow}
+              style={{
+                margin: 0,
+                flexDirection: 'column',
+                alignItems: 'flex-end',
+              }}
+            >
               <button
                 className={styles.secondaryBtn}
                 onClick={() => doExport('excel')}
                 disabled={exporting}
               >
                 Exportar Excel
+              </button>
+              <button
+                className={styles.secondaryBtn}
+                onClick={() => doExport('pdf')}
+                disabled={exporting}
+              >
+                Exportar PDF
               </button>
             </div>
           </div>

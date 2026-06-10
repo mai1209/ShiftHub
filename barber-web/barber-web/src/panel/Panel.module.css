@@ -576,10 +576,7 @@
   min-width: 200px;
   justify-content: center;
   text-align: center;
-  padding: 10px 16px;
-  border-radius: 14px;
-  background: var(--panel-primary-soft);
-  color: var(--panel-text);
+  color: var(--panel-text-dim);
   font-size: 0.88rem;
   font-weight: 600;
   line-height: 1.35;
