@@ -1123,6 +1123,32 @@ export default function SubscriptionAdmin() {
   }, [getPlanAmount, visibleUsers]);
   const { summary, revenueSummary, referralSummary } = adminStats;
 
+  // Valor cuadrable: precio de lista del plan × cuentas activas que pagan.
+  // Coincide con los precios configurados (sin descuentos ni adicionales).
+  const planRevenue = useMemo(() => {
+    const basicCount = summary.activeBasic;
+    const proCount = summary.activePro;
+    const basicPrice = Number(pricingDraft.basicPriceArs || 0);
+    const proPrice = Number(pricingDraft.proPriceArs || 0);
+    const basicBase = basicCount * basicPrice;
+    const proBase = proCount * proPrice;
+    return {
+      basicCount,
+      proCount,
+      payingCount: basicCount + proCount,
+      basicPrice,
+      proPrice,
+      basicBase,
+      proBase,
+      baseTotal: basicBase + proBase,
+    };
+  }, [
+    summary.activeBasic,
+    summary.activePro,
+    pricingDraft.basicPriceArs,
+    pricingDraft.proPriceArs,
+  ]);
+
   return (
     <main className={styles.screen}>
       <div className={styles.heroGlow} aria-hidden="true" />
@@ -1775,6 +1801,41 @@ export default function SubscriptionAdmin() {
                   ARS {revenueSummary.activeProRevenue.toLocaleString('es-AR')}
                 </strong>
               </article>
+            </div>
+
+            <div className={styles.reconcileCard}>
+              <div className={styles.reconcileHead}>
+                <span className={styles.summaryLabel}>
+                  Valor cuadrable (precio de lista × activos)
+                </span>
+                <strong className={styles.reconcileTotal}>
+                  ARS {planRevenue.baseTotal.toLocaleString('es-AR')}
+                </strong>
+              </div>
+              <p className={styles.reconcileHint}>
+                Coincide con los precios configurados, sin descuentos ni
+                adicionales. Sirve para chequear que la recaudación cuadre.
+              </p>
+              <div className={styles.reconcileRows}>
+                <div className={styles.reconcileRow}>
+                  <span>
+                    Básico · {planRevenue.basicCount} ×{' '}
+                    ARS {planRevenue.basicPrice.toLocaleString('es-AR')}
+                  </span>
+                  <strong>ARS {planRevenue.basicBase.toLocaleString('es-AR')}</strong>
+                </div>
+                <div className={styles.reconcileRow}>
+                  <span>
+                    Pro · {planRevenue.proCount} ×{' '}
+                    ARS {planRevenue.proPrice.toLocaleString('es-AR')}
+                  </span>
+                  <strong>ARS {planRevenue.proBase.toLocaleString('es-AR')}</strong>
+                </div>
+                <div className={`${styles.reconcileRow} ${styles.reconcileRowTotal}`}>
+                  <span>{planRevenue.payingCount} cuentas pagando</span>
+                  <strong>ARS {planRevenue.baseTotal.toLocaleString('es-AR')}</strong>
+                </div>
+              </div>
             </div>
           </section>
 
