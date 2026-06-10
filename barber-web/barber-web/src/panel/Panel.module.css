@@ -388,7 +388,7 @@
 .content {
   flex: 1;
   padding: 28px;
-  max-width: 1180px;
+  max-width: none;
   width: 100%;
 }
 
