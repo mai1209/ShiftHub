@@ -529,20 +529,65 @@
 
 .rangeTab {
   flex: 1;
-  padding: 9px 0;
+  padding: 11px 18px;
   border-radius: 12px;
   border: 1px solid var(--panel-border);
   background: var(--panel-surface);
   color: var(--panel-text-dim);
   font-weight: 700;
-  font-size: 0.86rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.2px;
   cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease,
+    border-color 0.16s ease, box-shadow 0.16s ease, transform 0.06s ease;
 }
 
-.rangeTabActive {
+.rangeTab:hover {
+  border-color: var(--panel-primary);
+  color: var(--panel-text);
+}
+
+.rangeTab:active {
+  transform: scale(0.97);
+}
+
+.rangeTabActive,
+.rangeTabActive:hover {
   background: var(--panel-primary-soft);
   border-color: var(--panel-primary);
   color: var(--panel-primary);
+  box-shadow: 0 4px 12px var(--panel-primary-soft);
+}
+
+/* Barra de exportación (selector · info · botones) */
+.exportToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.exportHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 200px;
+  justify-content: center;
+  text-align: center;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: var(--panel-primary-soft);
+  color: var(--panel-text);
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.exportHint svg {
+  color: var(--panel-primary);
+  flex-shrink: 0;
 }
 
 .periodNav {

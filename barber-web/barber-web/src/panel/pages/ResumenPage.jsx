@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Download } from 'lucide-react';
 import {
   fetchAppointments,
   fetchBarberAppointments,
@@ -200,21 +201,17 @@ function ResumenPage() {
           <div className={styles.resumenHead}>
             <h3 className={styles.detailCardTitle}>Exportar reporte</h3>
           </div>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              gap: 12,
-              flexWrap: 'wrap',
-            }}
-          >
+          <div className={styles.exportToolbar}>
             <PeriodSelector
               rangeMode={expRange}
               setRangeMode={setExpRange}
               shiftPeriod={shiftExp}
               label={periodLabel(expRange, expRefDate)}
             />
+            <p className={styles.exportHint}>
+              <Download size={16} />
+              Elegí el período y descargá tu reporte en PDF o Excel.
+            </p>
             <div className={styles.exportRow} style={{ margin: 0 }}>
               <button
                 className={styles.secondaryBtn}
