@@ -67,6 +67,28 @@ const TOOLS = [
   { icon: TOOL_SVG.grid, label: "Panel web" },
 ];
 
+// Editá estos clientes destacados (name/category/quote/img). img vacío = placeholder.
+const CLIENT_CARDS = [
+  {
+    name: "Estudio Lumen",
+    category: "Centro de estética",
+    quote: "Se nos llenó la agenda sola. Los clientes reservan a cualquier hora.",
+    img: "",
+  },
+  {
+    name: "Barbería Norte",
+    category: "Barbería",
+    quote: "La caja y las comisiones dejaron de ser un dolor de cabeza.",
+    img: "",
+  },
+  {
+    name: "Espacio Calma",
+    category: "Spa y masajes",
+    quote: "Los recordatorios por WhatsApp nos bajaron muchísimo los ausentes.",
+    img: "",
+  },
+];
+
 function LandingPage() {
   const [pricing, setPricing] = useState({
     basic: { ars: 25000, usdReference: 25 },
@@ -106,10 +128,12 @@ function LandingPage() {
         "Ideal para equipos con mas volumen que necesitan medir mejor el negocio.",
       features: [
         "Todo lo del plan Basico",
+        "Panel web de gestion incluido",
         "Metricas generales e individuales",
         "Metricas mensuales y anuales",
         "Historial de servicios, turnos y caja",
         "Exportacion por mail, PDF y Excel",
+        "Sumas locales adicionales por +USD 10 c/u",
       ],
       cta: "Conocer plan pro",
       href: "/planes?plan=pro",
@@ -268,10 +292,12 @@ function LandingPage() {
 
   return (
     <div className={styles.landing}>
-      <div className={styles.noiseBg} aria-hidden="true" />
-      <div className={styles.bgMesh} aria-hidden="true" />
-      <div className={styles.bgOrb1} aria-hidden="true" />
-      <div className={styles.bgOrb2} aria-hidden="true" />
+      <div className={styles.bgLayer} aria-hidden="true">
+        <div className={styles.noiseBg} />
+        <div className={styles.bgMesh} />
+        <div className={styles.bgOrb1} />
+        <div className={styles.bgOrb2} />
+      </div>
 
       {/* PARTICLES */}
       <div className={styles.particles} aria-hidden="true">
@@ -598,6 +624,54 @@ function LandingPage() {
                 <p className={styles.stepDesc}>{s.desc}</p>
               </div>
               <div className={styles.stepConnector} />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CLIENTES DEL MES */}
+      <section className={styles.clientsSection}>
+        <div className={`${styles.sectionLabel} ${styles.revealUp}`} data-animate>
+          Clientes del mes
+        </div>
+        <h2
+          className={`${styles.sectionTitle} ${styles.revealUp} ${styles.animDelay1}`}
+          data-animate
+        >
+          Negocios que ya crecen con{" "}
+          <span className={styles.heroAccent}>{SHIFT_APP_BRAND_NAME}</span>
+        </h2>
+
+        <div className={styles.clientsGrid}>
+          {CLIENT_CARDS.map((c, i) => (
+            <div
+              key={c.name}
+              className={`${styles.clientCard} ${styles.revealUp}`}
+              data-animate
+              style={{ "--delay": `${i * 0.1}s` }}
+            >
+              <div
+                className={styles.clientPhoto}
+                style={
+                  c.img
+                    ? { backgroundImage: `url(${c.img})` }
+                    : undefined
+                }
+              >
+                {!c.img ? (
+                  <span className={styles.clientInitial}>
+                    {c.name.charAt(0)}
+                  </span>
+                ) : null}
+                <div className={styles.clientOverlay} />
+              </div>
+              <div className={styles.clientBody}>
+                <p className={styles.clientQuote}>“{c.quote}”</p>
+                <div className={styles.clientMeta}>
+                  <span className={styles.clientName}>{c.name}</span>
+                  <span className={styles.clientCategory}>{c.category}</span>
+                </div>
+              </div>
             </div>
           ))}
         </div>

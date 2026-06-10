@@ -48,8 +48,16 @@ a { text-decoration: none; color: inherit; }
 /* ============================================================
    NOISE OVERLAY
 ============================================================ */
-.noiseBg {
+.bgLayer {
   position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.noiseBg {
+  position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
@@ -62,7 +70,7 @@ a { text-decoration: none; color: inherit; }
    BACKGROUND MESH + ORBS
 ============================================================ */
 .bgMesh {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
@@ -73,7 +81,7 @@ a { text-decoration: none; color: inherit; }
 }
 
 .bgOrb1 {
-  position: fixed;
+  position: absolute;
   width: 700px;
   height: 700px;
   border-radius: 50%;
@@ -86,7 +94,7 @@ a { text-decoration: none; color: inherit; }
 }
 
 .bgOrb2 {
-  position: fixed;
+  position: absolute;
   width: 550px;
   height: 550px;
   border-radius: 50%;
@@ -1412,4 +1420,87 @@ a { text-decoration: none; color: inherit; }
   .toolsSection { padding: 44px 16px 20px; }
   .toolsGrid { grid-template-columns: 1fr; gap: 12px; }
   .toolCard { padding: 15px 18px; }
+}
+
+/* ============ CLIENTES DEL MES ============ */
+.clientsSection {
+  position: relative;
+  z-index: 2;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 60px 24px;
+  text-align: center;
+}
+
+.clientsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-top: 44px;
+}
+
+.clientCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  text-align: left;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.clientCard:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 22px 44px rgba(57, 224, 31, 0.16);
+}
+
+.clientPhoto {
+  position: relative;
+  height: 190px;
+  background-size: cover;
+  background-position: center;
+  background-color: #2a2433;
+  background-image: linear-gradient(135deg, #2f9c1f 0%, #1d6b13 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.clientInitial {
+  font-size: 3.4rem;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.92);
+}
+.clientOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 40%, rgba(0, 0, 0, 0.45) 100%);
+}
+
+.clientBody {
+  padding: 18px 18px 20px;
+}
+.clientQuote {
+  margin: 0 0 14px;
+  color: var(--text);
+  font-size: 0.96rem;
+  line-height: 1.55;
+  font-weight: 600;
+}
+.clientMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.clientName {
+  font-weight: 900;
+  font-size: 0.98rem;
+  color: var(--text);
+}
+.clientCategory {
+  font-size: 0.82rem;
+  color: var(--indigo);
+  font-weight: 800;
+}
+
+@media (max-width: 860px) {
+  .clientsGrid { grid-template-columns: 1fr; max-width: 420px; margin-left: auto; margin-right: auto; }
 }

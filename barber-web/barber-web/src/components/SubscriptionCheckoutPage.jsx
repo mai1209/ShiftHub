@@ -44,7 +44,12 @@ const PLAN_META = {
     title: 'Plan Pro',
     description:
       'Metricas, historial y herramientas avanzadas para el negocio.',
-    features: ['Todo lo del Basico', 'Metricas e historial', 'Exportacion PDF y Excel'],
+    features: [
+      'Todo lo del Basico',
+      'Panel web de gestion incluido',
+      'Metricas e historial',
+      'Exportacion PDF y Excel',
+    ],
   },
 };
 
