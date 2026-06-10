@@ -43,6 +43,7 @@ import {
   fetchServices,
   updateAppointmentStatus,
   deleteAppointment,
+  createAppointment,
 } from '../services/api';
 import {
   CheckCircle2,
@@ -67,6 +68,17 @@ type Props = {
 };
 
 const WELCOME_MODAL_KEY_PREFIX = 'HOME_WELCOME_MODAL_DISMISSED';
+const AGENDA_VIEW_KEY = 'HOME_AGENDA_VIEW';
+const CAL_PALETTE = [
+  '#ec4899',
+  '#3b82f6',
+  '#10b981',
+  '#f59e0b',
+  '#8b5cf6',
+  '#ef4444',
+  '#14b8a6',
+  '#f97316',
+];
 const hexToRgba = (hex: string, alpha: number) => {
   const sanitized = hex.replace('#', '');
   const bigint = parseInt(
@@ -206,6 +218,20 @@ function Home({ navigation }: Props) {
   const [transferInput, setTransferInput] = useState('');
   const [savingPayment, setSavingPayment] = useState(false);
 
+  // Vista de la agenda (Lista / Calendario)
+  const [agendaView, setAgendaView] = useState<'list' | 'calendar'>('list');
+  const [barbersFull, setBarbersFull] = useState<any[]>([]);
+  const [servicesList, setServicesList] = useState<any[]>([]);
+  const [quickCreate, setQuickCreate] = useState<{
+    barberId: string;
+    barberName: string;
+    slot: string;
+  } | null>(null);
+  const [qcName, setQcName] = useState('');
+  const [qcPhone, setQcPhone] = useState('');
+  const [qcServiceIds, setQcServiceIds] = useState<string[]>([]);
+  const [qcSaving, setQcSaving] = useState(false);
+
   const selectedDateRef = useRef(selectedDate);
   const didInitDateEffect = useRef(false);
   const openedSwipeableIdRef = useRef<string | null>(null);
@@ -214,6 +240,18 @@ function Home({ navigation }: Props) {
   useEffect(() => {
     selectedDateRef.current = selectedDate;
   }, [selectedDate]);
+
+  // Recordar la vista elegida (Lista / Calendario) entre sesiones.
+  useEffect(() => {
+    AsyncStorage.getItem(AGENDA_VIEW_KEY).then(v => {
+      if (v === 'calendar' || v === 'list') setAgendaView(v);
+    });
+  }, []);
+
+  const changeAgendaView = (v: 'list' | 'calendar') => {
+    setAgendaView(v);
+    AsyncStorage.setItem(AGENDA_VIEW_KEY, v).catch(() => {});
+  };
 
   const shareLink = useMemo(() => {
     if (!shopSlug) return '';
@@ -390,6 +428,9 @@ function Home({ navigation }: Props) {
           return { user: storedUser };
         }),
       ]);
+
+      setBarbersFull(barbersRes?.barbers || []);
+      setServicesList(servicesRes?.services || []);
 
       const paymentSettings = currentUserRes?.user?.paymentSettings ?? {};
       const cashEnabled = paymentSettings.cashEnabled !== false;
@@ -615,6 +656,27 @@ function Home({ navigation }: Props) {
     );
   };
 
+  const handleUndoCharge = (appointmentId: string) => {
+    Alert.alert(
+      'Deshacer cobro',
+      'El turno vuelve a "pendiente" y sale de la caja y las métricas. Vas a poder cobrarlo de nuevo o eliminarlo.',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Sí, deshacer',
+          onPress: async () => {
+            try {
+              await updateAppointmentStatus(appointmentId, 'pending');
+              await loadData(true, selectedDateRef.current);
+            } catch (err: any) {
+              setError(err?.message ?? 'No se pudo deshacer el cobro.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleRelease = async (appointmentId: string) => {
     const appointment = appointments.find(item => item._id === appointmentId);
     Alert.alert('Gestionar Turno', 'Elegí una acción para este turno:', [
@@ -809,6 +871,22 @@ function Home({ navigation }: Props) {
             </Pressable>
           </View>
         )}
+        {isCompleted && (
+          <View style={styles.cardActions}>
+            <Pressable
+              style={[styles.btnAction, styles.btnSec]}
+              onPress={() => handleUndoCharge(appointment._id)}
+            >
+              <Text style={styles.btnSecText}>Deshacer cobro</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.btnAction, styles.btnSec]}
+              onPress={() => handleRelease(appointment._id)}
+            >
+              <Text style={styles.btnSecText}>Eliminar</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
     );
 
@@ -833,6 +911,368 @@ function Home({ navigation }: Props) {
       >
         {card}
       </Swipeable>
+    );
+  };
+
+  // ===== Vista Calendario (agenda del día tipo timeline) =====
+  const CAL_HOUR_H = 104;
+  const CAL_HEADER_H = 52;
+  const CAL_COL_W = 158;
+
+  const calColBarbers = useMemo(() => {
+    if (barbersFull.length) {
+      return barbersFull.map((b: any) => ({
+        id: String(b._id),
+        name: b.fullName || businessCopy.staffSingular,
+        raw: b,
+      }));
+    }
+    const map = new Map<string, any>();
+    appointments.forEach(a => {
+      const b: any = a.barber;
+      if (b && typeof b === 'object' && b._id) map.set(String(b._id), b);
+    });
+    return Array.from(map.entries()).map(([id, b]) => ({
+      id,
+      name: b.fullName || businessCopy.staffSingular,
+      raw: b,
+    }));
+  }, [barbersFull, appointments, businessCopy]);
+
+  const colorForBarber = (barberId: string) => {
+    const idx = calColBarbers.findIndex(c => c.id === barberId);
+    return CAL_PALETTE[(idx < 0 ? 0 : idx) % CAL_PALETTE.length];
+  };
+
+  const calStartMin = (iso: string) => {
+    const [h, m] = formatTimeOnly(iso).split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const hmToMin = (s: string) => {
+    const [h, m] = String(s).split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  };
+
+  const barberRangesOf = (barber: any): { start: number; end: number }[] => {
+    if (!barber) return [];
+    const sr = Array.isArray(barber.scheduleRanges) ? barber.scheduleRanges : [];
+    const ranges = sr
+      .filter((r: any) => r?.start && r?.end)
+      .map((r: any) => ({ start: hmToMin(r.start), end: hmToMin(r.end) }));
+    if (ranges.length) return ranges;
+    if (
+      typeof barber.scheduleRange === 'string' &&
+      barber.scheduleRange.includes('-')
+    ) {
+      const [a, b] = barber.scheduleRange.split('-').map((x: string) => x.trim());
+      if (a && b) return [{ start: hmToMin(a), end: hmToMin(b) }];
+    }
+    return [];
+  };
+
+  const barberIntervalOf = (barber: any) =>
+    Math.max(5, Number(barber?.bookingSlotIntervalMinutes) || 30);
+
+  const apptsOfBarber = (barberId: string) =>
+    appointments.filter(a => {
+      const b: any = a.barber;
+      return b && typeof b === 'object' && String(b._id) === barberId;
+    });
+
+  const freeSlotsOf = (barber: any, appts: Appointment[]) => {
+    const ranges = barberRangesOf(barber);
+    const interval = barberIntervalOf(barber);
+    const busy = appts.map(a => {
+      const s = calStartMin(a.startTime);
+      return { s, e: s + (Number(a.durationMinutes) || 60) };
+    });
+    const out: { min: number; label: string }[] = [];
+    ranges.forEach(r => {
+      for (let m = r.start; m + interval <= r.end; m += interval) {
+        const occ = busy.some(x => m >= x.s && m < x.e);
+        if (!occ) {
+          const hh = String(Math.floor(m / 60)).padStart(2, '0');
+          const mm = String(m % 60).padStart(2, '0');
+          out.push({ min: m, label: `${hh}:${mm}` });
+        }
+      }
+    });
+    return out;
+  };
+
+  const calRange = useMemo(() => {
+    let minM = Infinity;
+    let maxM = -Infinity;
+    calColBarbers.forEach(col => {
+      barberRangesOf(col.raw).forEach(r => {
+        if (r.start < minM) minM = r.start;
+        if (r.end > maxM) maxM = r.end;
+      });
+    });
+    appointments.forEach(a => {
+      const s = calStartMin(a.startTime);
+      const e = s + (Number(a.durationMinutes) || 60);
+      if (s < minM) minM = s;
+      if (e > maxM) maxM = e;
+    });
+    if (!Number.isFinite(minM)) return { start: 9, end: 20 };
+    return {
+      start: Math.max(0, Math.floor(minM / 60)),
+      end: Math.min(24, Math.ceil(maxM / 60)),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calColBarbers, appointments]);
+
+  const openQuickCreate = (
+    barberId: string,
+    barberName: string,
+    label: string,
+  ) => {
+    setQcName('');
+    setQcPhone('');
+    setQcServiceIds(servicesList[0]?._id ? [String(servicesList[0]._id)] : []);
+    setQuickCreate({ barberId, barberName, slot: label });
+  };
+
+  const toggleQcService = (id: string) => {
+    setQcServiceIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id],
+    );
+  };
+
+  const submitQuickCreate = async () => {
+    if (!quickCreate) return;
+    if (!qcName.trim()) {
+      Alert.alert('Falta el nombre', 'Ingresá el nombre del cliente.');
+      return;
+    }
+    if (qcPhone.trim().length < 6) {
+      Alert.alert('Falta el teléfono', 'El teléfono (WhatsApp) es obligatorio.');
+      return;
+    }
+    const selected = servicesList.filter(s =>
+      qcServiceIds.includes(String(s._id)),
+    );
+    if (!selected.length) {
+      Alert.alert('Falta el servicio', 'Elegí al menos un servicio.');
+      return;
+    }
+    const totalDuration = selected.reduce(
+      (a, s) => a + Number(s.durationMinutes || 30),
+      0,
+    );
+    const totalPrice = selected.reduce((a, s) => a + Number(s.price || 0), 0);
+    const serviceName = selected.map(s => s.name).join(' + ');
+    const [hh, mm] = quickCreate.slot.split(':').map(Number);
+    const d = selectedDate;
+    const startTime = new Date(
+      d.getFullYear(),
+      d.getMonth(),
+      d.getDate(),
+      hh || 0,
+      mm || 0,
+      0,
+      0,
+    ).toISOString();
+    try {
+      setQcSaving(true);
+      await createAppointment({
+        barberId: quickCreate.barberId,
+        customerName: qcName.trim(),
+        service: serviceName,
+        startTime,
+        durationMinutes: totalDuration,
+        servicePrice: totalPrice,
+        notes: qcPhone.trim(),
+        email: '',
+        paymentMethod: 'cash',
+      });
+      setQuickCreate(null);
+      await loadData(true, selectedDateRef.current);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'No se pudo crear el turno.');
+    } finally {
+      setQcSaving(false);
+    }
+  };
+
+  const openCalAppt = (appointment: Appointment) => {
+    const subtitle = `${appointment.service} · ${formatTimeOnly(
+      appointment.startTime,
+    )}`;
+    if (appointment.status === 'completed') {
+      Alert.alert(appointment.customerName, subtitle, [
+        { text: 'Cerrar', style: 'cancel' },
+        {
+          text: 'Deshacer cobro',
+          onPress: () => handleUndoCharge(appointment._id),
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => handleRelease(appointment._id),
+        },
+      ]);
+    } else {
+      Alert.alert(appointment.customerName, subtitle, [
+        { text: 'Cerrar', style: 'cancel' },
+        {
+          text: 'Cobrar y finalizar',
+          onPress: () => handleComplete(appointment._id),
+        },
+        {
+          text: 'Liberar',
+          style: 'destructive',
+          onPress: () => handleRelease(appointment._id),
+        },
+      ]);
+    }
+  };
+
+  const renderCalendar = () => {
+    const startHour = calRange.start;
+    const endHour = calRange.end;
+    const gridHeight = Math.max(CAL_HOUR_H, (endHour - startHour) * CAL_HOUR_H);
+
+    if (!calColBarbers.length) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>
+            Sin {businessCopy.staffPlural} cargados
+          </Text>
+        </View>
+      );
+    }
+
+    const globalInterval = Math.min(
+      ...calColBarbers.map(c => barberIntervalOf(c.raw)),
+      30,
+    );
+    const ticks: number[] = [];
+    for (let m = startHour * 60; m <= endHour * 60; m += globalInterval) {
+      ticks.push(m);
+    }
+    const minToLabel = (m: number) =>
+      `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(
+        2,
+        '0',
+      )}`;
+    const topOf = (m: number) => ((m - startHour * 60) / 60) * CAL_HOUR_H;
+
+    return (
+      <View style={{ flexDirection: 'row' }}>
+        {/* Gutter de horas (fijo a la izquierda) */}
+        <View style={{ width: 48 }}>
+          <View style={{ height: CAL_HEADER_H }} />
+          <View style={{ height: gridHeight }}>
+            {ticks.map(m => (
+              <Text
+                key={m}
+                style={[
+                  styles.calHourLabel,
+                  {
+                    position: 'absolute',
+                    top: topOf(m) - 7,
+                    fontWeight: m % 60 === 0 ? '800' : '600',
+                    opacity: m % 60 === 0 ? 1 : 0.6,
+                  },
+                ]}
+              >
+                {minToLabel(m)}
+              </Text>
+            ))}
+          </View>
+        </View>
+
+        {/* Columnas de profesionales (scroll horizontal) */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {calColBarbers.map(col => {
+            const appts = apptsOfBarber(col.id);
+            const free = freeSlotsOf(col.raw, appts);
+            const interval = barberIntervalOf(col.raw);
+            const color = colorForBarber(col.id);
+            return (
+              <View key={col.id} style={{ width: CAL_COL_W }}>
+                <View style={[styles.calColHead, { height: CAL_HEADER_H }]}>
+                  <View
+                    style={[styles.calColDot, { backgroundColor: color }]}
+                  />
+                  <Text style={styles.calColHeadName} numberOfLines={1}>
+                    {col.name}
+                  </Text>
+                </View>
+                <View style={[styles.calGrid, { height: gridHeight }]}>
+                  {ticks.map(m => (
+                    <View
+                      key={m}
+                      style={[
+                        styles.calColHourLine,
+                        { top: topOf(m), opacity: m % 60 === 0 ? 1 : 0.4 },
+                      ]}
+                    />
+                  ))}
+                  {free.map(s => {
+                    const top =
+                      ((s.min - startHour * 60) / 60) * CAL_HOUR_H;
+                    const height = Math.max(
+                      24,
+                      (interval / 60) * CAL_HOUR_H - 3,
+                    );
+                    return (
+                      <Pressable
+                        key={`f-${s.min}`}
+                        onPress={() =>
+                          openQuickCreate(col.id, col.name, s.label)
+                        }
+                        style={[styles.calFreeCol, { top: top + 1, height }]}
+                      >
+                        <Text style={styles.calFreePlusText}>＋</Text>
+                      </Pressable>
+                    );
+                  })}
+                  {appts.map(a => {
+                    const top =
+                      ((calStartMin(a.startTime) - startHour * 60) / 60) *
+                      CAL_HOUR_H;
+                    const dur = Number(a.durationMinutes) || 60;
+                    const height = Math.max(34, (dur / 60) * CAL_HOUR_H - 3);
+                    const isCompleted = a.status === 'completed';
+                    return (
+                      <Pressable
+                        key={a._id}
+                        onPress={() => openCalAppt(a)}
+                        style={[
+                          styles.calBlockCol,
+                          {
+                            top: top + 1,
+                            height,
+                            backgroundColor: hexToRgba(color, 0.16),
+                            borderColor: color,
+                            opacity: isCompleted ? 0.55 : 1,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.calBlockTime, { color }]}>
+                          {formatTimeOnly(a.startTime)}
+                        </Text>
+                        <Text style={styles.calBlockName} numberOfLines={1}>
+                          {a.customerName}
+                        </Text>
+                        {height > 50 ? (
+                          <Text style={styles.calBlockSvc} numberOfLines={1}>
+                            {a.service}
+                          </Text>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+      </View>
     );
   };
 
@@ -944,11 +1384,34 @@ function Home({ navigation }: Props) {
 
         <View style={styles.section}>
           <View style={styles.agendaTopRow}>
-            {!isToday && (
+            {!isToday ? (
               <Pressable style={styles.todayButton} onPress={handleGoToToday}>
                 <Text style={styles.todayButtonText}>Volver a hoy</Text>
               </Pressable>
+            ) : (
+              <View />
             )}
+            <View style={styles.calViewToggle}>
+              {(['list', 'calendar'] as const).map(v => {
+                const active = agendaView === v;
+                return (
+                  <Pressable
+                    key={v}
+                    onPress={() => changeAgendaView(v)}
+                    style={[styles.calViewBtn, active && styles.calViewBtnActive]}
+                  >
+                    <Text
+                      style={[
+                        styles.calViewBtnText,
+                        active && styles.calViewBtnTextActive,
+                      ]}
+                    >
+                      {v === 'list' ? 'Lista' : 'Calendario'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
           <View style={styles.dateHeroCard} {...datePanResponder.panHandlers}>
@@ -1011,12 +1474,14 @@ function Home({ navigation }: Props) {
             </ScrollView>
           </View>
 
-          <View style={{ marginTop: 20 }}>
+          <View style={{ marginTop: agendaView === 'calendar' ? 8 : 20 }}>
             {loading && !appointments.length ? (
               <ActivityIndicator
                 color={theme.primary}
                 style={{ marginTop: 40 }}
               />
+            ) : agendaView === 'calendar' ? (
+              renderCalendar()
             ) : appointments.length ? (
               appointments.map(renderAppointmentCard)
             ) : (
@@ -1034,6 +1499,84 @@ function Home({ navigation }: Props) {
         onClose={handleCloseProModal}
         onOpenPlan={handleOpenSubscriptionSettings}
       />
+      <Modal
+        visible={quickCreate !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setQuickCreate(null)}
+      >
+        <Pressable
+          style={styles.qcOverlay}
+          onPress={() => (qcSaving ? null : setQuickCreate(null))}
+        >
+          <Pressable style={styles.qcCard} onPress={() => {}}>
+            <Text style={styles.qcTitle}>Nuevo turno</Text>
+            <Text style={styles.qcSubtitle}>
+              {quickCreate?.barberName} · {quickCreate?.slot} hs
+            </Text>
+
+            <TextInput
+              style={styles.qcInput}
+              placeholder="Nombre del cliente"
+              placeholderTextColor={theme.placeholder}
+              value={qcName}
+              onChangeText={setQcName}
+            />
+            <TextInput
+              style={styles.qcInput}
+              placeholder="Teléfono (WhatsApp)"
+              placeholderTextColor={theme.placeholder}
+              keyboardType="phone-pad"
+              value={qcPhone}
+              onChangeText={t => setQcPhone(t.replace(/[^0-9+\s-]/g, ''))}
+            />
+
+            <Text style={styles.qcLabel}>Servicios (podés elegir varios)</Text>
+            <ScrollView style={{ maxHeight: 190 }}>
+              {servicesList.map(s => {
+                const active = qcServiceIds.includes(String(s._id));
+                return (
+                  <Pressable
+                    key={s._id}
+                    onPress={() => toggleQcService(String(s._id))}
+                    style={[styles.qcSvc, active && styles.qcSvcActive]}
+                  >
+                    <Text
+                      style={[
+                        styles.qcSvcName,
+                        active && styles.qcSvcNameActive,
+                      ]}
+                    >
+                      {active ? '✓ ' : ''}
+                      {s.name}
+                    </Text>
+                    <Text style={styles.qcSvcMeta}>
+                      {formatAppointmentPrice(Number(s.price || 0))}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            <Pressable
+              style={[styles.qcConfirm, qcSaving && { opacity: 0.6 }]}
+              disabled={qcSaving}
+              onPress={submitQuickCreate}
+            >
+              <Text style={styles.qcConfirmText}>
+                {qcSaving ? 'Creando…' : 'Crear turno'}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.qcCancel}
+              disabled={qcSaving}
+              onPress={() => setQuickCreate(null)}
+            >
+              <Text style={styles.qcCancelText}>Cancelar</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
       <Modal
         visible={welcomeModalVisible}
         transparent
@@ -1607,6 +2150,152 @@ const createStyles = (theme: Theme) =>
       borderRadius: 999,
     },
     todayButtonText: { color: theme.primary, fontSize: 12, fontWeight: '700' },
+    // Toggle Lista / Calendario
+    calViewToggle: {
+      flexDirection: 'row',
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 999,
+      padding: 3,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    calViewBtn: { paddingVertical: 6, paddingHorizontal: 14, borderRadius: 999 },
+    calViewBtnActive: { backgroundColor: theme.primary },
+    calViewBtnText: { fontSize: 12, fontWeight: '700', color: theme.textMuted },
+    calViewBtnTextActive: { color: theme.textOnPrimary },
+    // Calendario (timeline)
+    calHourLabel: {
+      width: 48,
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    calGrid: { position: 'relative', marginTop: 4 },
+    calBlockTime: { fontSize: 11, fontWeight: '800' },
+    calBlockName: { color: theme.textPrimary, fontSize: 13, fontWeight: '700' },
+    calBlockSvc: { color: theme.textMuted, fontSize: 11 },
+    calFreePlusText: {
+      color: theme.primary,
+      fontSize: 15,
+      fontWeight: '800',
+      lineHeight: 18,
+    },
+    calColHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    calColDot: { width: 8, height: 8, borderRadius: 4 },
+    calColHeadName: {
+      color: theme.textPrimary,
+      fontWeight: '800',
+      fontSize: 13,
+      flex: 1,
+    },
+    calColHourLine: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      height: 1,
+      backgroundColor: theme.border,
+    },
+    calFreeCol: {
+      position: 'absolute',
+      left: 4,
+      right: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: theme.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    calBlockCol: {
+      position: 'absolute',
+      left: 3,
+      right: 3,
+      borderRadius: 10,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderWidth: 1,
+      overflow: 'hidden',
+    },
+    // Popup quick-create
+    qcOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+      justifyContent: 'center',
+      paddingHorizontal: 22,
+    },
+    qcCard: {
+      backgroundColor: theme.card,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 20,
+      gap: 10,
+    },
+    qcTitle: { color: theme.textPrimary, fontSize: 18, fontWeight: '800' },
+    qcSubtitle: {
+      color: theme.primary,
+      fontSize: 13,
+      fontWeight: '700',
+      marginBottom: 6,
+    },
+    qcInput: {
+      backgroundColor: theme.input,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      color: theme.textPrimary,
+      fontSize: 15,
+    },
+    qcLabel: {
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '700',
+      marginTop: 6,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    qcSvc: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginBottom: 8,
+      backgroundColor: theme.surfaceAlt,
+    },
+    qcSvcActive: {
+      borderColor: theme.primary,
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+    },
+    qcSvcName: { color: theme.textPrimary, fontWeight: '700', fontSize: 14 },
+    qcSvcNameActive: { color: theme.primary },
+    qcSvcMeta: { color: theme.textMuted, fontSize: 13, fontWeight: '600' },
+    qcConfirm: {
+      paddingVertical: 14,
+      borderRadius: 14,
+      backgroundColor: theme.primary,
+      alignItems: 'center',
+      marginTop: 4,
+    },
+    qcConfirmText: {
+      color: theme.textOnPrimary,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    qcCancel: { paddingVertical: 10, alignItems: 'center' },
+    qcCancelText: { color: theme.textMuted, fontSize: 14, fontWeight: '600' },
     dateHeroCard: {
       backgroundColor: theme.card,
       borderRadius: 24,
