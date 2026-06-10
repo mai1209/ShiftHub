@@ -70,6 +70,22 @@ function MetricasPage() {
     { label: 'Transferencia', value: t ? formatCurrency(t.transferRevenue) : '—' },
   ];
 
+  // Datos para gráficos (CSS, sin librerías).
+  const BARBER_PALETTE = [
+    '#ec4899', '#3b82f6', '#10b981', '#f59e0b',
+    '#8b5cf6', '#ef4444', '#14b8a6', '#f97316',
+  ];
+  const cashRev = Number(t?.cashRevenue || 0);
+  const transferRev = Number(t?.transferRevenue || 0);
+  const sumCT = cashRev + transferRev;
+  const cashPct = sumCT ? Math.round((cashRev / sumCT) * 100) : 0;
+  const transferPct = sumCT ? 100 - cashPct : 0;
+  const byBarber = isOwner ? overview?.byBarber || [] : [];
+  const maxBarberRev = Math.max(
+    1,
+    ...byBarber.map((b) => Number(b.totalRevenue || 0)),
+  );
+
   return (
     <div>
       {barberId ? (
@@ -122,6 +138,59 @@ function MetricasPage() {
           </div>
         ))}
       </div>
+
+      {t && sumCT > 0 ? (
+        <>
+          <h2 className={styles.sectionTitle}>Efectivo vs Transferencia</h2>
+          <div className={styles.chartCard}>
+            <div className={styles.splitBar}>
+              <div
+                className={styles.splitBarCash}
+                style={{ width: `${cashPct}%` }}
+              />
+              <div
+                className={styles.splitBarTransfer}
+                style={{ width: `${transferPct}%` }}
+              />
+            </div>
+            <div className={styles.splitLegend}>
+              <span>
+                <span className={`${styles.legendDot} ${styles.legendCash}`} />
+                Efectivo · {cashPct}% · {formatCurrency(cashRev)}
+              </span>
+              <span>
+                <span className={`${styles.legendDot} ${styles.legendTransfer}`} />
+                Transferencia · {transferPct}% · {formatCurrency(transferRev)}
+              </span>
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {byBarber.length ? (
+        <>
+          <h2 className={styles.sectionTitle}>Ingresos por profesional</h2>
+          <div className={styles.chartCard}>
+            {byBarber.map((b, i) => {
+              const rev = Number(b.totalRevenue || 0);
+              const pct = Math.round((rev / maxBarberRev) * 100);
+              const color = BARBER_PALETTE[i % BARBER_PALETTE.length];
+              return (
+                <div key={b.barberId} className={styles.hbarRow}>
+                  <span className={styles.hbarLabel}>{b.barberName}</span>
+                  <div className={styles.hbarTrack}>
+                    <div
+                      className={styles.hbarFill}
+                      style={{ width: `${Math.max(4, pct)}%`, background: color }}
+                    />
+                  </div>
+                  <span className={styles.hbarValue}>{formatCurrency(rev)}</span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
 
       {isOwner && overview?.byBarber?.length ? (
         <>

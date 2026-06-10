@@ -1820,3 +1820,76 @@
   cursor: pointer;
 }
 .serviceCheckRow input { width: 16px; height: 16px; }
+
+/* ===== Gráficos métricas (CSS, sin libs) ===== */
+.chartCard {
+  background: var(--panel-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+.splitBar {
+  display: flex;
+  height: 26px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--panel-surface-2);
+}
+.splitBarCash { background: #10b981; transition: width 0.5s ease; }
+.splitBarTransfer { background: #3b82f6; transition: width 0.5s ease; }
+.splitLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--panel-text-dim);
+}
+.legendDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.legendCash { background: #10b981; }
+.legendTransfer { background: #3b82f6; }
+
+.hbarRow {
+  display: grid;
+  grid-template-columns: 130px 1fr 100px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+}
+.hbarLabel {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--panel-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hbarTrack {
+  height: 16px;
+  border-radius: 999px;
+  background: var(--panel-surface-2);
+  overflow: hidden;
+}
+.hbarFill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+.hbarValue {
+  text-align: right;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--panel-text);
+}
+@media (max-width: 560px) {
+  .hbarRow { grid-template-columns: 90px 1fr 80px; gap: 8px; }
+}
