@@ -68,6 +68,16 @@ const DAYS_OF_WEEK = [
   { id: 6, label: 'S' },
 ];
 
+const DAY_NAMES = [
+  'Domingo',
+  'Lunes',
+  'Martes',
+  'Miércoles',
+  'Jueves',
+  'Viernes',
+  'Sábado',
+];
+
 const SHOP_TZ = 'America/Argentina/Cordoba';
 
 const getTodayDateLabel = () => {
@@ -1600,7 +1610,19 @@ function RegisterEmployed({ navigation, route }: Props) {
 
                   {overrideEnabled ? (
                     <>
-                      <View style={styles.specialDaysInlineWrap}>
+                      <View style={styles.inlineOverridePicker}>
+                        <View style={styles.inlineOverrideHeader}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.inlineOverrideTitle}>
+                              Elegí el día diferente
+                            </Text>
+                            <Text style={styles.inlineOverrideHint}>
+                              Seleccioná un día, definí su horario y agregá más
+                              días si lo necesitás.
+                            </Text>
+                          </View>
+                        </View>
+
                         <View style={styles.specialDaysRow}>
                           {DAYS_OF_WEEK.map(day => {
                             const active = selectedOverrideDay === day.id;
@@ -1616,14 +1638,7 @@ function RegisterEmployed({ navigation, route }: Props) {
                             return (
                               <Pressable
                                 key={day.id}
-                                onPress={() => {
-                                  if (
-                                    selectedOverrideDay == null ||
-                                    selectedOverrideDay === day.id
-                                  ) {
-                                    setSelectedOverrideDay(day.id);
-                                  }
-                                }}
+                                onPress={() => setSelectedOverrideDay(day.id)}
                                 style={[
                                   styles.dayCircle,
                                   hasOverride && styles.overrideDayCircleLoaded,
@@ -1643,17 +1658,12 @@ function RegisterEmployed({ navigation, route }: Props) {
                             );
                           })}
                         </View>
-                        <View style={styles.specialDaysActionsRow}>
-                          <Pressable
-                            accessibilityLabel="Agregar otro día con horario especial"
-                            style={styles.addSpecialDayButton}
-                            onPress={() => setSelectedOverrideDay(null)}
-                          >
-                            <Text style={styles.addSpecialDayButtonText}>
-                              +
-                            </Text>
-                          </Pressable>
-                        </View>
+
+                        <Text style={styles.inlineOverrideSelectedText}>
+                          {selectedOverrideDay != null
+                            ? `Cargando horario para ${DAY_NAMES[selectedOverrideDay]}.`
+                            : 'Seleccioná un día para cargar su horario especial.'}
+                        </Text>
                       </View>
 
                       {editingOverrideDays.length ? (
@@ -2918,6 +2928,37 @@ const createStyles = (theme: Theme) =>
     dayTextActive: { color: theme.textOnPrimary },
     specialDaysInlineWrap: {
       gap: 10,
+    },
+    inlineOverridePicker: {
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceAlt,
+      padding: 14,
+      gap: 12,
+    },
+    inlineOverrideHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    inlineOverrideTitle: {
+      color: theme.textPrimary,
+      fontSize: 14,
+      fontWeight: '900',
+    },
+    inlineOverrideHint: {
+      color: theme.textMuted,
+      fontSize: 12,
+      lineHeight: 17,
+      marginTop: 3,
+    },
+    inlineOverrideSelectedText: {
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '700',
+      marginLeft: 2,
     },
     specialDaysRow: {
       flexDirection: 'row',
