@@ -21,6 +21,8 @@ import {
   deleteCashEntry,
   fetchCashEntries,
   fetchCashSummary,
+  updateAppointmentStatus,
+  deleteAppointment,
 } from '../services/api';
 import { getUserProfile } from '../services/authStorage';
 import { hasProPlanAccess } from '../services/planAccess';
@@ -33,6 +35,7 @@ import {
   ChevronRight,
   Pencil,
   Plus,
+  RotateCcw,
   Trash2,
   TrendingUp,
   Store,
@@ -246,6 +249,57 @@ function CajaScreen({ navigation }: Props) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const methodLabel = (method: string | null) => {
+    if (method === 'cash') return 'Efectivo';
+    if (method === 'transfer') return 'Transferencia';
+    if (method === 'mixed') return 'Mixto';
+    return 'Cobrado';
+  };
+
+  const undoService = (id: string, name: string) => {
+    Alert.alert(
+      'Deshacer cobro',
+      `El turno de ${name} vuelve a "pendiente" y se descuenta de la caja. ¿Continuar?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Deshacer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await updateAppointmentStatus(id, 'pending');
+              await loadData(true);
+            } catch (err: any) {
+              Alert.alert('Error', err?.message ?? 'No se pudo deshacer el cobro.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const removeService = (id: string, name: string) => {
+    Alert.alert(
+      'Eliminar turno',
+      `Se elimina definitivamente el turno de ${name}. ¿Continuar?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAppointment(id);
+              await loadData(true);
+            } catch (err: any) {
+              Alert.alert('Error', err?.message ?? 'No se pudo eliminar el turno.');
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleDelete = (entry: CashEntry) => {
@@ -557,6 +611,53 @@ function CajaScreen({ navigation }: Props) {
                       </View>
                     );
                   })}
+                </View>
+              </>
+            ) : null}
+
+            {/* Servicios cobrados */}
+            {summary?.services && summary.services.length > 0 ? (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Servicios cobrados</Text>
+                  <Banknote size={16} color={theme.primary} />
+                </View>
+                <View style={styles.entriesList}>
+                  {summary.services.map(svc => (
+                    <View key={svc._id} style={styles.entryRow}>
+                      <View style={styles.entryInfo}>
+                        <Text style={styles.entryDesc}>
+                          {svc.customerName || 'Cliente'}
+                        </Text>
+                        <Text style={styles.entryDate}>
+                          {svc.service || 'Servicio'} · {methodLabel(svc.method)}
+                        </Text>
+                      </View>
+                      <Text style={[styles.entryAmount, { color: INCOME_COLOR }]}>
+                        {formatCurrency(svc.amount)}
+                      </Text>
+                      <View style={styles.serviceActions}>
+                        <Pressable
+                          hitSlop={8}
+                          style={styles.serviceActionBtn}
+                          onPress={() =>
+                            undoService(svc._id, svc.customerName || 'Cliente')
+                          }
+                        >
+                          <RotateCcw size={16} color={theme.textMuted} />
+                        </Pressable>
+                        <Pressable
+                          hitSlop={8}
+                          style={styles.serviceActionBtn}
+                          onPress={() =>
+                            removeService(svc._id, svc.customerName || 'Cliente')
+                          }
+                        >
+                          <Trash2 size={16} color={EXPENSE_COLOR} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  ))}
                 </View>
               </>
             ) : null}
@@ -965,6 +1066,15 @@ const makeStyles = (theme: Theme) =>
     categoryChipText: { color: theme.textMuted, fontSize: 13, fontWeight: '600' },
     categoryChipTextActive: { color: theme.primary, fontWeight: '700' },
     entryAmount: { fontSize: 15, fontWeight: '800' },
+    serviceActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+    serviceActionBtn: {
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.surfaceAlt,
+    },
     entryEdit: {
       width: 34,
       height: 34,

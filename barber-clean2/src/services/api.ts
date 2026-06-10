@@ -1112,6 +1112,16 @@ export type CashSummaryResponse = {
   profit: number;
   servicesCount: number;
   entriesCount: number;
+  services?: CashServiceItem[];
+};
+
+export type CashServiceItem = {
+  _id: string;
+  customerName: string;
+  service: string;
+  amount: number;
+  method: string | null;
+  startTime: string | null;
 };
 
 export type CashEntriesResponse = {
