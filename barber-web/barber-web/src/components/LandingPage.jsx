@@ -68,24 +68,25 @@ const TOOLS = [
 ];
 
 // Editá estos clientes destacados (name/category/quote/img). img vacío = placeholder.
+// Las imágenes son representativas (placeholder) hasta cargar fotos reales.
 const CLIENT_CARDS = [
   {
     name: "Estudio Lumen",
     category: "Centro de estética",
     quote: "Se nos llenó la agenda sola. Los clientes reservan a cualquier hora.",
-    img: "",
+    img: `${process.env.PUBLIC_URL}/cliente-estetica.svg`,
   },
   {
     name: "Barbería Norte",
     category: "Barbería",
     quote: "La caja y las comisiones dejaron de ser un dolor de cabeza.",
-    img: "",
+    img: `${process.env.PUBLIC_URL}/cliente-barberia.svg`,
   },
   {
     name: "Espacio Calma",
     category: "Spa y masajes",
     quote: "Los recordatorios por WhatsApp nos bajaron muchísimo los ausentes.",
-    img: "",
+    img: `${process.env.PUBLIC_URL}/cliente-spa.svg`,
   },
 ];
 

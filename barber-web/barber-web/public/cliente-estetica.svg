@@ -1,0 +1,27 @@
+<svg width="600" height="380" viewBox="0 0 600 380" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Centro de estetica">
+  <defs>
+    <linearGradient id="estBg" x1="0" y1="0" x2="600" y2="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2f9c1f"/>
+      <stop offset="1" stop-color="#155010"/>
+    </linearGradient>
+    <linearGradient id="estGlow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7CFF5C" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#7CFF5C" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="380" fill="url(#estBg)"/>
+  <circle cx="480" cy="70" r="150" fill="url(#estGlow)"/>
+  <circle cx="120" cy="320" r="120" fill="#ffffff" opacity="0.05"/>
+  <g opacity="0.9" stroke="#ffffff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- espejo / cara -->
+    <circle cx="300" cy="178" r="78"/>
+    <path d="M300 100 L300 256"/>
+    <path d="M222 178 L378 178"/>
+  </g>
+  <g fill="#ffffff">
+    <path d="M150 120 l9 22 22 9 -22 9 -9 22 -9 -22 -22 -9 22 -9 z" opacity="0.85"/>
+    <path d="M452 250 l7 17 17 7 -17 7 -7 17 -7 -17 -17 -7 17 -7 z" opacity="0.7"/>
+    <circle cx="430" cy="120" r="7" opacity="0.8"/>
+    <circle cx="170" cy="270" r="6" opacity="0.7"/>
+  </g>
+</svg>

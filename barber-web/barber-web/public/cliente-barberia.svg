@@ -1,0 +1,33 @@
+<svg width="600" height="380" viewBox="0 0 600 380" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Barberia">
+  <defs>
+    <linearGradient id="barBg" x1="0" y1="0" x2="600" y2="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1f2937"/>
+      <stop offset="1" stop-color="#0b1220"/>
+    </linearGradient>
+    <linearGradient id="barGlow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#39E01F" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#39E01F" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="380" fill="url(#barBg)"/>
+  <circle cx="110" cy="60" r="150" fill="url(#barGlow)"/>
+  <rect x="430" y="40" width="130" height="300" rx="14" fill="#ffffff" opacity="0.04"/>
+  <!-- tijeras -->
+  <g stroke="#39E01F" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <circle cx="225" cy="250" r="26"/>
+    <circle cx="300" cy="285" r="26"/>
+    <path d="M243 232 L420 110"/>
+    <path d="M318 268 L420 195"/>
+    <path d="M420 110 L420 195" opacity="0.5"/>
+  </g>
+  <!-- peine -->
+  <g stroke="#ffffff" stroke-width="7" stroke-linecap="round" opacity="0.8">
+    <path d="M150 120 L320 120"/>
+    <path d="M165 120 L165 150"/>
+    <path d="M190 120 L190 150"/>
+    <path d="M215 120 L215 150"/>
+    <path d="M240 120 L240 150"/>
+    <path d="M265 120 L265 150"/>
+    <path d="M290 120 L290 150"/>
+  </g>
+</svg>

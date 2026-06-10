@@ -1,0 +1,28 @@
+<svg width="600" height="380" viewBox="0 0 600 380" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Spa y masajes">
+  <defs>
+    <linearGradient id="spaBg" x1="0" y1="0" x2="600" y2="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3aa86f"/>
+      <stop offset="1" stop-color="#15683f"/>
+    </linearGradient>
+    <linearGradient id="spaGlow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9ffe7" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#d9ffe7" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="380" fill="url(#spaBg)"/>
+  <circle cx="300" cy="40" r="170" fill="url(#spaGlow)"/>
+  <circle cx="500" cy="320" r="110" fill="#ffffff" opacity="0.05"/>
+  <!-- flor de loto -->
+  <g fill="#ffffff" opacity="0.92">
+    <path d="M300 250 C300 180 268 150 300 110 C332 150 300 180 300 250 Z"/>
+    <path d="M300 250 C250 210 210 215 215 165 C262 165 270 205 300 250 Z"/>
+    <path d="M300 250 C350 210 390 215 385 165 C338 165 330 205 300 250 Z"/>
+    <path d="M300 252 C232 250 180 230 170 195 C220 178 268 205 300 252 Z" opacity="0.8"/>
+    <path d="M300 252 C368 250 420 230 430 195 C380 178 332 205 300 252 Z" opacity="0.8"/>
+  </g>
+  <!-- agua / ondas -->
+  <g stroke="#ffffff" stroke-width="6" stroke-linecap="round" opacity="0.55" fill="none">
+    <path d="M180 290 q30 -18 60 0 q30 18 60 0 q30 -18 60 0 q30 18 60 0"/>
+    <path d="M200 315 q25 -15 50 0 q25 15 50 0 q25 -15 50 0"/>
+  </g>
+</svg>
