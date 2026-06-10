@@ -1327,6 +1327,25 @@ function RegisterEmployed({ navigation, route }: Props) {
                     onFocus={() => setFocusedField('phone')}
                     onBlur={() => setFocusedField(null)}
                   />
+
+                  {!selfEdit ? (
+                    <>
+                      <Text style={styles.inputLabelInline}>Comisión (%)</Text>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          focusedField === 'commission' && styles.inputFocused,
+                        ]}
+                        placeholder="0"
+                        placeholderTextColor={theme.placeholder}
+                        keyboardType="numeric"
+                        value={commissionPercentInput}
+                        onChangeText={setCommissionPercentInput}
+                        onFocus={() => setFocusedField('commission')}
+                        onBlur={() => setFocusedField(null)}
+                      />
+                    </>
+                  ) : null}
                 </View>
               ) : null}
 
@@ -1901,23 +1920,6 @@ function RegisterEmployed({ navigation, route }: Props) {
                       );
                     })}
                   </View>
-                </View>
-              ) : null}
-
-              {!advancedSection ? (
-                <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>Comisión</Text>
-                  <Text style={styles.sectionHelperMuted}>
-                    {`De cada servicio cobrado, este % se lo lleva el ${businessCopy.staffSingular} y el resto queda para ${businessCopy.theBusiness}. Dejalo en 0 si no cobra comisión.`}
-                  </Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="0"
-                    placeholderTextColor={theme.placeholder}
-                    keyboardType="numeric"
-                    value={commissionPercentInput}
-                    onChangeText={setCommissionPercentInput}
-                  />
                 </View>
               ) : null}
 
@@ -2729,6 +2731,14 @@ const createStyles = (theme: Theme) =>
       color: theme.textMuted,
       fontSize: 12,
       lineHeight: 18,
+      marginHorizontal: 4,
+    },
+    inputLabelInline: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      fontWeight: '700',
+      marginTop: 12,
+      marginBottom: 6,
       marginHorizontal: 4,
     },
     accessSummaryCard: {

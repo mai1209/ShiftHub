@@ -352,11 +352,11 @@ function OwnerMetricsScreen({ navigation }: Props) {
                       <View style={styles.barberRank}>
                         <Text style={styles.rankText}>{index + 1}</Text>
                       </View>
-                      <View>
-                        <Text style={styles.barberNameText}>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.barberNameText} numberOfLines={1}>
                           {item.barberName}
                         </Text>
-                        <Text style={styles.barberSubText}>
+                        <Text style={styles.barberSubText} numberOfLines={1}>
                           {item.appointmentsCount} turnos realizados
                         </Text>
                       </View>
@@ -668,6 +668,8 @@ const makeStyles = (theme: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
+      flex: 1,
+      minWidth: 0,
     },
     barberNameText: {
       color: theme.textPrimary,
@@ -681,6 +683,8 @@ const makeStyles = (theme: Theme) =>
     },
     barberStats: {
       alignItems: 'flex-end',
+      flexShrink: 0,
+      marginLeft: 10,
     },
     barberRevenue: {
       color: theme.textPrimary,

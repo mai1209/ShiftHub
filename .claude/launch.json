@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "marketingnati",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/maidev/MarketingNati", "start"],
+      "port": 3000
+    }
+  ]
+}
