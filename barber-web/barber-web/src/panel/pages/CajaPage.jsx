@@ -5,8 +5,10 @@ import {
   createCashEntry,
   updateCashEntry,
   deleteCashEntry,
+  updateAppointmentStatus,
+  deleteAppointment,
 } from '../../services/panelApi';
-import { Pencil, Trash2, X, Plus } from 'lucide-react';
+import { Pencil, Trash2, X, Plus, RotateCcw } from 'lucide-react';
 import { usePeriod, formatCurrency } from '../usePeriod';
 import PeriodSelector from '../components/PeriodSelector';
 import styles from '../Panel.module.css';
@@ -58,6 +60,29 @@ function CajaPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const undoService = async (id) => {
+    if (!window.confirm('¿Deshacer el cobro? El turno vuelve a pendiente.')) return;
+    try {
+      await updateAppointmentStatus(id, 'pending');
+      await load();
+    } catch (err) {
+      alert(err?.message || 'No se pudo deshacer.');
+    }
+  };
+
+  const removeService = async (id) => {
+    if (!window.confirm('¿Eliminar este turno definitivamente?')) return;
+    try {
+      await deleteAppointment(id);
+      await load();
+    } catch (err) {
+      alert(err?.message || 'No se pudo eliminar.');
+    }
+  };
+
+  const methodLabel = (m) =>
+    m === 'transfer' ? 'Transferencia' : m === 'mixed' ? 'Mixto' : 'Efectivo';
 
   const categoryBreakdown = useMemo(() => {
     const map = new Map();
@@ -208,6 +233,57 @@ function CajaPage() {
                 </strong>
               </div>
             ))}
+          </div>
+        </>
+      ) : null}
+
+      {summary?.services?.length > 0 ? (
+        <>
+          <h2 className={styles.sectionTitle}>Servicios cobrados</h2>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Servicio</th>
+                  <th>Pago</th>
+                  <th>Monto</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {summary.services.map((s) => (
+                  <tr key={s._id}>
+                    <td>
+                      {s.startTime
+                        ? new Date(s.startTime).toLocaleDateString('es-AR')
+                        : '—'}
+                    </td>
+                    <td>{s.customerName}</td>
+                    <td>{s.service}</td>
+                    <td>{methodLabel(s.method)}</td>
+                    <td>{formatCurrency(s.amount)}</td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button
+                        className={styles.iconBtn}
+                        title="Deshacer cobro"
+                        onClick={() => undoService(s._id)}
+                      >
+                        <RotateCcw size={15} />
+                      </button>{' '}
+                      <button
+                        className={styles.iconBtn}
+                        title="Eliminar turno"
+                        onClick={() => removeService(s._id)}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </>
       ) : null}
