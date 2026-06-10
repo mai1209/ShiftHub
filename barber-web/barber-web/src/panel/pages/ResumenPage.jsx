@@ -5,7 +5,7 @@ import {
   fetchBarberAppointments,
   fetchCashSummary,
 } from '../../services/panelApi';
-import { usePeriod, formatCurrency } from '../usePeriod';
+import { usePeriod, formatCurrency, periodLabel } from '../usePeriod';
 import PeriodSelector from '../components/PeriodSelector';
 import { runMetricsExport } from '../exportMetrics';
 import { useAuth } from '../AuthContext';
@@ -34,6 +34,7 @@ function ResumenPage() {
   const {
     rangeMode: expRange,
     setRangeMode: setExpRange,
+    refDate: expRefDate,
     buildParams: buildExpParams,
     shiftPeriod: shiftExp,
   } = usePeriod('monthly');
@@ -148,6 +149,7 @@ function ResumenPage() {
             rangeMode={expRange}
             setRangeMode={setExpRange}
             shiftPeriod={shiftExp}
+            label={periodLabel(expRange, expRefDate)}
           />
           <div className={styles.exportRow} style={{ marginTop: 12 }}>
             <button

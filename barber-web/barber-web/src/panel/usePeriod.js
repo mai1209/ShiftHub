@@ -50,3 +50,23 @@ export function usePeriod(initialMode = 'monthly') {
 export function formatCurrency(value) {
   return `$${Math.max(0, Number(value || 0)).toLocaleString('es-AR')}`;
 }
+
+// Etiqueta legible del período (para mostrar en el selector sin pedir al backend).
+export function periodLabel(rangeMode, refDate) {
+  const d = refDate instanceof Date ? refDate : new Date();
+  if (rangeMode === 'daily') {
+    return d.toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+  }
+  if (rangeMode === 'weekly') {
+    return `Semana del ${d.toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: 'short',
+    })}`;
+  }
+  if (rangeMode === 'annual') return String(d.getFullYear());
+  return d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+}
