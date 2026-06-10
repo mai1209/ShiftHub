@@ -1105,6 +1105,20 @@ export async function updateAppointmentStatus(req, res, next) {
       }
     }
 
+    // Deshacer cobro: al volver a "pending" se resetea el pago.
+    if (status === "pending") {
+      const total = Number(
+        appointmentDoc.amountTotal ?? appointmentDoc.servicePrice ?? 0,
+      );
+      appointmentDoc.paymentStatus = "unpaid";
+      appointmentDoc.paymentMethodCollected = null;
+      appointmentDoc.amountTotal = total;
+      appointmentDoc.amountPaid = 0;
+      appointmentDoc.amountPending = total;
+      appointmentDoc.cashAmount = 0;
+      appointmentDoc.transferAmount = 0;
+    }
+
     await appointmentDoc.save();
 
     const appointment = appointmentDoc.toObject();
@@ -1555,6 +1569,9 @@ export async function getCashSummary(req, res, next) {
           amountPaid: 1,
           amountTotal: 1,
           paymentStatus: 1,
+          paymentMethodCollected: 1,
+          customerName: 1,
+          startTime: 1,
         })
         .lean(),
       ServiceModel.find(applyShopScope({ owner: ownerId }, req))
@@ -1576,6 +1593,7 @@ export async function getCashSummary(req, res, next) {
 
     let serviceIncome = 0;
     let commissions = 0;
+    const servicesList = [];
     for (const appointment of appointments) {
       const fallback = servicePriceMap.get(
         String(appointment.service || "").trim().toLowerCase(),
@@ -1584,7 +1602,19 @@ export async function getCashSummary(req, res, next) {
       serviceIncome += paid;
       const pct = resolveCommissionPercent(appointment, commissionMaps);
       if (pct > 0) commissions += (paid * pct) / 100;
+
+      servicesList.push({
+        _id: String(appointment._id),
+        customerName: appointment.customerName || "Cliente",
+        service: appointment.service || "Servicio",
+        amount: Number(paid.toFixed(2)),
+        method: appointment.paymentMethodCollected || null,
+        startTime: appointment.startTime || null,
+      });
     }
+    servicesList.sort(
+      (a, b) => new Date(b.startTime || 0) - new Date(a.startTime || 0),
+    );
 
     let manualIncome = 0;
     let expenses = 0;
@@ -1609,6 +1639,7 @@ export async function getCashSummary(req, res, next) {
       profit,
       servicesCount: appointments.length,
       entriesCount: cashEntries.length,
+      services: servicesList,
     });
   } catch (err) {
     return next(err);

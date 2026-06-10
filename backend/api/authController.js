@@ -3,6 +3,8 @@ import { BarberModel } from "../models/Barber.js";
 import { AppointmentModel } from "../models/Appointment.js";
 import { ServiceModel } from "../models/Services.js";
 import { ShopModel } from "../models/Shop.js";
+import { CashEntryModel } from "../models/CashEntry.js";
+import { ProductModel } from "../models/Product.js";
 import { SubscriptionCouponModel } from "../models/SubscriptionCoupon.js";
 import { hashPassword, verifyPassword } from "../token/passwordManager.js";
 import { signAccessToken, verifyAccessToken } from "../token/jwtManager.js";
@@ -2874,27 +2876,38 @@ export async function deleteAdminUser(req, res, next) {
       const userResult = await UserModel.deleteOne({ _id: userDoc._id });
       deletedCounts.users = userResult.deletedCount || 0;
     } else {
-      const [usersResult, barbersResult, appointmentsResult, servicesResult, shopsResult] =
-        await Promise.all([
-          UserModel.deleteMany({ $or: [{ _id: userDoc._id }, { shopOwnerId: userDoc._id }] }),
-          BarberModel.deleteMany({ owner: userDoc._id }),
-          AppointmentModel.deleteMany({ owner: userDoc._id }),
-          ServiceModel.deleteMany({ owner: userDoc._id }),
-          ShopModel.deleteMany({ owner: userDoc._id }),
-        ]);
+      const [
+        usersResult,
+        barbersResult,
+        appointmentsResult,
+        servicesResult,
+        shopsResult,
+        cashResult,
+        productsResult,
+      ] = await Promise.all([
+        UserModel.deleteMany({ $or: [{ _id: userDoc._id }, { shopOwnerId: userDoc._id }] }),
+        BarberModel.deleteMany({ owner: userDoc._id }),
+        AppointmentModel.deleteMany({ owner: userDoc._id }),
+        ServiceModel.deleteMany({ owner: userDoc._id }),
+        ShopModel.deleteMany({ owner: userDoc._id }),
+        CashEntryModel.deleteMany({ owner: userDoc._id }),
+        ProductModel.deleteMany({ owner: userDoc._id }),
+      ]);
 
       deletedCounts.users = usersResult.deletedCount || 0;
       deletedCounts.barbers = barbersResult.deletedCount || 0;
       deletedCounts.appointments = appointmentsResult.deletedCount || 0;
       deletedCounts.services = servicesResult.deletedCount || 0;
       deletedCounts.shops = shopsResult.deletedCount || 0;
+      deletedCounts.cashEntries = cashResult.deletedCount || 0;
+      deletedCounts.products = productsResult.deletedCount || 0;
     }
 
     return res.json({
       message:
         userDoc.role === "barber"
-          ? "Cuenta de empleado/barbero borrada correctamente."
-          : "Barbería, cuenta administradora y datos asociados borrados correctamente.",
+          ? "Empleado/profesional y sus datos eliminados de la base."
+          : "Negocio, cuenta administradora y todos sus datos eliminados de la base.",
       deletedCount: Object.values(deletedCounts).reduce((total, count) => total + count, 0),
       deletedCounts,
       deletedUserId: String(userDoc._id),

@@ -23,6 +23,12 @@ const themeConfigSchema = new mongoose.Schema(
     logoDataUrl: { type: String, default: null },
     bannerDataUrl: { type: String, default: null },
     mobileBannerDataUrl: { type: String, default: null },
+    // Reservado para uso futuro (no se usa todavía en la UI).
+    slotDisplayStyle: {
+      type: String,
+      enum: ["list", "grid", "timeline"],
+      default: "list",
+    },
   },
   {
     _id: false,
