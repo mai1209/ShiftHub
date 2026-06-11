@@ -63,6 +63,46 @@ import { PUBLIC_WEB_BASE_URL } from '../utils/publicLinks';
 
 const SHOP_TZ = 'America/Argentina/Cordoba';
 
+// Tiempo que un turno ocupa realmente en la agenda: duración + buffer posterior.
+// El backend bloquea la disponibilidad con duración + buffer, así que el
+// calendario debe pintar lo mismo para no mostrar "libre" algo ocupado.
+const occupiedMinutesOf = (a: any) =>
+  (Number(a?.durationMinutes) || 30) +
+  (Number(a?.bufferAfterMinutesApplied) || 0);
+
+// Construye el ISO como "hora de pared" en la zona horaria de la barbería,
+// independiente de la zona del dispositivo (evita que el turno se corra de slot).
+function shopOffsetMs(utcMillis: number) {
+  const p = new Intl.DateTimeFormat('en-US', {
+    timeZone: SHOP_TZ,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).formatToParts(new Date(utcMillis));
+  const g = (t: string) => Number(p.find(x => x.type === t)?.value);
+  let h = g('hour');
+  if (h === 24) h = 0;
+  return (
+    Date.UTC(g('year'), g('month') - 1, g('day'), h, g('minute'), g('second')) -
+    utcMillis
+  );
+}
+
+function shopWallClockToISO(
+  y: number,
+  m0: number,
+  d: number,
+  hh: number,
+  mm: number,
+) {
+  const guess = Date.UTC(y, m0, d, hh, mm, 0);
+  return new Date(guess - shopOffsetMs(guess)).toISOString();
+}
+
 type Props = {
   navigation: any;
 };
@@ -985,7 +1025,7 @@ function Home({ navigation }: Props) {
     const interval = barberIntervalOf(barber);
     const busy = appts.map(a => {
       const s = calStartMin(a.startTime);
-      return { s, e: s + (Number(a.durationMinutes) || 60) };
+      return { s, e: s + occupiedMinutesOf(a) };
     });
     const out: { min: number; label: string }[] = [];
     ranges.forEach(r => {
@@ -1012,7 +1052,7 @@ function Home({ navigation }: Props) {
     });
     appointments.forEach(a => {
       const s = calStartMin(a.startTime);
-      const e = s + (Number(a.durationMinutes) || 60);
+      const e = s + occupiedMinutesOf(a);
       if (s < minM) minM = s;
       if (e > maxM) maxM = e;
     });
@@ -1066,15 +1106,13 @@ function Home({ navigation }: Props) {
     const serviceName = selected.map(s => s.name).join(' + ');
     const [hh, mm] = quickCreate.slot.split(':').map(Number);
     const d = selectedDate;
-    const startTime = new Date(
+    const startTime = shopWallClockToISO(
       d.getFullYear(),
       d.getMonth(),
       d.getDate(),
       hh || 0,
       mm || 0,
-      0,
-      0,
-    ).toISOString();
+    );
     try {
       setQcSaving(true);
       await createAppointment({
@@ -1227,16 +1265,19 @@ function Home({ navigation }: Props) {
                         }
                         style={[styles.calFreeCol, { top: top + 1, height }]}
                       >
-                        <Text style={styles.calFreePlusText}>＋</Text>
+                        <Text style={styles.calFreePlusText} numberOfLines={1}>
+                          ＋ {s.label}
+                        </Text>
                       </Pressable>
                     );
                   })}
                   {appts.map(a => {
+                    const startMin = calStartMin(a.startTime);
                     const top =
-                      ((calStartMin(a.startTime) - startHour * 60) / 60) *
-                      CAL_HOUR_H;
-                    const dur = Number(a.durationMinutes) || 60;
-                    const height = Math.max(34, (dur / 60) * CAL_HOUR_H - 3);
+                      ((startMin - startHour * 60) / 60) * CAL_HOUR_H;
+                    const occ = occupiedMinutesOf(a);
+                    const height = Math.max(34, (occ / 60) * CAL_HOUR_H - 3);
+                    const endLabel = minToLabel(startMin + occ);
                     const isCompleted = a.status === 'completed';
                     return (
                       <Pressable
@@ -1254,7 +1295,7 @@ function Home({ navigation }: Props) {
                         ]}
                       >
                         <Text style={[styles.calBlockTime, { color }]}>
-                          {formatTimeOnly(a.startTime)}
+                          {formatTimeOnly(a.startTime)} – {endLabel}
                         </Text>
                         <Text style={styles.calBlockName} numberOfLines={1}>
                           {a.customerName}
@@ -2176,9 +2217,9 @@ const createStyles = (theme: Theme) =>
     calBlockSvc: { color: theme.textMuted, fontSize: 11 },
     calFreePlusText: {
       color: theme.primary,
-      fontSize: 15,
+      fontSize: 12,
       fontWeight: '800',
-      lineHeight: 18,
+      lineHeight: 16,
     },
     calColHead: {
       flexDirection: 'row',
