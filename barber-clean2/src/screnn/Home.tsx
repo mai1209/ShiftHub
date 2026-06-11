@@ -1212,8 +1212,8 @@ function Home({ navigation }: Props) {
                   {
                     position: 'absolute',
                     top: topOf(m) - 7,
-                    fontWeight: m % 60 === 0 ? '800' : '600',
-                    opacity: m % 60 === 0 ? 1 : 0.6,
+                    fontWeight: m % 60 === 0 ? '700' : '500',
+                    opacity: m % 60 === 0 ? 0.85 : 0.5,
                   },
                 ]}
               >
@@ -1337,6 +1337,7 @@ function Home({ navigation }: Props) {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[1]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1345,6 +1346,8 @@ function Home({ navigation }: Props) {
           />
         }
       >
+        {/* Bloque 0: tarjetas + toggle Lista/Calendario */}
+        <View>
         {!!error && <Text style={styles.errorText}>{error}</Text>}
 
         {shopSlug && (
@@ -1423,9 +1426,8 @@ function Home({ navigation }: Props) {
 
         {/* Métricas e Historial ahora se acceden desde el botón "Datos" del menú inferior. */}
 
-        <View style={styles.section}>
-          <View style={styles.agendaTopRow}>
-            {!isToday ? (
+        <View style={styles.agendaTopRow}>
+          {!isToday ? (
               <Pressable style={styles.todayButton} onPress={handleGoToToday}>
                 <Text style={styles.todayButtonText}>Volver a hoy</Text>
               </Pressable>
@@ -1454,7 +1456,10 @@ function Home({ navigation }: Props) {
               })}
             </View>
           </View>
+        </View>
 
+        {/* Bloque 1 (sticky): selector de fecha */}
+        <View style={styles.stickyAgendaHeader}>
           <View style={styles.dateHeroCard} {...datePanResponder.panHandlers}>
             <View style={styles.dateHeroHeader}>
               <Pressable
@@ -1514,7 +1519,10 @@ function Home({ navigation }: Props) {
               ))}
             </ScrollView>
           </View>
+        </View>
 
+        {/* Bloque 2: agenda (lista o calendario) */}
+        <View>
           <View style={{ marginTop: agendaView === 'calendar' ? 8 : 20 }}>
             {loading && !appointments.length ? (
               <ActivityIndicator
@@ -2178,11 +2186,17 @@ const createStyles = (theme: Theme) =>
     // Agenda Section
     section: { marginTop: 25 },
     sectionTitle: { color: theme.textPrimary, fontSize: 18, fontWeight: '700' },
+    stickyAgendaHeader: {
+      backgroundColor: theme.background,
+      paddingTop: 12,
+      paddingBottom: 8,
+    },
     agendaTopRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: 14,
+      marginTop: 12,
+      marginBottom: 0,
     },
     todayButton: {
       backgroundColor: hexToRgba(theme.primary, 0.12),
@@ -2207,9 +2221,9 @@ const createStyles = (theme: Theme) =>
     // Calendario (timeline)
     calHourLabel: {
       width: 48,
-      color: theme.textMuted,
+      color: '#9aa1ac',
       fontSize: 11,
-      fontWeight: '700',
+      fontWeight: '600',
     },
     calGrid: { position: 'relative', marginTop: 4 },
     calBlockTime: { fontSize: 11, fontWeight: '800' },
