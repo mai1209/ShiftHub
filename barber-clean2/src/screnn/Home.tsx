@@ -103,6 +103,50 @@ function shopWallClockToISO(
   return new Date(guess - shopOffsetMs(guess)).toISOString();
 }
 
+// Día de la semana (0=Dom … 6=Sáb) en la zona horaria del local.
+const shopWeekday = (date: Date): number => {
+  const wd = new Intl.DateTimeFormat('en-US', {
+    timeZone: SHOP_TZ,
+    weekday: 'short',
+  }).format(date);
+  const map: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  return map[wd] ?? date.getDay();
+};
+
+// Fecha YYYY-MM-DD en la zona horaria del local.
+const shopDateStr = (date: Date): string =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: SHOP_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+
+// ¿El profesional atiende esa fecha? Replica el chequeo del backend:
+// día no laboral (workDays) o día cerrado (barberClosedDays) → no atiende.
+const barberWorksOnDate = (barber: any, date: Date): boolean => {
+  const dateStr = shopDateStr(date);
+  const closed = (barber?.barberClosedDays || []).some(
+    (c: any) => c?.date === dateStr,
+  );
+  if (closed) return false;
+  const workDays = Array.isArray(barber?.workDays)
+    ? barber.workDays.map(Number)
+    : [];
+  if (workDays.length > 0 && !workDays.includes(shopWeekday(date))) {
+    return false;
+  }
+  return true;
+};
+
 type Props = {
   navigation: any;
 };
@@ -1227,7 +1271,8 @@ function Home({ navigation }: Props) {
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {calColBarbers.map(col => {
             const appts = apptsOfBarber(col.id);
-            const free = freeSlotsOf(col.raw, appts);
+            const worksToday = barberWorksOnDate(col.raw, selectedDate);
+            const free = worksToday ? freeSlotsOf(col.raw, appts) : [];
             const interval = barberIntervalOf(col.raw);
             const color = colorForBarber(col.id);
             return (
@@ -1240,7 +1285,13 @@ function Home({ navigation }: Props) {
                     {col.name}
                   </Text>
                 </View>
-                <View style={[styles.calGrid, { height: gridHeight }]}>
+                <View
+                  style={[
+                    styles.calGrid,
+                    { height: gridHeight },
+                    !worksToday && styles.calGridClosed,
+                  ]}
+                >
                   {ticks.map(m => (
                     <View
                       key={m}
@@ -1250,6 +1301,13 @@ function Home({ navigation }: Props) {
                       ]}
                     />
                   ))}
+                  {!worksToday ? (
+                    <View style={styles.calClosedNote}>
+                      <Text style={styles.calClosedNoteText}>
+                        No atiende{'\n'}este día
+                      </Text>
+                    </View>
+                  ) : null}
                   {free.map(s => {
                     const top =
                       ((s.min - startHour * 60) / 60) * CAL_HOUR_H;
@@ -2226,6 +2284,27 @@ const createStyles = (theme: Theme) =>
       fontWeight: '600',
     },
     calGrid: { position: 'relative', marginTop: 4 },
+    calGridClosed: { opacity: 0.6 },
+    calClosedNote: {
+      position: 'absolute',
+      top: 10,
+      left: 6,
+      right: 6,
+      alignItems: 'center',
+      paddingVertical: 10,
+      paddingHorizontal: 6,
+      borderRadius: 12,
+      backgroundColor: hexToRgba('#ef4444', 0.12),
+      borderWidth: 1,
+      borderColor: hexToRgba('#ef4444', 0.35),
+    },
+    calClosedNoteText: {
+      color: '#ef4444',
+      fontSize: 11,
+      fontWeight: '800',
+      textAlign: 'center',
+      lineHeight: 15,
+    },
     calBlockTime: { fontSize: 11, fontWeight: '800' },
     calBlockName: { color: theme.textPrimary, fontSize: 13, fontWeight: '700' },
     calBlockSvc: { color: theme.textMuted, fontSize: 11 },
