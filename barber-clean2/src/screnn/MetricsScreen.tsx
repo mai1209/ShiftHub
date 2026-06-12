@@ -27,6 +27,9 @@ import {
   Calendar,
   CreditCard,
   Banknote,
+  ChevronLeft,
+  ChevronRight,
+  Store,
 } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
@@ -41,20 +44,19 @@ type Props = {
   };
 };
 
-const MONTH_LABELS = [
-  'ENE',
-  'FEB',
-  'MAR',
-  'ABR',
-  'MAY',
-  'JUN',
-  'JUL',
-  'AGO',
-  'SEP',
-  'OCT',
-  'NOV',
-  'DIC',
+type RangeMode = 'daily' | 'weekly' | 'monthly' | 'annual';
+
+const RANGE_OPTIONS: { key: RangeMode; label: string }[] = [
+  { key: 'daily', label: 'Día' },
+  { key: 'weekly', label: 'Semana' },
+  { key: 'monthly', label: 'Mes' },
+  { key: 'annual', label: 'Año' },
 ];
+
+const toYmd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`;
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('es-AR', {
@@ -122,10 +124,8 @@ function MetricsScreen({ navigation, route }: Props) {
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const barberId = route.params?.barberId;
   const barberName = route.params?.barberName ?? 'Mi Rendimiento';
-  const now = useMemo(() => new Date(), []);
-
-  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
-  const [annual, setAnnual] = useState(false);
+  const [rangeMode, setRangeMode] = useState<RangeMode>('monthly');
+  const [refDate, setRefDate] = useState(() => new Date());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -133,6 +133,31 @@ function MetricsScreen({ navigation, route }: Props) {
     null,
   );
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+
+  const buildRangeParams = useCallback(() => {
+    if (rangeMode === 'daily')
+      return { range: 'daily' as const, date: toYmd(refDate) };
+    if (rangeMode === 'weekly')
+      return { range: 'weekly' as const, date: toYmd(refDate) };
+    if (rangeMode === 'annual')
+      return { range: 'annual' as const, year: refDate.getFullYear() };
+    return {
+      range: 'monthly' as const,
+      year: refDate.getFullYear(),
+      month: refDate.getMonth() + 1,
+    };
+  }, [rangeMode, refDate]);
+
+  const shiftPeriod = (dir: number) => {
+    setRefDate(prev => {
+      const d = new Date(prev);
+      if (rangeMode === 'daily') d.setDate(d.getDate() + dir);
+      else if (rangeMode === 'weekly') d.setDate(d.getDate() + dir * 7);
+      else if (rangeMode === 'annual') d.setFullYear(d.getFullYear() + dir);
+      else d.setMonth(d.getMonth() + dir);
+      return d;
+    });
+  };
 
   const loadMetrics = useCallback(
     async (isRefresh = false) => {
@@ -145,9 +170,7 @@ function MetricsScreen({ navigation, route }: Props) {
         if (!canUseFeature) return;
         const response = await fetchAppointmentMetrics({
           barberId,
-          year: now.getFullYear(),
-          month: selectedMonth,
-          annual,
+          ...buildRangeParams(),
         });
         setMetrics(response);
       } catch (err: any) {
@@ -157,7 +180,7 @@ function MetricsScreen({ navigation, route }: Props) {
         setRefreshing(false);
       }
     },
-    [annual, barberId, now, selectedMonth],
+    [barberId, buildRangeParams],
   );
 
   useFocusEffect(
@@ -177,11 +200,7 @@ function MetricsScreen({ navigation, route }: Props) {
     );
   }
 
-  const periodLabel =
-    metrics?.period.label ||
-    (annual
-      ? `Año ${now.getFullYear()}`
-      : `${MONTH_LABELS[selectedMonth - 1]} ${now.getFullYear()}`);
+  const periodLabel = metrics?.period.label || toYmd(refDate);
 
   return (
     <View style={styles.screen}>
@@ -212,57 +231,42 @@ function MetricsScreen({ navigation, route }: Props) {
               <Calendar size={16} color={theme.primary} />
               <Text style={styles.filterTitle}>Seleccionar Periodo</Text>
             </View>
-            <Pressable
-              style={[styles.annualToggle, annual && styles.annualToggleActive]}
-              onPress={() => setAnnual(prev => !prev)}
-            >
-              <Text
-                style={[
-                  styles.annualToggleText,
-                  annual && styles.annualToggleTextActive,
-                ]}
-              >
-                ANUAL
-              </Text>
-            </Pressable>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.monthStrip}
-          >
-            {MONTH_LABELS.map((label, index) => {
-              const monthNumber = index + 1;
-              const selected = !annual && selectedMonth === monthNumber;
-
+          <View style={styles.rangeTabs}>
+            {RANGE_OPTIONS.map(opt => {
+              const active = rangeMode === opt.key;
               return (
                 <Pressable
-                  key={label}
-                  style={[styles.monthCard, selected && styles.monthCardActive]}
-                  onPress={() => {
-                    setAnnual(false);
-                    setSelectedMonth(monthNumber);
-                  }}
+                  key={opt.key}
+                  style={[styles.rangeTab, active && styles.rangeTabActive]}
+                  onPress={() => setRangeMode(opt.key)}
                 >
                   <Text
                     style={[
-                      styles.monthLabel,
-                      selected && styles.monthLabelActive,
+                      styles.rangeTabText,
+                      active && styles.rangeTabTextActive,
                     ]}
                   >
-                    {label}
+                    {opt.label}
                   </Text>
-                  <View
-                    style={[
-                      styles.monthIndicator,
-                      selected && styles.monthIndicatorActive,
-                    ]}
-                  />
                 </Pressable>
               );
             })}
-          </ScrollView>
+          </View>
+
+          <View style={styles.periodNav}>
+            <Pressable
+              style={styles.periodNavBtn}
+              onPress={() => shiftPeriod(-1)}
+            >
+              <ChevronLeft size={18} color={theme.textPrimary} />
+            </Pressable>
+            <Text style={styles.periodNavLabel}>{periodLabel}</Text>
+            <Pressable style={styles.periodNavBtn} onPress={() => shiftPeriod(1)}>
+              <ChevronRight size={18} color={theme.textPrimary} />
+            </Pressable>
+          </View>
         </View>
 
         {loading ? (
@@ -320,6 +324,27 @@ function MetricsScreen({ navigation, route }: Props) {
                 styles={styles}
                 isFullWidth
               />
+
+              {(metrics?.totals.commission ?? 0) > 0 ? (
+                <>
+                  <MetricCard
+                    label="Tu comisión"
+                    value={formatCurrency(metrics?.totals.commission ?? 0)}
+                    helper="Lo que te llevás"
+                    icon={Users}
+                    theme={theme}
+                    styles={styles}
+                  />
+                  <MetricCard
+                    label="Queda al local"
+                    value={formatCurrency(metrics?.totals.localRevenue ?? 0)}
+                    helper="Después de comisión"
+                    icon={Store}
+                    theme={theme}
+                    styles={styles}
+                  />
+                </>
+              ) : null}
             </View>
           </View>
         )}
@@ -335,12 +360,12 @@ const makeStyles = (theme: Theme) =>
       backgroundColor: theme.background,
     },
     scrollContent: {
-      paddingBottom: 80,
+      paddingBottom: 120,
     },
     header: {
       marginTop: Platform.OS === 'ios' ? 60 : 30,
       paddingHorizontal: 20,
-      marginBottom: 10,
+      marginBottom: 16,
     },
     headerSubtitle: {
       color: theme.primary,
@@ -376,61 +401,60 @@ const makeStyles = (theme: Theme) =>
       fontSize: 14,
       fontWeight: '700',
     },
-    annualToggle: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 10,
+    rangeTabs: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 20,
+      marginBottom: 12,
+    },
+    rangeTab: {
+      flex: 1,
+      paddingVertical: 9,
+      borderRadius: 12,
+      alignItems: 'center',
       backgroundColor: theme.surfaceAlt,
       borderWidth: 1,
       borderColor: theme.border,
     },
-    annualToggleActive: {
+    rangeTabActive: {
+      backgroundColor: hexToRgba(theme.primary, 0.12),
       borderColor: theme.primary,
-      backgroundColor: hexToRgba(theme.primary, 0.1),
     },
-    annualToggleText: {
+    rangeTabText: {
       color: theme.textMuted,
-      fontSize: 10,
-      fontWeight: '800',
+      fontSize: 13,
+      fontWeight: '700',
     },
-    annualToggleTextActive: {
+    rangeTabTextActive: {
       color: theme.primary,
     },
-    monthStrip: {
-      paddingHorizontal: 20,
-      gap: 10,
-    },
-    monthCard: {
-      width: 60,
-      height: 50,
+    periodNav: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginHorizontal: 20,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
       borderRadius: 12,
-      backgroundColor: theme.card,
+      backgroundColor: theme.surfaceAlt,
       borderWidth: 1,
       borderColor: theme.border,
+    },
+    periodNavBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
+      backgroundColor: theme.card,
     },
-    monthCardActive: {
-      borderColor: theme.primary,
-      backgroundColor: hexToRgba(theme.primary, 0.05),
-    },
-    monthLabel: {
-      color: theme.textMuted,
-      fontSize: 12,
-      fontWeight: '800',
-    },
-    monthLabelActive: {
-      color: theme.primary,
-    },
-    monthIndicator: {
-      width: 4,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: 'transparent',
-      marginTop: 4,
-    },
-    monthIndicatorActive: {
-      backgroundColor: theme.primary,
+    periodNavLabel: {
+      flex: 1,
+      textAlign: 'center',
+      color: theme.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+      textTransform: 'capitalize',
     },
 
     // Resultados
