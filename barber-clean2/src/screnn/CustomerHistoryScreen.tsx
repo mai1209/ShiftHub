@@ -20,8 +20,6 @@ import {
   Banknote,
   ChevronDown,
   CreditCard,
-  FileSpreadsheet,
-  FileText,
   Filter,
   Scissors,
   Search,
@@ -467,6 +465,8 @@ function CustomerHistoryScreen({ navigation }: Props) {
     setCustomerSort('most');
   };
 
+  // Export movido a Caja (incluye todo). Se conserva por compatibilidad.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleExportExcel = async () => {
     const header = [
       'Cliente',
@@ -574,6 +574,7 @@ function CustomerHistoryScreen({ navigation }: Props) {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleExportPdf = async () => {
     try {
       const pdfDoc = await PDFDocument.create();
@@ -1312,19 +1313,6 @@ function CustomerHistoryScreen({ navigation }: Props) {
               </Text>
             </View>
           <View style={styles.resultsHeaderActions}>
-            <View style={styles.exportButtonsRow}>
-              <Pressable
-                style={[styles.exportButton, styles.exportButtonGhost]}
-                onPress={handleExportPdf}
-              >
-                <FileText size={15} color="#FF6B6B" />
-                <Text style={styles.exportButtonText}>Exportar PDF</Text>
-              </Pressable>
-              <Pressable style={styles.exportButton} onPress={handleExportExcel}>
-                <FileSpreadsheet size={15} color="#34D399" />
-                <Text style={styles.exportButtonText}>Exportar Excel</Text>
-              </Pressable>
-            </View>
             <View style={styles.resultsBadge}>
               <Filter size={12} color={theme.primary} />
               <Text style={styles.resultsBadgeText}>{activeContextLabel}</Text>

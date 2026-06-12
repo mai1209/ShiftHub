@@ -26,6 +26,7 @@ import {
 } from '../services/api';
 import { getUserProfile } from '../services/authStorage';
 import { hasProPlanAccess } from '../services/planAccess';
+import { exportCajaExcel, exportCajaPDF } from '../services/exportCaja';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
 import {
@@ -33,6 +34,7 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
+  Download,
   Pencil,
   Plus,
   RotateCcw,
@@ -102,6 +104,21 @@ function CajaScreen({ navigation }: Props) {
   const [error, setError] = useState('');
   const [summary, setSummary] = useState<CashSummaryResponse | null>(null);
   const [entries, setEntries] = useState<CashEntry[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [shopName, setShopName] = useState('');
+
+  const doExport = async (kind: 'excel' | 'pdf') => {
+    if (!summary) return;
+    try {
+      setExporting(true);
+      if (kind === 'excel') await exportCajaExcel(summary, entries, shopName);
+      else await exportCajaPDF(summary, entries, shopName);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'No se pudo exportar.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Formulario de carga
   const [formOpen, setFormOpen] = useState(false);
@@ -163,6 +180,11 @@ function CajaScreen({ navigation }: Props) {
       (async () => {
         const storedUser = await getUserProfile();
         if (cancelled) return;
+        setShopName(
+          (storedUser as any)?.fullName ||
+            (storedUser as any)?.shopName ||
+            '',
+        );
         if (!hasProPlanAccess(storedUser)) {
           Alert.alert(
             'Función Pro',
@@ -324,6 +346,45 @@ function CajaScreen({ navigation }: Props) {
     );
   };
 
+  const incomeEntries = entries.filter(e => e.type === 'income');
+  const expenseEntries = entries.filter(e => e.type === 'expense');
+
+  const renderEntryRow = (entry: CashEntry) => {
+    const isIncome = entry.type === 'income';
+    const color = isIncome ? INCOME_COLOR : EXPENSE_COLOR;
+    return (
+      <View key={entry._id} style={styles.entryRow}>
+        <View style={styles.entryInfo}>
+          <Text style={styles.entryDesc}>
+            {entry.description || (isIncome ? 'Venta' : 'Egreso')}
+          </Text>
+          <View style={styles.entryMetaRow}>
+            <Text style={styles.entryDate}>
+              {new Date(entry.date).toLocaleDateString('es-AR')}
+            </Text>
+            {entry.category ? (
+              <View style={styles.entryCategoryBadge}>
+                <Text style={styles.entryCategoryText}>{entry.category}</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+        <Text style={[styles.entryAmount, { color }]}>
+          {isIncome ? '+' : '−'} {formatCurrency(entry.amount)}
+        </Text>
+        <Pressable style={styles.entryEdit} onPress={() => handleEdit(entry)}>
+          <Pencil size={15} color={theme.primary} />
+        </Pressable>
+        <Pressable
+          style={styles.entryDelete}
+          onPress={() => handleDelete(entry)}
+        >
+          <Trash2 size={16} color={EXPENSE_COLOR} />
+        </Pressable>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.screen}>
       <ScrollView
@@ -384,6 +445,31 @@ function CajaScreen({ navigation }: Props) {
             <Text style={styles.periodNavLabel}>{periodLabel}</Text>
             <Pressable style={styles.periodNavBtn} onPress={() => shiftPeriod(1)}>
               <ChevronRight size={18} color={theme.textPrimary} />
+            </Pressable>
+          </View>
+
+          <View style={styles.exportRow}>
+            <Pressable
+              style={[
+                styles.exportBtn,
+                (!summary || exporting) && styles.exportBtnDisabled,
+              ]}
+              onPress={() => doExport('excel')}
+              disabled={!summary || exporting}
+            >
+              <Download size={15} color={theme.primary} />
+              <Text style={styles.exportBtnText}>Excel</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.exportBtn,
+                (!summary || exporting) && styles.exportBtnDisabled,
+              ]}
+              onPress={() => doExport('pdf')}
+              disabled={!summary || exporting}
+            >
+              <Download size={15} color={theme.primary} />
+              <Text style={styles.exportBtnText}>PDF</Text>
             </Pressable>
           </View>
         </View>
@@ -662,59 +748,33 @@ function CajaScreen({ navigation }: Props) {
               </>
             ) : null}
 
-            {/* Lista de movimientos */}
+            {/* Ventas (ingresos cargados a mano: productos, propinas, etc.) */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Movimientos del período</Text>
-              <Store size={16} color={theme.primary} />
+              <Text style={styles.sectionTitle}>Ventas</Text>
+              <TrendingUp size={16} color={theme.primary} />
             </View>
-
-            {entries.length === 0 ? (
+            {incomeEntries.length === 0 ? (
               <Text style={styles.emptyText}>
-                No hay movimientos cargados en este período.
+                No hay ventas cargadas en este período.
               </Text>
             ) : (
               <View style={styles.entriesList}>
-                {entries.map(entry => {
-                  const isIncome = entry.type === 'income';
-                  const color = isIncome ? INCOME_COLOR : EXPENSE_COLOR;
-                  return (
-                    <View key={entry._id} style={styles.entryRow}>
-                      <View style={styles.entryInfo}>
-                        <Text style={styles.entryDesc}>
-                          {entry.description ||
-                            (isIncome ? 'Ingreso' : 'Egreso')}
-                        </Text>
-                        <View style={styles.entryMetaRow}>
-                          <Text style={styles.entryDate}>
-                            {new Date(entry.date).toLocaleDateString('es-AR')}
-                          </Text>
-                          {entry.category ? (
-                            <View style={styles.entryCategoryBadge}>
-                              <Text style={styles.entryCategoryText}>
-                                {entry.category}
-                              </Text>
-                            </View>
-                          ) : null}
-                        </View>
-                      </View>
-                      <Text style={[styles.entryAmount, { color }]}>
-                        {isIncome ? '+' : '−'} {formatCurrency(entry.amount)}
-                      </Text>
-                      <Pressable
-                        style={styles.entryEdit}
-                        onPress={() => handleEdit(entry)}
-                      >
-                        <Pencil size={15} color={theme.primary} />
-                      </Pressable>
-                      <Pressable
-                        style={styles.entryDelete}
-                        onPress={() => handleDelete(entry)}
-                      >
-                        <Trash2 size={16} color={EXPENSE_COLOR} />
-                      </Pressable>
-                    </View>
-                  );
-                })}
+                {incomeEntries.map(renderEntryRow)}
+              </View>
+            )}
+
+            {/* Egresos (gastos del período) */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Egresos</Text>
+              <Store size={16} color={theme.primary} />
+            </View>
+            {expenseEntries.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No hay egresos cargados en este período.
+              </Text>
+            ) : (
+              <View style={styles.entriesList}>
+                {expenseEntries.map(renderEntryRow)}
               </View>
             )}
           </>
@@ -813,6 +873,21 @@ const makeStyles = (theme: Theme) =>
       fontWeight: '700',
       textTransform: 'capitalize',
     },
+    exportRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
+    exportBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+    },
+    exportBtnDisabled: { opacity: 0.5 },
+    exportBtnText: { color: theme.primary, fontSize: 13, fontWeight: '800' },
     loaderContainer: { alignItems: 'center', paddingTop: 50, gap: 12 },
     loaderText: { color: theme.textMuted },
     errorBox: {
