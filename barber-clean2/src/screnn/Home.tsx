@@ -1582,8 +1582,11 @@ function Home({ navigation }: Props) {
                     styles.dateHeroTitle,
                     agendaView === 'calendar' && styles.dateHeroTitleCompact,
                   ]}
+                  numberOfLines={1}
                 >
-                  {capitalize(formattedHeaderDate.split(',')[0])}
+                  {agendaView === 'calendar'
+                    ? capitalize(formattedHeaderDate)
+                    : capitalize(formattedHeaderDate.split(',')[0])}
                 </Text>
                 {agendaView === 'list' ? (
                   <Text style={styles.dateHeroSubtitle}>
