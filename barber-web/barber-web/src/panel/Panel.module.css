@@ -1901,6 +1901,16 @@
 .legendTransfer { background: #3b82f6; }
 
 /* Gráficos de dona (CSS, sin librerías) */
+.chartsRow {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.chartCol {
+  flex: 1;
+  min-width: 300px;
+}
 .donutWrap {
   display: flex;
   align-items: center;

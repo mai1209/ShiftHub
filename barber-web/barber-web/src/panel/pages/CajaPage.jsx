@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   fetchCashSummary,
   fetchCashEntries,
@@ -98,18 +98,6 @@ function CajaPage() {
 
   const methodLabel = (m) =>
     m === 'transfer' ? 'Transferencia' : m === 'mixed' ? 'Mixto' : 'Efectivo';
-
-  const categoryBreakdown = useMemo(() => {
-    const map = new Map();
-    entries.forEach((entry) => {
-      const cat = (entry.category || '').trim() || 'Sin categoría';
-      const key = `${entry.type}|${cat}`;
-      const cur = map.get(key) || { category: cat, type: entry.type, total: 0 };
-      cur.total += Number(entry.amount || 0);
-      map.set(key, cur);
-    });
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [entries]);
 
   const openNew = () => {
     setEditingId(null);
@@ -243,33 +231,6 @@ function CajaPage() {
         </div>
       </div>
 
-      {categoryBreakdown.length > 0 ? (
-        <>
-          <h2 className={styles.sectionTitle}>Por categoría</h2>
-          <div className={styles.catList}>
-            {categoryBreakdown.map((item) => (
-              <div key={`${item.type}|${item.category}`} className={styles.catRow}>
-                <span
-                  className={styles.catDot}
-                  style={{
-                    background: item.type === 'income' ? '#16a34a' : '#ef4444',
-                  }}
-                />
-                <span className={styles.catName}>{item.category}</span>
-                <span className={styles.catType}>
-                  {item.type === 'income' ? 'Ingreso' : 'Egreso'}
-                </span>
-                <strong
-                  className={styles.catTotal}
-                  style={{ color: item.type === 'income' ? '#16a34a' : '#ef4444' }}
-                >
-                  {item.type === 'income' ? '+' : '−'} {formatCurrency(item.total)}
-                </strong>
-              </div>
-            ))}
-          </div>
-        </>
-      ) : null}
 
       {summary?.services?.length > 0 ? (
         <>

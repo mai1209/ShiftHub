@@ -131,8 +131,9 @@ function MetricasPage() {
         ))}
       </div>
 
+      <div className={styles.chartsRow}>
       {t && sumCT > 0 ? (
-        <>
+        <div className={styles.chartCol}>
           <h2 className={styles.sectionTitle}>Efectivo vs Transferencia</h2>
           <div className={styles.chartCard}>
             <div className={styles.donutWrap}>
@@ -158,11 +159,11 @@ function MetricasPage() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       ) : null}
 
       {byBarber.length ? (
-        <>
+        <div className={styles.chartCol}>
           <h2 className={styles.sectionTitle}>Ingresos por profesional</h2>
           <div className={styles.chartCard}>
             <div className={styles.donutWrap}>
@@ -194,8 +195,9 @@ function MetricasPage() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       ) : null}
+      </div>
 
       {isOwner && overview?.byBarber?.length ? (
         <>

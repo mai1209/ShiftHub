@@ -1072,8 +1072,12 @@ function Home({ navigation }: Props) {
       return { s, e: s + occupiedMinutesOf(a) };
     });
     const out: { min: number; label: string }[] = [];
+    const seen = new Set<number>();
     ranges.forEach(r => {
       for (let m = r.start; m + interval <= r.end; m += interval) {
+        // Evita duplicados cuando los rangos del horario se solapan.
+        if (seen.has(m)) continue;
+        seen.add(m);
         const occ = busy.some(x => m >= x.s && m < x.e);
         if (!occ) {
           const hh = String(Math.floor(m / 60)).padStart(2, '0');
