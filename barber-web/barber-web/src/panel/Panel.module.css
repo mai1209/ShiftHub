@@ -1900,6 +1900,62 @@
 .legendCash { background: #10b981; }
 .legendTransfer { background: #3b82f6; }
 
+/* Gráficos de dona (CSS, sin librerías) */
+.donutWrap {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+.donut {
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+}
+.donutHole {
+  position: absolute;
+  inset: 24%;
+  border-radius: 50%;
+  background: var(--panel-surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.donutCenterValue {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: var(--panel-text);
+}
+.donutCenterLabel {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--panel-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.donutLegend {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 200px;
+}
+.donutLegendRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: var(--panel-text);
+}
+.donutLegendRow strong {
+  margin-left: auto;
+  font-weight: 800;
+}
+
 .hbarRow {
   display: grid;
   grid-template-columns: 130px 1fr 100px;

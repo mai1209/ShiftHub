@@ -64,10 +64,36 @@ function MetricasPage() {
   const cashPct = sumCT ? Math.round((cashRev / sumCT) * 100) : 0;
   const transferPct = sumCT ? 100 - cashPct : 0;
   const byBarber = isOwner ? overview?.byBarber || [] : [];
-  const maxBarberRev = Math.max(
-    1,
-    ...byBarber.map((b) => Number(b.totalRevenue || 0)),
+
+  // Dona Efectivo vs Transferencia.
+  const ctDonut = `conic-gradient(#10b981 0% ${cashPct}%, #3b82f6 ${cashPct}% 100%)`;
+
+  // Dona de ingresos por profesional (cada porción = su parte del total).
+  const totalBarberRev = byBarber.reduce(
+    (sum, b) => sum + Number(b.totalRevenue || 0),
+    0,
   );
+  let acc = 0;
+  const barberSegments = byBarber.map((b, i) => {
+    const rev = Number(b.totalRevenue || 0);
+    const pct = totalBarberRev ? (rev / totalBarberRev) * 100 : 0;
+    const start = acc;
+    acc += pct;
+    return {
+      barberId: b.barberId,
+      name: b.barberName,
+      rev,
+      pct,
+      start,
+      end: acc,
+      color: BARBER_PALETTE[i % BARBER_PALETTE.length],
+    };
+  });
+  const barberDonut = barberSegments.length
+    ? `conic-gradient(${barberSegments
+        .map((s) => `${s.color} ${s.start}% ${s.end}%`)
+        .join(', ')})`
+    : 'none';
 
   return (
     <div>
@@ -109,25 +135,27 @@ function MetricasPage() {
         <>
           <h2 className={styles.sectionTitle}>Efectivo vs Transferencia</h2>
           <div className={styles.chartCard}>
-            <div className={styles.splitBar}>
-              <div
-                className={styles.splitBarCash}
-                style={{ width: `${cashPct}%` }}
-              />
-              <div
-                className={styles.splitBarTransfer}
-                style={{ width: `${transferPct}%` }}
-              />
-            </div>
-            <div className={styles.splitLegend}>
-              <span>
-                <span className={`${styles.legendDot} ${styles.legendCash}`} />
-                Efectivo · {cashPct}% · {formatCurrency(cashRev)}
-              </span>
-              <span>
-                <span className={`${styles.legendDot} ${styles.legendTransfer}`} />
-                Transferencia · {transferPct}% · {formatCurrency(transferRev)}
-              </span>
+            <div className={styles.donutWrap}>
+              <div className={styles.donut} style={{ background: ctDonut }}>
+                <div className={styles.donutHole}>
+                  <span className={styles.donutCenterValue}>{cashPct}%</span>
+                  <span className={styles.donutCenterLabel}>efectivo</span>
+                </div>
+              </div>
+              <div className={styles.donutLegend}>
+                <div className={styles.donutLegendRow}>
+                  <span className={`${styles.legendDot} ${styles.legendCash}`} />
+                  <span>Efectivo · {cashPct}%</span>
+                  <strong>{formatCurrency(cashRev)}</strong>
+                </div>
+                <div className={styles.donutLegendRow}>
+                  <span
+                    className={`${styles.legendDot} ${styles.legendTransfer}`}
+                  />
+                  <span>Transferencia · {transferPct}%</span>
+                  <strong>{formatCurrency(transferRev)}</strong>
+                </div>
+              </div>
             </div>
           </div>
         </>
@@ -137,23 +165,34 @@ function MetricasPage() {
         <>
           <h2 className={styles.sectionTitle}>Ingresos por profesional</h2>
           <div className={styles.chartCard}>
-            {byBarber.map((b, i) => {
-              const rev = Number(b.totalRevenue || 0);
-              const pct = Math.round((rev / maxBarberRev) * 100);
-              const color = BARBER_PALETTE[i % BARBER_PALETTE.length];
-              return (
-                <div key={b.barberId} className={styles.hbarRow}>
-                  <span className={styles.hbarLabel}>{b.barberName}</span>
-                  <div className={styles.hbarTrack}>
-                    <div
-                      className={styles.hbarFill}
-                      style={{ width: `${Math.max(4, pct)}%`, background: color }}
-                    />
-                  </div>
-                  <span className={styles.hbarValue}>{formatCurrency(rev)}</span>
+            <div className={styles.donutWrap}>
+              <div className={styles.donut} style={{ background: barberDonut }}>
+                <div className={styles.donutHole}>
+                  <span className={styles.donutCenterValue}>
+                    {barberSegments.length}
+                  </span>
+                  <span className={styles.donutCenterLabel}>
+                    {barberSegments.length === 1
+                      ? 'profesional'
+                      : 'profesionales'}
+                  </span>
                 </div>
-              );
-            })}
+              </div>
+              <div className={styles.donutLegend}>
+                {barberSegments.map((s) => (
+                  <div key={s.barberId} className={styles.donutLegendRow}>
+                    <span
+                      className={styles.legendDot}
+                      style={{ background: s.color }}
+                    />
+                    <span>
+                      {s.name} · {Math.round(s.pct)}%
+                    </span>
+                    <strong>{formatCurrency(s.rev)}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </>
       ) : null}
