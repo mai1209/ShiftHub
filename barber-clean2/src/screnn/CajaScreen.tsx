@@ -203,25 +203,6 @@ function CajaScreen({ navigation }: Props) {
 
   const periodLabel = summary?.period.label || toYmd(refDate);
 
-  const categoryBreakdown = useMemo(() => {
-    const map = new Map<
-      string,
-      { category: string; type: 'income' | 'expense'; total: number }
-    >();
-    entries.forEach(entry => {
-      const cat = (entry.category || '').trim() || 'Sin categoría';
-      const key = `${entry.type}|${cat}`;
-      const current = map.get(key) || {
-        category: cat,
-        type: entry.type,
-        total: 0,
-      };
-      current.total += Number(entry.amount || 0);
-      map.set(key, current);
-    });
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [entries]);
-
   const resetForm = () => {
     setAmountInput('');
     setDescriptionInput('');
@@ -663,43 +644,6 @@ function CajaScreen({ navigation }: Props) {
                 </Pressable>
               </Pressable>
             </Modal>
-
-            {/* Resumen por categoría */}
-            {categoryBreakdown.length > 0 ? (
-              <>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Por categoría</Text>
-                  <TrendingUp size={16} color={theme.primary} />
-                </View>
-                <View style={styles.categoryList}>
-                  {categoryBreakdown.map(item => {
-                    const isIncome = item.type === 'income';
-                    const color = isIncome ? INCOME_COLOR : EXPENSE_COLOR;
-                    return (
-                      <View
-                        key={`${item.type}|${item.category}`}
-                        style={styles.categoryRow}
-                      >
-                        <View style={styles.categoryRowLeft}>
-                          <View
-                            style={[styles.categoryDot, { backgroundColor: color }]}
-                          />
-                          <Text style={styles.categoryRowName}>
-                            {item.category}
-                          </Text>
-                          <Text style={styles.categoryRowType}>
-                            {isIncome ? 'Ingreso' : 'Egreso'}
-                          </Text>
-                        </View>
-                        <Text style={[styles.categoryRowTotal, { color }]}>
-                          {isIncome ? '+' : '−'} {formatCurrency(item.total)}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </>
-            ) : null}
 
             {/* Servicios cobrados */}
             {summary?.services && summary.services.length > 0 ? (
