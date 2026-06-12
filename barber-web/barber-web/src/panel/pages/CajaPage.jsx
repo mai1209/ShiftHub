@@ -36,6 +36,9 @@ function CajaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [showAllServices, setShowAllServices] = useState(false);
+  const [showAllEntries, setShowAllEntries] = useState(false);
+  const PREVIEW = 5;
 
   const doExport = async (kind) => {
     try {
@@ -248,7 +251,10 @@ function CajaPage() {
                 </tr>
               </thead>
               <tbody>
-                {summary.services.map((s) => (
+                {(showAllServices
+                  ? summary.services
+                  : summary.services.slice(0, PREVIEW)
+                ).map((s) => (
                   <tr key={s._id}>
                     <td>
                       {s.startTime
@@ -280,6 +286,16 @@ function CajaPage() {
               </tbody>
             </table>
           </div>
+          {summary.services.length > PREVIEW ? (
+            <button
+              className={styles.showMoreBtn}
+              onClick={() => setShowAllServices((v) => !v)}
+            >
+              {showAllServices
+                ? 'Ver menos'
+                : `Ver más (${summary.services.length - PREVIEW})`}
+            </button>
+          ) : null}
         </>
       ) : null}
 
@@ -290,7 +306,7 @@ function CajaPage() {
         <p className={styles.muted}>No hay movimientos en este período.</p>
       ) : (
         <div className={styles.entriesList}>
-          {entries.map((entry) => {
+          {(showAllEntries ? entries : entries.slice(0, PREVIEW)).map((entry) => {
             const isIncome = entry.type === 'income';
             return (
               <div key={entry._id} className={styles.entryRow}>
@@ -321,6 +337,16 @@ function CajaPage() {
               </div>
             );
           })}
+          {entries.length > PREVIEW ? (
+            <button
+              className={styles.showMoreBtn}
+              onClick={() => setShowAllEntries((v) => !v)}
+            >
+              {showAllEntries
+                ? 'Ver menos'
+                : `Ver más (${entries.length - PREVIEW})`}
+            </button>
+          ) : null}
         </div>
       )}
 
