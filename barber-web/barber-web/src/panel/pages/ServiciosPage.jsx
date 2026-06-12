@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Pencil, Trash2, X, Plus, ChevronUp, ChevronDown } from 'lucide-react';
 import {
   fetchServices,
+  fetchBarbers,
   createService,
   updateService,
   deleteService,
@@ -14,6 +15,7 @@ const EMPTY = { name: '', price: '', durationMinutes: '30', commission: '' };
 
 function ServiciosPage() {
   const [services, setServices] = useState([]);
+  const [barbers, setBarbers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reordering, setReordering] = useState(false);
@@ -27,8 +29,12 @@ function ServiciosPage() {
     try {
       setLoading(true);
       setError('');
-      const res = await fetchServices();
-      setServices(res?.services || []);
+      const [svcRes, barbersRes] = await Promise.all([
+        fetchServices(),
+        fetchBarbers().catch(() => ({ barbers: [] })),
+      ]);
+      setServices(svcRes?.services || []);
+      setBarbers(barbersRes?.barbers || []);
     } catch (err) {
       setError(err?.message || 'No pudimos cargar los servicios.');
     } finally {
@@ -182,6 +188,41 @@ function ServiciosPage() {
           </table>
         </div>
       )}
+
+      {!loading && services.length > 0 && barbers.length > 0 ? (
+        <div style={{ marginTop: 28 }}>
+          <h2 className={styles.sectionTitle}>Servicios por profesional</h2>
+          <p className={styles.muted} style={{ marginTop: 4, marginBottom: 14 }}>
+            Qué servicios ofrece cada profesional y a qué precio.
+          </p>
+          <div className={styles.svcProGrid}>
+            {barbers.map((b) => {
+              const assigned = (b.serviceIds || []).map(String);
+              // Sin servicios asignados = ofrece todos.
+              const proServices = assigned.length
+                ? services.filter((s) => assigned.includes(String(s._id)))
+                : services;
+              return (
+                <div key={b._id} className={styles.svcProCard}>
+                  <div className={styles.svcProName}>{b.fullName}</div>
+                  {proServices.length === 0 ? (
+                    <p className={styles.muted}>Sin servicios asignados.</p>
+                  ) : (
+                    <div className={styles.svcProList}>
+                      {proServices.map((s) => (
+                        <div key={s._id} className={styles.svcProRow}>
+                          <span>{s.name}</span>
+                          <strong>{formatCurrency(s.price)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {modalOpen ? (
         <div className={styles.modalOverlay} onClick={() => setModalOpen(false)}>

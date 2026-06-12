@@ -1956,6 +1956,43 @@
   font-weight: 800;
 }
 
+/* Servicios por profesional */
+.svcProGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+}
+.svcProCard {
+  background: var(--panel-surface);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+.svcProName {
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--panel-text);
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.svcProList {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.svcProRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: var(--panel-text);
+}
+.svcProRow strong {
+  font-weight: 800;
+}
+
 .hbarRow {
   display: grid;
   grid-template-columns: 130px 1fr 100px;
