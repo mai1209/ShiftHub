@@ -1559,26 +1559,45 @@ function Home({ navigation }: Props) {
         {/* Bloque 1 (sticky): selector de fecha. En calendario, solo las flechas
             quedan fijas; los chips de la semana se muestran abajo (no sticky). */}
         <View style={styles.stickyAgendaHeader}>
-          <View style={styles.dateHeroCard} {...datePanResponder.panHandlers}>
+          <View
+            style={[
+              styles.dateHeroCard,
+              agendaView === 'calendar' && styles.dateHeroCardCompact,
+            ]}
+            {...datePanResponder.panHandlers}
+          >
             <View style={styles.dateHeroHeader}>
               <Pressable
-                style={styles.dateCircleBtn}
+                style={[
+                  styles.dateCircleBtn,
+                  agendaView === 'calendar' && styles.dateCircleBtnCompact,
+                ]}
                 onPress={() => handleShiftDate(-1)}
               >
                 <Text style={styles.dateCircleBtnText}>‹</Text>
               </Pressable>
               <View style={styles.dateHeroTextWrap}>
-                <Text style={styles.dateHeroTitle}>
+                <Text
+                  style={[
+                    styles.dateHeroTitle,
+                    agendaView === 'calendar' && styles.dateHeroTitleCompact,
+                  ]}
+                >
                   {capitalize(formattedHeaderDate.split(',')[0])}
                 </Text>
-                <Text style={styles.dateHeroSubtitle}>
-                  {capitalize(
-                    formattedHeaderDate.split(',').slice(1).join(',').trim(),
-                  )}
-                </Text>
+                {agendaView === 'list' ? (
+                  <Text style={styles.dateHeroSubtitle}>
+                    {capitalize(
+                      formattedHeaderDate.split(',').slice(1).join(',').trim(),
+                    )}
+                  </Text>
+                ) : null}
               </View>
               <Pressable
-                style={styles.dateCircleBtn}
+                style={[
+                  styles.dateCircleBtn,
+                  agendaView === 'calendar' && styles.dateCircleBtnCompact,
+                ]}
                 onPress={() => handleShiftDate(1)}
               >
                 <Text style={styles.dateCircleBtnText}>›</Text>
@@ -1590,9 +1609,6 @@ function Home({ navigation }: Props) {
 
         {/* Bloque 2: agenda (lista o calendario) */}
         <View>
-          {agendaView === 'calendar' ? (
-            <View style={styles.weekStripCalendar}>{renderWeekStrip()}</View>
-          ) : null}
           <View style={{ marginTop: agendaView === 'calendar' ? 8 : 20 }}>
             {loading && !appointments.length ? (
               <ActivityIndicator
@@ -2449,6 +2465,9 @@ const createStyles = (theme: Theme) =>
       borderColor: theme.border,
       paddingVertical: 15,
     },
+    dateHeroCardCompact: { borderRadius: 16, paddingVertical: 6 },
+    dateCircleBtnCompact: { width: 32, height: 32, borderRadius: 10 },
+    dateHeroTitleCompact: { fontSize: 15 },
     dateHeroHeader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2479,14 +2498,6 @@ const createStyles = (theme: Theme) =>
       fontWeight: '500',
     },
     weekStripContent: { paddingHorizontal: 14, paddingTop: 15 },
-    weekStripCalendar: {
-      backgroundColor: theme.card,
-      borderRadius: 24,
-      borderWidth: 1,
-      borderColor: theme.border,
-      paddingVertical: 12,
-      marginTop: 8,
-    },
     weekDayChip: {
       width: 55,
       height: 60,
