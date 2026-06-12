@@ -90,7 +90,7 @@ function waLink(phone, text) {
 
 function TurnosPage() {
   const { isOwner, user, activeShop } = useAuth();
-  const [view, setView] = useState('day');
+  const [view, setView] = useState('week');
   const [date, setDate] = useState(() => new Date());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
