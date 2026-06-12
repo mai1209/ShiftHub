@@ -1379,6 +1379,42 @@ function Home({ navigation }: Props) {
     );
   };
 
+  const renderWeekStrip = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.weekStripContent}
+    >
+      {weekDays.map(item => (
+        <Pressable
+          key={item.key}
+          style={[
+            styles.weekDayChip,
+            item.isSelected && styles.weekDayChipActive,
+          ]}
+          onPress={() => handleSelectDate(item.date)}
+        >
+          <Text
+            style={[
+              styles.weekDayName,
+              item.isSelected && styles.weekDayNameActive,
+            ]}
+          >
+            {capitalize(item.dayName.replace('.', ''))}
+          </Text>
+          <Text
+            style={[
+              styles.weekDayNumber,
+              item.isSelected && styles.weekDayNumberActive,
+            ]}
+          >
+            {item.dayNumber}
+          </Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -1520,7 +1556,8 @@ function Home({ navigation }: Props) {
           </View>
         </View>
 
-        {/* Bloque 1 (sticky): selector de fecha */}
+        {/* Bloque 1 (sticky): selector de fecha. En calendario, solo las flechas
+            quedan fijas; los chips de la semana se muestran abajo (no sticky). */}
         <View style={styles.stickyAgendaHeader}>
           <View style={styles.dateHeroCard} {...datePanResponder.panHandlers}>
             <View style={styles.dateHeroHeader}>
@@ -1547,44 +1584,15 @@ function Home({ navigation }: Props) {
                 <Text style={styles.dateCircleBtnText}>›</Text>
               </Pressable>
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.weekStripContent}
-            >
-              {weekDays.map(item => (
-                <Pressable
-                  key={item.key}
-                  style={[
-                    styles.weekDayChip,
-                    item.isSelected && styles.weekDayChipActive,
-                  ]}
-                  onPress={() => handleSelectDate(item.date)}
-                >
-                  <Text
-                    style={[
-                      styles.weekDayName,
-                      item.isSelected && styles.weekDayNameActive,
-                    ]}
-                  >
-                    {capitalize(item.dayName.replace('.', ''))}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.weekDayNumber,
-                      item.isSelected && styles.weekDayNumberActive,
-                    ]}
-                  >
-                    {item.dayNumber}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
+            {agendaView === 'list' ? renderWeekStrip() : null}
           </View>
         </View>
 
         {/* Bloque 2: agenda (lista o calendario) */}
         <View>
+          {agendaView === 'calendar' ? (
+            <View style={styles.weekStripCalendar}>{renderWeekStrip()}</View>
+          ) : null}
           <View style={{ marginTop: agendaView === 'calendar' ? 8 : 20 }}>
             {loading && !appointments.length ? (
               <ActivityIndicator
@@ -2471,6 +2479,14 @@ const createStyles = (theme: Theme) =>
       fontWeight: '500',
     },
     weekStripContent: { paddingHorizontal: 14, paddingTop: 15 },
+    weekStripCalendar: {
+      backgroundColor: theme.card,
+      borderRadius: 24,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingVertical: 12,
+      marginTop: 8,
+    },
     weekDayChip: {
       width: 55,
       height: 60,
