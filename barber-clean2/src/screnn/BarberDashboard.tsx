@@ -22,8 +22,10 @@ import {
   TextInput,
 } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import BarberDayCalendar from '../components/BarberDayCalendar';
 import {
   Appointment,
   Barber,
@@ -202,6 +204,18 @@ function BarberDashboard({ route, navigation }: Props) {
   const [error, setError] = useState('');
   const [hasProAccess, setHasProAccess] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
+  const [agendaView, setAgendaView] = useState<'list' | 'calendar'>('list');
+
+  useEffect(() => {
+    AsyncStorage.getItem('BARBER_AGENDA_VIEW').then(v => {
+      if (v === 'calendar' || v === 'list') setAgendaView(v);
+    });
+  }, []);
+
+  const changeAgendaView = (v: 'list' | 'calendar') => {
+    setAgendaView(v);
+    AsyncStorage.setItem('BARBER_AGENDA_VIEW', v).catch(() => {});
+  };
 
   // Modal de cobro (con pago mixto)
   const [paymentModal, setPaymentModal] = useState<{
@@ -805,11 +819,37 @@ function BarberDashboard({ route, navigation }: Props) {
         <View style={styles.section}>
           <View style={styles.agendaTopRow}>
             <Text style={styles.sectionTitle}>Agenda de turnos</Text>
-            {!isToday && (
-              <Pressable style={styles.todayButton} onPress={handleGoToToday}>
-                <Text style={styles.todayButtonText}>Volver a hoy</Text>
-              </Pressable>
-            )}
+            <View style={styles.agendaTopRight}>
+              {!isToday && (
+                <Pressable style={styles.todayButton} onPress={handleGoToToday}>
+                  <Text style={styles.todayButtonText}>Volver a hoy</Text>
+                </Pressable>
+              )}
+              <View style={styles.calViewToggle}>
+                {(['list', 'calendar'] as const).map(v => {
+                  const active = agendaView === v;
+                  return (
+                    <Pressable
+                      key={v}
+                      onPress={() => changeAgendaView(v)}
+                      style={[
+                        styles.calViewBtn,
+                        active && styles.calViewBtnActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.calViewBtnText,
+                          active && styles.calViewBtnTextActive,
+                        ]}
+                      >
+                        {v === 'list' ? 'Lista' : 'Calendario'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
           </View>
 
           <View style={styles.dateHeroCard} {...datePanResponder.panHandlers}>
@@ -872,12 +912,34 @@ function BarberDashboard({ route, navigation }: Props) {
             </ScrollView>
           </View>
 
-          <View style={{ marginTop: 20 }}>
+          <View style={{ marginTop: agendaView === 'calendar' ? 8 : 20 }}>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             {loading && !appointments.length ? (
               <ActivityIndicator
                 color={theme.primary}
                 style={{ marginTop: 40 }}
+              />
+            ) : agendaView === 'calendar' ? (
+              <BarberDayCalendar
+                barber={barberProfile}
+                appointments={appointments}
+                theme={theme}
+                date={date}
+                onPressFree={label =>
+                  navigation.navigate('Reservas', {
+                    barberId: activeBarberId ?? undefined,
+                    lockBarber: isBarberUser,
+                    slot: label,
+                  })
+                }
+                onPressAppt={appt =>
+                  Alert.alert(
+                    appt.customerName,
+                    `${appt.service}\n${formatTimeOnly(appt.startTime)} · ${
+                      appt.durationMinutes || 30
+                    } min`,
+                  )
+                }
               />
             ) : appointments.length ? (
               appointments.map(renderAppointmentCard)
@@ -1151,6 +1213,19 @@ const makeStyles = (theme: Theme) =>
       marginBottom: 14,
     },
     sectionTitle: { color: theme.textPrimary, fontSize: 18, fontWeight: '700' },
+    agendaTopRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    calViewToggle: {
+      flexDirection: 'row',
+      backgroundColor: theme.surfaceAlt,
+      borderRadius: 999,
+      padding: 3,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    calViewBtn: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999 },
+    calViewBtnActive: { backgroundColor: theme.primary },
+    calViewBtnText: { fontSize: 12, fontWeight: '700', color: theme.textMuted },
+    calViewBtnTextActive: { color: theme.textOnPrimary },
     todayButton: {
       backgroundColor: hexToRgba(theme.primary, 0.12),
       paddingHorizontal: 12,

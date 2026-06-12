@@ -1,4 +1,10 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, {
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+} from 'react';
 import {
   StyleSheet,
   Text,
@@ -274,6 +280,9 @@ function ReservasForm({ navigation, route }: any) {
   const { theme, businessCopy } = useTheme();
   const routeBarberId = route?.params?.barberId ?? null;
   const routeLockBarber = Boolean(route?.params?.lockBarber);
+  // Horario prefijado cuando se entra desde el "+" del calendario.
+  const routeSlot = route?.params?.slot ?? null;
+  const appliedRouteSlot = useRef(false);
   // Orden de llegada: el turno se carga "ahora" sin elegir fecha/horario.
   const isWalkin = Boolean(route?.params?.walkin);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -587,6 +596,15 @@ function ReservasForm({ navigation, route }: any) {
       setSelectedSlot(null);
     }
   }, [allSlots, selectedSlot, isSlotUnavailable]);
+
+  // Preselecciona el horario que llega del "+" del calendario (una sola vez).
+  useEffect(() => {
+    if (appliedRouteSlot.current || !routeSlot) return;
+    if (allSlots.includes(routeSlot) && !isSlotUnavailable(routeSlot)) {
+      setSelectedSlot(routeSlot);
+      appliedRouteSlot.current = true;
+    }
+  }, [routeSlot, allSlots, isSlotUnavailable]);
 
   useEffect(() => {
     if (!paymentOptions.length) {

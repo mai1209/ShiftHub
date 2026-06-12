@@ -45,6 +45,7 @@ export type RootStackParamList = {
     | {
         barberId?: string;
         lockBarber?: boolean;
+        slot?: string;
       }
     | undefined;
   'Register-Employed':
