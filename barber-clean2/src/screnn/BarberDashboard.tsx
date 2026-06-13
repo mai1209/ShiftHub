@@ -739,6 +739,14 @@ function BarberDashboard({ route, navigation }: Props) {
     );
   };
 
+  // Memoizamos las cards: solo se reconstruyen si cambian los turnos o el tema,
+  // no en cada render (ej. al tipear el cobro o en el auto-refresh).
+  const appointmentCards = useMemo(
+    () => appointments.map(renderAppointmentCard),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appointments, theme],
+  );
+
   return (
     <KeyboardAvoidingView
       style={styles.screen}
@@ -976,7 +984,7 @@ function BarberDashboard({ route, navigation }: Props) {
                 }
               />
             ) : appointments.length ? (
-              appointments.map(renderAppointmentCard)
+              appointmentCards
             ) : (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyTitle}>Sin turnos hoy</Text>
