@@ -509,6 +509,27 @@ function BarberDashboard({ route, navigation }: Props) {
     );
   };
 
+  const handleUndoCharge = (appointmentId: string) => {
+    Alert.alert(
+      'Deshacer cobro',
+      'El turno vuelve a "pendiente" y sale de la caja y las métricas. Vas a poder cobrarlo de nuevo o eliminarlo.',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Sí, deshacer',
+          onPress: async () => {
+            try {
+              await updateAppointmentStatus(appointmentId, 'pending');
+              await loadAppointments();
+            } catch (err: any) {
+              Alert.alert('Error', err?.message ?? 'No se pudo deshacer el cobro.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleRelease = (appointmentId: string) => {
     const appointment = appointments.find(item => item._id === appointmentId);
     Alert.alert('Gestionar Turno', 'Elegí una acción:', [
@@ -582,13 +603,9 @@ function BarberDashboard({ route, navigation }: Props) {
 
     const card = (
       <View
-        style={[
-          styles.appointmentCard,
-          isCompleted && styles.appointmentCardCompleted,
-          { marginTop: index === 0 ? 0 : 12 },
-        ]}
+        style={[styles.appointmentCard, { marginTop: index === 0 ? 0 : 12 }]}
       >
-        <View style={styles.cardHeader}>
+        <View style={[styles.cardHeader, isCompleted && styles.dimContent]}>
           <View style={styles.timeTag}>
             <Clock size={14} color={theme.primary} style={{ marginRight: 6 }} />
             <Text style={styles.timeText}>
@@ -612,7 +629,7 @@ function BarberDashboard({ route, navigation }: Props) {
           </View>
         </View>
 
-        <View style={styles.cardBody}>
+        <View style={[styles.cardBody, isCompleted && styles.dimContent]}>
           <Text style={styles.customerNameText}>
             {appointment.customerName}
           </Text>
@@ -675,6 +692,23 @@ function BarberDashboard({ route, navigation }: Props) {
                 />
                 <Text style={styles.btnWhatsappHint}>Recordatorio</Text>
               </View>
+            </Pressable>
+          </View>
+        )}
+
+        {isCompleted && (
+          <View style={styles.cardActions}>
+            <Pressable
+              style={[styles.btnAction, styles.btnUndo]}
+              onPress={() => handleUndoCharge(appointment._id)}
+            >
+              <Text style={styles.btnUndoText}>Deshacer cobro</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.btnAction, styles.btnDelete]}
+              onPress={() => handleRelease(appointment._id)}
+            >
+              <Text style={styles.btnDeleteText}>Eliminar</Text>
             </Pressable>
           </View>
         )}
@@ -1363,6 +1397,19 @@ const makeStyles = (theme: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
+    dimContent: { opacity: 0.5 },
+    btnUndo: {
+      backgroundColor: hexToRgba(theme.primary, 0.14),
+      borderWidth: 1,
+      borderColor: hexToRgba(theme.primary, 0.45),
+    },
+    btnUndoText: { color: theme.primary, fontSize: 12, fontWeight: '800' },
+    btnDelete: {
+      backgroundColor: hexToRgba('#ef4444', 0.12),
+      borderWidth: 1,
+      borderColor: hexToRgba('#ef4444', 0.4),
+    },
+    btnDeleteText: { color: '#ef4444', fontSize: 12, fontWeight: '800' },
     btnMain: { backgroundColor: theme.primary, flex: 1.18 },
     btnMainText: {
       color: theme.textOnPrimary,
