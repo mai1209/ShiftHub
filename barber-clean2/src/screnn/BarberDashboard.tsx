@@ -302,7 +302,7 @@ function BarberDashboard({ route, navigation }: Props) {
 
   const dateParam = useMemo(() => formatDateParam(date), [date]);
 
-  const loadAppointments = useCallback(async () => {
+  const loadAppointments = useCallback(async (silent = false) => {
     if (!activeBarberId) {
       setAppointments([]);
       setBarberProfile(initialBarber ?? null);
@@ -312,7 +312,7 @@ function BarberDashboard({ route, navigation }: Props) {
     }
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const appointmentsRes = await fetchBarberAppointments(activeBarberId, dateParam);
 
       setAppointments(
@@ -341,7 +341,7 @@ function BarberDashboard({ route, navigation }: Props) {
           }
         })
         .catch(() => {});
-      const intervalId = setInterval(() => loadAppointments(), 15000);
+      const intervalId = setInterval(() => loadAppointments(true), 30000);
       return () => clearInterval(intervalId);
     }, [loadAppointments]),
   );
@@ -852,7 +852,7 @@ function BarberDashboard({ route, navigation }: Props) {
 
         <View style={styles.section}>
           <View style={styles.agendaTopRow}>
-            <Text style={styles.sectionTitle}>Agenda de turnos</Text>
+            <View />
             <View style={styles.agendaTopRight}>
               {!isToday && (
                 <Pressable style={styles.todayButton} onPress={handleGoToToday}>
