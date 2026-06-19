@@ -108,6 +108,30 @@ export async function createNamedShopsForOwner(ownerDoc, names) {
   }
 }
 
+// Crea exactamente los locales con los nombres dados (uno por nombre), sin
+// contar los existentes. Para "agregar sucursal" después de suscribirse: la
+// idempotencia la garantiza quien llama (p. ej. lastAddBranchesPaymentId del
+// pago ya procesado). Devuelve la cantidad de locales creados.
+export async function appendNamedShopsForOwner(ownerDoc, names) {
+  if (!Array.isArray(names) || names.length === 0) return 0;
+  await ensureDefaultShopForOwner(ownerDoc);
+  let created = 0;
+  for (const rawName of names) {
+    const name = String(rawName || "").trim();
+    if (!name) continue;
+    const slug = await buildAvailableShopSlug(name);
+    await ShopModel.create({
+      owner: ownerDoc._id,
+      name,
+      slug,
+      isDefault: false,
+      isActive: true,
+    });
+    created += 1;
+  }
+  return created;
+}
+
 export function serializeShop(shop) {
   if (!shop) return null;
   return {

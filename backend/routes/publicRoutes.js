@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   publicBarberAppointments,
+  publicAddBranchesPayment,
   publicCreateRecurringSubscriptionCheckout,
   publicCreateSubscriptionCheckout,
   publicCreateSubscriptionPayment,
@@ -21,6 +22,7 @@ router.get("/plans", publicGetPlanPricing);
 router.post("/subscriptions/checkout", publicCreateSubscriptionCheckout);
 router.post("/subscriptions/payment", publicCreateSubscriptionPayment);
 router.post("/subscriptions/quote", publicGetSubscriptionQuote);
+router.post("/subscriptions/add-branches", publicAddBranchesPayment);
 router.post("/subscriptions/recurring/start", publicCreateRecurringSubscriptionCheckout);
 router.get("/shops/:shopSlug", publicGetShop);
 router.get("/shops/:shopSlug/media", publicGetShopMedia);

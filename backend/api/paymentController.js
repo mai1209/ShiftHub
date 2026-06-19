@@ -19,7 +19,10 @@ import {
   serializePlanPricing,
 } from "../services/planPricingService.js";
 import { resolvePlanPricingForSubscription } from "../services/subscriptionPricingService.js";
-import { createNamedShopsForOwner } from "../utils/shopContext.js";
+import {
+  createNamedShopsForOwner,
+  appendNamedShopsForOwner,
+} from "../utils/shopContext.js";
 import { notifySubscriptionActivated } from "../services/subscriptionLifecycleService.js";
 
 function normalizePaymentStatus(value) {
@@ -583,6 +586,69 @@ export async function activateSubscriptionFromApprovedPayment({
   return { isNew: true, paidAmount };
 }
 
+// "Agregar sucursal" después de suscribirse: pago ÚNICO. Suma cupos de locales
+// y crea los Shop con los nombres pendientes. NO toca plan/estado/vencimiento.
+// Idempotente por subscription.lastAddBranchesPaymentId.
+export async function applyAddBranchesFromApprovedPayment({
+  userDoc,
+  payment,
+  paymentId,
+}) {
+  const currentPaymentId = String(payment?.id || paymentId || "").trim();
+  const lastProcessed = String(
+    userDoc.subscription?.lastAddBranchesPaymentId || "",
+  ).trim();
+
+  if (currentPaymentId && currentPaymentId === lastProcessed) {
+    return { isNew: false, created: 0 };
+  }
+
+  const pendingNames = Array.isArray(userDoc.subscription?.pendingAddBranchNames)
+    ? userDoc.subscription.pendingAddBranchNames
+        .map((name) => String(name || "").trim())
+        .filter(Boolean)
+    : [];
+
+  const metaQty = Math.max(
+    0,
+    Math.trunc(Number(payment?.metadata?.add_branches_qty) || 0),
+  );
+  const qty = pendingNames.length || metaQty;
+
+  if (qty <= 0) {
+    // Nada para crear: marcamos el pago como procesado para no reintentar.
+    userDoc.subscription = {
+      ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+      lastAddBranchesPaymentId: currentPaymentId || lastProcessed || null,
+    };
+    await userDoc.save();
+    return { isNew: false, created: 0 };
+  }
+
+  // Creamos exactamente los locales nuevos (puede lanzar: que el webhook reintente).
+  const created = await appendNamedShopsForOwner(userDoc, pendingNames);
+  const increment = created > 0 ? created : qty;
+  const prevAdditional = Math.max(
+    0,
+    Number(userDoc.subscription?.additionalBusinesses || 0),
+  );
+
+  userDoc.subscription = {
+    ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+    additionalBusinesses: prevAdditional + increment,
+    pendingAddBranchNames: [],
+    lastAddBranchesPaymentId: currentPaymentId || lastProcessed || null,
+  };
+  await userDoc.save();
+
+  return {
+    isNew: true,
+    created,
+    qty: increment,
+    paidAmount: Math.max(0, Number(payment?.transaction_amount || 0)),
+  };
+}
+
 async function syncAutomaticSubscriptionFromPreapproval(preapproval) {
   const parsedReference = normalizeSubscriptionReference(preapproval?.external_reference);
   const userId = parsedReference?.userId || "";
@@ -981,6 +1047,33 @@ export async function handleSubscriptionMercadoPagoWebhook(req, res, next) {
       String(payment.metadata?.user_id || req.query?.userId || req.body?.userId || "").trim();
     const metadataPlan = String(payment.metadata?.plan || "").trim();
     const parsedReference = normalizeSubscriptionReference(payment.external_reference);
+
+    const metadataSubscriptionType = String(
+      payment.metadata?.subscription_type || "",
+    ).trim();
+
+    // Pago ÚNICO de "agregar sucursal": no toca plan/estado/vencimiento.
+    if (metadataSubscriptionType === "add_branches") {
+      const reference = String(payment.external_reference || "");
+      const branchUserId =
+        metadataUserId ||
+        (reference.startsWith("add_branches:") ? reference.split(":")[1] : "");
+      if (!branchUserId) {
+        return res.status(200).json({ received: true, ignored: true });
+      }
+      const branchUser = await UserModel.findById(branchUserId);
+      if (!branchUser || branchUser.isActive === false) {
+        return res.status(200).json({ received: true, ignored: true });
+      }
+      if (normalizedStatus === "approved") {
+        await applyAddBranchesFromApprovedPayment({
+          userDoc: branchUser,
+          payment,
+          paymentId,
+        });
+      }
+      return res.status(200).json({ received: true, kind: "add_branches" });
+    }
 
     const userId = metadataUserId || parsedReference?.userId || "";
     const plan = metadataPlan || parsedReference?.plan || "";

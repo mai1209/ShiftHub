@@ -229,6 +229,17 @@ const subscriptionSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    // "Agregar sucursal" después de suscribirse (pago único, no toca el plan).
+    // Nombres pendientes de la compra de sucursales en curso.
+    pendingAddBranchNames: {
+      type: [String],
+      default: [],
+    },
+    // Id del último pago de "agregar sucursal" ya procesado (idempotencia).
+    lastAddBranchesPaymentId: {
+      type: String,
+      default: null,
+    },
     customPriceArs: {
       type: Number,
       default: null,
