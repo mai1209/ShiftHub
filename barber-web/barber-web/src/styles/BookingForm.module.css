@@ -1294,6 +1294,18 @@ span img{
   padding: 11px 12px;
 }
 
+.membershipBanner {
+  border: 1px solid rgba(22, 163, 74, 0.35);
+  border-radius: 16px;
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.45;
+  margin-top: 12px;
+  padding: 12px 14px;
+}
+
 .oldPrice {
   color: var(--text-dim);
   text-decoration: line-through;

@@ -135,6 +135,13 @@ export async function validateBookingCoupon(payload) {
   });
 }
 
+export async function fetchMembershipForEmail(email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return { membership: null };
+  const query = `?email=${encodeURIComponent(normalized)}`;
+  return request(buildShopPath(`/membership${query}`));
+}
+
 // En tu api.js
 export async function fetchBarberAppointments(barberId, date) {
   // Verificá que date sea "YYYY-MM-DD"

@@ -10,6 +10,7 @@ import {
   fetchShopMedia,
   fetchServices,
   validateBookingCoupon,
+  fetchMembershipForEmail,
   resolveApiMediaUrl,
   setShopSlug,
 } from "../services/api";
@@ -514,6 +515,7 @@ function BookingForm({ shopSlug, onNotFound }) {
   const [couponLoading, setCouponLoading] = useState(false);
   const [couponError, setCouponError] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [membership, setMembership] = useState(null);
   const businessCopy = useMemo(
     () => getBusinessCopy(shopInfo?.businessType),
     [shopInfo?.businessType],
@@ -552,6 +554,28 @@ function BookingForm({ shopSlug, onNotFound }) {
     setAppliedCoupon(null);
     setCouponError("");
   }, [selectedServices]);
+
+  // Buscar la membresía del cliente por email (con debounce).
+  useEffect(() => {
+    const normalized = String(email || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      setMembership(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetchMembershipForEmail(normalized);
+        if (!cancelled) setMembership(response?.membership ?? null);
+      } catch {
+        if (!cancelled) setMembership(null);
+      }
+    }, 500);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [email]);
 
   const handleApplyCoupon = useCallback(async () => {
     const serviceIds = selectedServices
@@ -1044,6 +1068,11 @@ function BookingForm({ shopSlug, onNotFound }) {
       return;
     }
 
+    // Con membresía activa el turno es gratis: el backend fuerza efectivo y no
+    // genera link de pago, así que en el cliente también usamos "cash".
+    const hasUsableMembership = Boolean(membership && membership.turnsRemaining > 0);
+    const effectivePaymentMethod = hasUsableMembership ? "cash" : paymentMethod;
+
     try {
       setSaving(true);
       const finalDateUTC = buildIsoFromShopDateAndTime(
@@ -1067,7 +1096,7 @@ function BookingForm({ shopSlug, onNotFound }) {
         couponCode: appliedCoupon?.code || null,
         notes: phone.trim(),
         email: emailReview.normalized,
-        paymentMethod,
+        paymentMethod: effectivePaymentMethod,
       });
 
       if (
@@ -1078,7 +1107,7 @@ function BookingForm({ shopSlug, onNotFound }) {
         return;
       }
 
-      if (paymentMethod === "transfer") {
+      if (effectivePaymentMethod === "transfer") {
         throw new Error(
           "La reserva se creó, pero Mercado Pago no devolvió un link de pago. Revisá la configuración del checkout y volvé a intentar.",
         );
@@ -1544,6 +1573,14 @@ function BookingForm({ shopSlug, onNotFound }) {
             >
               {emailReview.message}
             </p>
+          ) : null}
+          {membership && membership.turnsRemaining > 0 ? (
+            <div className={styles.membershipBanner}>
+              🎉 Tenés la membresía <strong>{membership.planName}</strong>: te
+              quedan <strong>{membership.turnsRemaining}</strong> turno
+              {membership.turnsRemaining === 1 ? "" : "s"} gratis. Este turno se
+              reserva sin cargo.
+            </div>
           ) : null}
         </div>
 
