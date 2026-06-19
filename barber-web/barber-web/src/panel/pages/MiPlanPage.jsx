@@ -98,6 +98,29 @@ function MiPlanPage() {
               >
                 {info.plan === 'free' ? 'Ver planes' : 'Renovar / pagar'}
               </a>
+              {info.plan !== 'free' ? (
+                <>
+                  <p className={styles.muted} style={{ marginTop: 14 }}>
+                    ¿Necesitás más locales? Agregá sucursales a tu cuenta con un
+                    pago único; tu plan mensual no cambia.
+                  </p>
+                  <a
+                    className={styles.secondaryBtn || styles.primaryBtn}
+                    href={`/agregar-sucursal?email=${encodeURIComponent(
+                      user?.email || '',
+                    )}`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textDecoration: 'none',
+                      marginTop: 6,
+                    }}
+                  >
+                    Agregar sucursal
+                  </a>
+                </>
+              ) : null}
             </>
           )}
         </div>

@@ -201,6 +201,13 @@ export async function fetchPublicSubscriptionQuote(payload) {
   });
 }
 
+export async function addBranchesPayment(payload) {
+  return request('/subscriptions/add-branches', {
+    method: 'POST',
+    body: payload,
+  });
+}
+
 export async function createPublicRecurringSubscription(payload) {
   return request('/subscriptions/recurring/start', {
     method: 'POST',

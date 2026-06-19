@@ -6,6 +6,7 @@ import LandingPage from './LandingPage';
 import SubscriptionAdmin from './SubscriptionAdmin';
 import SubscriptionCouponsPage from './SubscriptionCouponsPage';
 import SubscriptionCheckoutPage from './SubscriptionCheckoutPage';
+import AddBranchPage from './AddBranchPage';
 import NotFoundPage from './NotFoundPage';
 import PrivacyPolicyPage from './PrivacyPolicyPage';
 import AccountDeletionPage from './AccountDeletionPage';
@@ -64,6 +65,10 @@ function resolveInternalPage() {
     return 'subscription-checkout';
   }
 
+  if (pathname === 'agregar-sucursal' || pathname === 'agregar-local') {
+    return 'add-branch';
+  }
+
   if (
     pathname === 'soporte' ||
     pathname === 'support'
@@ -97,6 +102,8 @@ function resolveInternalPage() {
     segments[0] === 'support' ||
     segments[0] === 'planes' ||
     segments[0] === 'suscripcion' ||
+    segments[0] === 'agregar-sucursal' ||
+    segments[0] === 'agregar-local' ||
     segments[0] === 'registro' ||
     segments[0] === 'crear-cuenta' ||
     segments[0] === 'signup' ||
@@ -136,6 +143,10 @@ function App() {
 
   if (internalPage === 'subscription-checkout') {
     return <SubscriptionCheckoutPage />;
+  }
+
+  if (internalPage === 'add-branch') {
+    return <AddBranchPage />;
   }
 
   if (internalPage === 'register-account') {
