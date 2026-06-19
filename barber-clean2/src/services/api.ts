@@ -1208,3 +1208,77 @@ export function deleteCashEntry(id: string) {
     auth: true,
   });
 }
+
+// ===== Membresías =====
+export type MembershipPlan = {
+  _id: string;
+  name: string;
+  color: string;
+  freeTurns: number;
+  durationDays: number; // 0 = sin límite de tiempo
+  giftText: string;
+  priceArs: number;
+  isActive: boolean;
+};
+
+export type Membership = {
+  _id: string;
+  planName: string;
+  customerName: string;
+  customerEmail: string;
+  turnsTotal: number;
+  turnsUsed: number;
+  turnsRemaining: number;
+  startedAt: string | null;
+  expiresAt: string | null;
+  pricePaidArs: number;
+  status: 'active' | 'expired' | 'depleted' | 'cancelled';
+  createdAt: string;
+};
+
+export function fetchMembershipPlans() {
+  return request<{ plans: MembershipPlan[] }>('/api/memberships/plans', {
+    auth: true,
+  });
+}
+
+export function upsertMembershipPlan(payload: {
+  id?: string;
+  name: string;
+  color?: string;
+  freeTurns: number;
+  durationDays?: number;
+  giftText?: string;
+  priceArs: number;
+}) {
+  return request<{ plan: MembershipPlan }>('/api/memberships/plans', {
+    method: 'POST',
+    auth: true,
+    body: payload,
+  });
+}
+
+export function deleteMembershipPlan(id: string) {
+  return request<{ ok: boolean }>(`/api/memberships/plans/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
+export function fetchMembers() {
+  return request<{ members: Membership[] }>('/api/memberships/members', {
+    auth: true,
+  });
+}
+
+export function createMember(payload: {
+  planId: string;
+  customerName: string;
+  customerEmail: string;
+}) {
+  return request<{ member: Membership }>('/api/memberships/members', {
+    method: 'POST',
+    auth: true,
+    body: payload,
+  });
+}

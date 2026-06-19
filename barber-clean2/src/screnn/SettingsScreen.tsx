@@ -254,6 +254,24 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             />
             <View style={styles.separator} />
             <MenuItem
+              icon={CreditCard}
+              label="Membresías"
+              description={
+                hasProAccess
+                  ? 'Vendé packs de turnos: el cliente reserva gratis hasta agotarlos o que venza el plan.'
+                  : 'Disponible desde el plan Pro.'
+              }
+              onPress={() =>
+                hasProAccess
+                  ? navigation.navigate('Membership-Settings')
+                  : openUpgrade()
+              }
+              theme={theme}
+              styles={styles}
+              locked={!hasProAccess}
+            />
+            <View style={styles.separator} />
+            <MenuItem
               icon={KeyRound}
               label={`Permitir que el ${businessCopy.staffSingular} edite su perfil `}
               description={
