@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +18,7 @@ import {
   fetchOwnShops,
   type ShopOption,
 } from '../services/api';
+import { buildAddBranchUrl } from '../utils/publicLinks';
 import {
   getUserProfile,
   saveActiveShop,
@@ -38,6 +40,22 @@ export default function ShopSelectionScreen({ navigation }: Props) {
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+
+  useEffect(() => {
+    getUserProfile<any>().then(user => {
+      if (user?.email) setUserEmail(String(user.email));
+    });
+  }, []);
+
+  const openAddBranch = useCallback(async () => {
+    const url = buildAddBranchUrl(userEmail || undefined);
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('No pudimos abrir el enlace', url);
+    }
+  }, [userEmail]);
 
   const loadShops = useCallback(async () => {
     try {
@@ -169,7 +187,11 @@ export default function ShopSelectionScreen({ navigation }: Props) {
             if (!canCreateMore) {
               Alert.alert(
                 'Límite alcanzado',
-                'Agregá un negocio adicional a tu plan para crear otro local.',
+                'Llegaste al límite de locales de tu plan. Podés agregar una sucursal con un pago único desde la web.',
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Agregar sucursal', onPress: openAddBranch },
+                ],
               );
               return;
             }

@@ -29,6 +29,14 @@ export function buildPlanUrl(plan: 'basic' | 'pro', email?: string) {
   return url.toString();
 }
 
+export function buildAddBranchUrl(email?: string) {
+  const url = new URL(buildPublicWebUrl('/agregar-sucursal'));
+  if (email) {
+    url.searchParams.set('email', email.trim().toLowerCase());
+  }
+  return url.toString();
+}
+
 export const SUPPORT_URL = buildPublicWebUrl('/soporte');
 export const PRIVACY_POLICY_URL = buildPublicWebUrl('/politica-de-privacidad');
 export const ACCOUNT_DELETION_URL = buildPublicWebUrl('/eliminacion-de-cuenta');
