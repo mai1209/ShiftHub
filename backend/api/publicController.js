@@ -13,6 +13,10 @@ import {
   createAppointmentMercadoPagoPreference,
 } from "./paymentController.js";
 import {
+  findUsableMembership,
+  consumeMembershipTurn,
+} from "./membershipController.js";
+import {
   getTimeZoneDayRange,
   getTimeZoneLabel,
   getTimeZoneWeekday,
@@ -1509,6 +1513,32 @@ export async function publicListServices(req, res, next) {
   }
 }
 
+export async function publicGetMembership(req, res, next) {
+  try {
+    const shop = await findActiveShop(req.params.shopSlug);
+    if (!shop) return res.status(404).json({ error: "Negocio no encontrado" });
+    const email = String(req.query?.email || "").trim().toLowerCase();
+    if (!email) return res.json({ membership: null });
+    const membership = await findUsableMembership({
+      ownerId: shop._id,
+      shopId: null,
+      email,
+    });
+    if (!membership) return res.json({ membership: null });
+    return res.json({
+      membership: {
+        planName: membership.planName || "Membresía",
+        turnsRemaining: Math.max(
+          0,
+          Number(membership.turnsTotal || 0) - Number(membership.turnsUsed || 0),
+        ),
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 export async function publicValidateBookingCoupon(req, res, next) {
   try {
     const shop = await findActiveShop(req.params.shopSlug);
@@ -1809,12 +1839,24 @@ export async function publicCreateAppointment(req, res, next) {
       return res.status(409).json({ error: "El horario ya está ocupado" });
     }
 
+    // Membresía: si el cliente tiene una membresía usable, el turno va GRATIS
+    // (sin pago online: se fuerza a "cash" y precio 0).
+    const membership = email
+      ? await findUsableMembership({ ownerId, shopId: null, email })
+      : null;
+
     let normalizedPaymentMethod;
-    try {
-      normalizedPaymentMethod = validatePublicPaymentSelection(shop, paymentMethod);
-    } catch (validationError) {
-      return res.status(400).json({ error: validationError.message });
+    if (membership) {
+      normalizedPaymentMethod = "cash";
+    } else {
+      try {
+        normalizedPaymentMethod = validatePublicPaymentSelection(shop, paymentMethod);
+      } catch (validationError) {
+        return res.status(400).json({ error: validationError.message });
+      }
     }
+    const finalServicePrice = membership ? 0 : resolvedServicePrice;
+
     // Guardamos en la base de datos
     const appointment = await AppointmentModel.create({
       owner: ownerId,
@@ -1826,18 +1868,19 @@ export async function publicCreateAppointment(req, res, next) {
       startTime: appointmentDate,
       durationMinutes: normalizedDuration,
       bufferAfterMinutesApplied: bufferAfterMinutes,
-      servicePrice: resolvedServicePrice,
+      servicePrice: finalServicePrice,
       originalServicePrice: resolvedOriginalPrice,
       couponCode: appliedCouponQuote?.code || null,
       couponName: appliedCouponQuote?.name || null,
       couponDiscountAmount: appliedCouponQuote?.totalDiscount || 0,
-      amountTotal: resolvedServicePrice,
+      amountTotal: finalServicePrice,
       amountPaid: 0,
-      amountPending: resolvedServicePrice,
+      amountPending: finalServicePrice,
       notes,
       paymentMethod: normalizedPaymentMethod,
       paymentMethodCollected: null,
       paymentStatus: "unpaid",
+      membershipId: membership?._id || null,
       paymentDeadlineAt:
         normalizedPaymentMethod === "transfer"
           ? new Date(Date.now() + 15 * 60 * 1000)
@@ -1845,6 +1888,15 @@ export async function publicCreateAppointment(req, res, next) {
       status: normalizedPaymentMethod === "transfer" ? "awaiting_payment" : "pending",
       // Si querés guardar el email en la DB, podés agregarlo al modelo y ponerlo acá
     });
+
+    // Descontamos 1 turno de la membresía una vez creado el turno.
+    if (membership) {
+      try {
+        await consumeMembershipTurn(membership);
+      } catch (membershipErr) {
+        console.error("No se pudo descontar el turno de membresía:", membershipErr);
+      }
+    }
 
     // --- LÓGICA DE NOTIFICACIÓN PUSH AL BARBERO (YA LA TENÍAS) ---
     try {

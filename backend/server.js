@@ -12,6 +12,7 @@ import publicRoutes from "./routes/publicRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import cashRoutes from "./routes/cashRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
+import membershipRoutes from "./routes/membershipRoutes.js";
 
 const app = express();
 
@@ -172,6 +173,7 @@ app.use('/api/barbers', barberRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/cash', cashRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/memberships', membershipRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/payments', paymentRoutes);
 

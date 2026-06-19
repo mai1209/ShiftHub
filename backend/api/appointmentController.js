@@ -33,6 +33,11 @@ import {
   resolveAssignedBarberPushTarget,
   resolveOwnerPushTarget,
 } from "../utils/pushRecipients.js";
+import {
+  findUsableMembership,
+  consumeMembershipTurn,
+  refundMembershipTurn,
+} from "./membershipController.js";
 
 // Función auxiliar para calcular rangos de fecha
 function buildDayRange(dateLike) {
@@ -486,6 +491,16 @@ export async function createAppointment(req, res, next) {
       return res.status(409).json({ error: "El horario ya está ocupado" });
     }
 
+    // 2.5. MEMBRESÍA: si el cliente tiene una membresía usable, el turno va gratis.
+    const membership = email
+      ? await findUsableMembership({
+          ownerId: finalOwnerId,
+          shopId: req.activeShopId || null,
+          email,
+        })
+      : null;
+    const finalServicePrice = membership ? 0 : resolvedServicePrice;
+
     // 3. GUARDAR EN BASE DE DATOS
     const appointment = await AppointmentModel.create({
       owner: finalOwnerId,
@@ -496,16 +511,26 @@ export async function createAppointment(req, res, next) {
       startTime,
       durationMinutes,
       bufferAfterMinutesApplied: bufferAfterMinutes,
-      servicePrice: resolvedServicePrice,
-      amountTotal: resolvedServicePrice,
+      servicePrice: finalServicePrice,
+      amountTotal: finalServicePrice,
       amountPaid: 0,
-      amountPending: resolvedServicePrice,
+      amountPending: finalServicePrice,
       notes,
       paymentMethod: normalizedPaymentMethod,
       paymentMethodCollected: null,
       paymentStatus: "unpaid",
       customerEmail: email || undefined,
+      membershipId: membership?._id || null,
     });
+
+    // Descontamos 1 turno de la membresía una vez creado el turno.
+    if (membership) {
+      try {
+        await consumeMembershipTurn(membership);
+      } catch (membershipErr) {
+        console.error("No se pudo descontar el turno de membresía:", membershipErr);
+      }
+    }
 
     // --- ENVIAR NOTIFICACIÓN PUSH AL BARBERO ---
     try {
@@ -1358,6 +1383,15 @@ export async function deleteAppointment(req, res, next) {
       req.user.role !== "admin"
     ) {
       return res.status(403).json({ error: "No autorizado para borrar este turno" });
+    }
+
+    // Si el turno usaba una membresía, devolvemos el turno al saldo.
+    if (appointment.membershipId) {
+      try {
+        await refundMembershipTurn(appointment.membershipId);
+      } catch (membershipErr) {
+        console.error("No se pudo devolver el turno de membresía:", membershipErr);
+      }
     }
 
     await appointment.deleteOne();

@@ -83,6 +83,11 @@ const appointmentSchema = new mongoose.Schema(
       min: 0,
       max: 120,
     },
+    membershipId: {
+      type: mongoose.Types.ObjectId,
+      ref: "Membership",
+      default: null,
+    },
     servicePrice: {
       type: Number,
       default: 0,

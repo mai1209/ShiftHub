@@ -11,6 +11,7 @@ import {
   publicGetShop,
   publicGetShopMedia,
   publicListServices,
+  publicGetMembership,
   publicValidateBookingCoupon,
 } from "../api/publicController.js";
 
@@ -26,6 +27,7 @@ router.get("/shops/:shopSlug/media", publicGetShopMedia);
 router.get("/shops/:shopSlug/barbers", publicListBarbers);
 router.get("/shops/:shopSlug/barbers/:barberId/appointments", publicBarberAppointments);
 router.get("/shops/:shopSlug/services", publicListServices);
+router.get("/shops/:shopSlug/membership", publicGetMembership);
 router.post("/shops/:shopSlug/coupons/validate", publicValidateBookingCoupon);
 router.post("/shops/:shopSlug/appointments", publicCreateAppointment);
 
