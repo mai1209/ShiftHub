@@ -98,11 +98,14 @@ const normalizeOverrideValidFrom = (value?: string | null) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '1970-01-01';
 };
 
-type BookingSlotIntervalMinutes = 15 | 30;
+type BookingSlotIntervalMinutes = 15 | 30 | 60;
 
 const normalizeBookingSlotInterval = (
   value?: number | null,
-): BookingSlotIntervalMinutes => (Number(value) === 30 ? 30 : 15);
+): BookingSlotIntervalMinutes => {
+  const n = Number(value);
+  return n === 30 || n === 60 ? (n as BookingSlotIntervalMinutes) : 15;
+};
 
 type DayScheduleOverride = {
   day: number;
@@ -1906,7 +1909,7 @@ function RegisterEmployed({ navigation, route }: Props) {
                     {`Define cada cuánto se muestran horarios disponibles para este ${businessCopy.staffSingular}.`}
                   </Text>
                   <View style={styles.slotIntervalRow}>
-                    {([15, 30] as const).map(interval => {
+                    {([15, 30, 60] as const).map(interval => {
                       const active = bookingSlotIntervalMinutes === interval;
                       return (
                         <Pressable
@@ -1924,7 +1927,7 @@ function RegisterEmployed({ navigation, route }: Props) {
                               active && styles.slotIntervalButtonTextActive,
                             ]}
                           >
-                            {`Cada ${interval} min`}
+                            {interval === 60 ? 'Cada 1 h' : `Cada ${interval} min`}
                           </Text>
                         </Pressable>
                       );

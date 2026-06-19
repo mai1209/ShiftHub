@@ -70,7 +70,7 @@ const paymentSettingsSchema = new mongoose.Schema(
     advanceValue: { type: Number, default: 30, min: 0 },
     bookingSlotIntervalMinutes: {
       type: Number,
-      enum: [15, 30],
+      enum: [15, 30, 60],
       default: 15,
     },
     mercadoPagoConnectionStatus: {

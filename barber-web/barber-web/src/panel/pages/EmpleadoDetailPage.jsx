@@ -89,7 +89,11 @@ function EmpleadoDetailPage() {
       setCommission(b.commissionPercent != null ? String(b.commissionPercent) : '');
       setPhotoUrl(b.photoUrl || '');
       setWorkDays(Array.isArray(b.workDays) ? b.workDays : []);
-      setSlotInterval(b.bookingSlotIntervalMinutes === 15 ? 15 : 30);
+      setSlotInterval(
+        [15, 30, 60].includes(b.bookingSlotIntervalMinutes)
+          ? b.bookingSlotIntervalMinutes
+          : 15,
+      );
       const ranges = Array.isArray(b.scheduleRanges) ? b.scheduleRanges : [];
       if (ranges.length) {
         setM1({ start: ranges[0]?.start || '', end: ranges[0]?.end || '' });
@@ -289,7 +293,9 @@ function EmpleadoDetailPage() {
           <span className={styles.fieldLabel}>
             Intervalo entre turnos (informativo)
           </span>
-          <p className={styles.infoValue}>Cada {slotInterval} min</p>
+          <p className={styles.infoValue}>
+            {slotInterval === 60 ? 'Cada 1 h' : `Cada ${slotInterval} min`}
+          </p>
 
           {/* Bloqueos (informativo) */}
           <span className={styles.fieldLabel}>

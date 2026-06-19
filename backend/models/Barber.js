@@ -90,7 +90,7 @@ const barberSchema = new mongoose.Schema(
     },
     bookingSlotIntervalMinutes: {
       type: Number,
-      enum: [15, 30],
+      enum: [15, 30, 60],
       default: 15,
     },
     // Comisión del profesional (% del cobro que se lleva; el resto es del local).

@@ -627,8 +627,8 @@ function sanitizePaymentSettingsInput(input) {
   if (Object.prototype.hasOwnProperty.call(input, "bookingSlotIntervalMinutes")) {
     hasAnyField = true;
     const parsed = Number(input.bookingSlotIntervalMinutes);
-    if (![15, 30].includes(parsed)) {
-      throw new Error("El intervalo de horarios debe ser de 15 o 30 minutos.");
+    if (![15, 30, 60].includes(parsed)) {
+      throw new Error("El intervalo de horarios debe ser de 15, 30 o 60 minutos.");
     }
     updates.bookingSlotIntervalMinutes = parsed;
   }

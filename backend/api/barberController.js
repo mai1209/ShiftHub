@@ -78,7 +78,7 @@ async function normalizeAssignedServiceIds(rawValue, ownerId) {
 
 function normalizeBookingSlotInterval(value) {
   const parsed = Number(value);
-  return parsed === 30 ? 30 : 15;
+  return [30, 60].includes(parsed) ? parsed : 15;
 }
 
 // Comisión del profesional (% del cobro que se lleva; 0–100).
@@ -488,7 +488,7 @@ export async function listBarberAppointments(req, res, next) {
       barberTimeBlocks: serializeBarberTimeBlocks(barberTimeBlocks),
       shopSettings: {
         paymentSettings: {
-          bookingSlotIntervalMinutes: [15, 30].includes(
+          bookingSlotIntervalMinutes: [15, 30, 60].includes(
             Number(ownerDoc?.paymentSettings?.bookingSlotIntervalMinutes),
           )
             ? Number(ownerDoc.paymentSettings.bookingSlotIntervalMinutes)

@@ -289,7 +289,7 @@ function sanitizeShop(shop) {
       advanceMode: paymentSettings.advanceMode || "deposit",
       advanceType: paymentSettings.advanceType || "percent",
       advanceValue: Number(paymentSettings.advanceValue || 0),
-      bookingSlotIntervalMinutes: [15, 30].includes(
+      bookingSlotIntervalMinutes: [15, 30, 60].includes(
         Number(paymentSettings.bookingSlotIntervalMinutes),
       )
         ? Number(paymentSettings.bookingSlotIntervalMinutes)

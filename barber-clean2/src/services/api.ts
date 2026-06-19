@@ -15,7 +15,7 @@ type ApiError = Error & {
   isNetworkError?: boolean;
 };
 
-const LAN_IP = '192.168.100.57';
+const LAN_IP = '192.168.100.58';
 const ANDROID_EMULATOR_HOST = '10.0.2.2';
 const REQUEST_TIMEOUT_MS = 15000;
 const FORCE_PROD_IN_DEBUG = false; // En desarrollo usamos el backend local para no mezclar datos con producción FALSO LOCAL / TRUE PRODUCCION.
@@ -247,7 +247,7 @@ export type PaymentSettings = {
   advanceMode?: 'deposit' | 'full';
   advanceType?: 'percent' | 'fixed';
   advanceValue?: number;
-  bookingSlotIntervalMinutes?: 15 | 30;
+  bookingSlotIntervalMinutes?: 15 | 30 | 60;
   mercadoPagoConnectionStatus?: 'disconnected' | 'pending' | 'connected';
   mercadoPagoSellerId?: string | null;
   mercadoPagoPublicKey?: string | null;
@@ -581,7 +581,7 @@ export type Barber = {
   scheduleRange?: string;
   scheduleRanges?: { label: string; start: string; end: string }[];
   bookingBufferMinutes?: number;
-  bookingSlotIntervalMinutes?: 15 | 30;
+  bookingSlotIntervalMinutes?: 15 | 30 | 60;
   commissionPercent?: number;
   barberTimeBlocks?: {
     date: string;
@@ -810,7 +810,7 @@ export function createBarber(payload: {
   scheduleRange?: string;
   scheduleRanges?: { label: string; start: string; end: string }[];
   bookingBufferMinutes?: number;
-  bookingSlotIntervalMinutes?: 15 | 30;
+  bookingSlotIntervalMinutes?: 15 | 30 | 60;
   commissionPercent?: number;
   barberTimeBlocks?: {
     date: string;
@@ -846,7 +846,7 @@ export function updateBarber(
     scheduleRange?: string;
     scheduleRanges?: { label: string; start: string; end: string }[];
     bookingBufferMinutes?: number;
-    bookingSlotIntervalMinutes?: 15 | 30;
+    bookingSlotIntervalMinutes?: 15 | 30 | 60;
     commissionPercent?: number;
     barberTimeBlocks?: {
       date: string;
@@ -994,16 +994,12 @@ export function deleteAppointment(appointmentId: string) {
 
 export function fetchAppointmentMetrics(params?: {
   barberId?: string;
-  range?: MetricsRangeMode;
-  date?: string;
   year?: number;
   month?: number;
   annual?: boolean;
 }) {
   const searchParams = new URLSearchParams();
   if (params?.barberId) searchParams.set('barberId', params.barberId);
-  if (params?.range) searchParams.set('range', params.range);
-  if (params?.date) searchParams.set('date', params.date);
   if (params?.year) searchParams.set('year', String(params.year));
   if (params?.month) searchParams.set('month', String(params.month));
   if (params?.annual) searchParams.set('annual', 'true');

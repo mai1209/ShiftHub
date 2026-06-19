@@ -492,13 +492,10 @@ function ReservasForm({ navigation, route }: any) {
   );
 
   // El intervalo de turnos es por empleado/recurso (Barber.bookingSlotIntervalMinutes).
-  const bookingSlotIntervalMinutes = useMemo<15 | 30>(
-    () =>
-      Number(selectedBarberData?.bookingSlotIntervalMinutes) === 30
-        ? 30
-        : DEFAULT_SLOT_INTERVAL_MINUTES,
-    [selectedBarberData],
-  );
+  const bookingSlotIntervalMinutes = useMemo<15 | 30 | 60>(() => {
+    const n = Number(selectedBarberData?.bookingSlotIntervalMinutes);
+    return n === 30 || n === 60 ? n : DEFAULT_SLOT_INTERVAL_MINUTES;
+  }, [selectedBarberData]);
 
   // Genera grupos de slots — soporta horario corrido y turno cortado
   const horarioGroups = useMemo((): SlotGroup[] => {
