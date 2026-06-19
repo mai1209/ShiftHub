@@ -266,7 +266,7 @@ export default function CouponSettingsScreen() {
             const previewServices = appliesToAll ? services : selectedServices;
 
             return (
-              <View key={`${coupon.code || 'nuevo'}-${index}`} style={styles.couponCard}>
+              <View key={`coupon-${index}`} style={styles.couponCard}>
                 <Pressable
                   style={styles.couponSummary}
                   onPress={() => setExpandedIndex(isExpanded ? null : index)}
