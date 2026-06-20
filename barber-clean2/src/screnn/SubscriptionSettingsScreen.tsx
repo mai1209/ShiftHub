@@ -739,7 +739,7 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
 
         {loading ? (
           <View style={styles.loadingCard}>
-            <ActivityIndicator size="small" color={theme.primary} />
+            <ActivityIndicator size="small" color={theme.textSecondary} />
             <Text style={styles.loadingText}>Cargando estado de la cuenta...</Text>
           </View>
         ) : (
@@ -948,7 +948,7 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
 
       {loading ? (
         <View style={styles.loadingCard}>
-          <ActivityIndicator size="small" color={theme.primary} />
+          <ActivityIndicator size="small" color={theme.textSecondary} />
           <Text style={styles.loadingText}>Cargando estado del plan...</Text>
         </View>
       ) : (

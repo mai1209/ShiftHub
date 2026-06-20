@@ -98,7 +98,7 @@ function MetricCard({
     <View style={[styles.metricCard, isFullWidth && styles.fullWidthCard]}>
       <View style={styles.cardHeader}>
         <View style={styles.iconContainer}>
-          <Icon size={18} color={theme.primary} strokeWidth={2.5} />
+          <Icon size={18} color={theme.textSecondary} strokeWidth={2.5} />
         </View>
         <Text style={styles.metricLabel}>{label}</Text>
       </View>
@@ -109,7 +109,7 @@ function MetricCard({
         <View style={styles.helperContainer}>
           <TrendingUp
             size={12}
-            color={theme.primary}
+            color={theme.textSecondary}
             style={{ marginRight: 4 }}
           />
           <Text style={styles.metricHelper}>{helper}</Text>
@@ -228,7 +228,7 @@ function MetricsScreen({ navigation, route }: Props) {
         <View style={styles.filterSection}>
           <View style={styles.filterHeader}>
             <View style={styles.filterTitleGroup}>
-              <Calendar size={16} color={theme.primary} />
+              <Calendar size={16} color={theme.textSecondary} />
               <Text style={styles.filterTitle}>Seleccionar Periodo</Text>
             </View>
           </View>
@@ -271,7 +271,7 @@ function MetricsScreen({ navigation, route }: Props) {
 
         {loading ? (
           <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
+            <ActivityIndicator size="large" color={theme.textSecondary} />
             <Text style={styles.loaderText}>Calculando tus ingresos...</Text>
           </View>
         ) : error ? (

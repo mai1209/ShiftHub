@@ -607,7 +607,7 @@ function BarberDashboard({ route, navigation }: Props) {
       >
         <View style={[styles.cardHeader, isCompleted && styles.dimContent]}>
           <View style={styles.timeTag}>
-            <Clock size={14} color={theme.primary} style={{ marginRight: 6 }} />
+            <Clock size={14} color={theme.textSecondary} style={{ marginRight: 6 }} />
             <Text style={styles.timeText}>
               {formatTimeOnly(appointment.startTime)}
             </Text>
@@ -634,7 +634,7 @@ function BarberDashboard({ route, navigation }: Props) {
             {appointment.customerName}
           </Text>
           <View style={styles.serviceRow}>
-            <Scissors size={14} color={hexToRgba(theme.primary, 0.62)} style={{ marginRight: 6 }} />
+            <Scissors size={14} color={theme.textSecondary} style={{ marginRight: 6 }} />
             <Text style={styles.serviceNameText}>{appointment.service}</Text>
             <Text style={styles.dotSeparator}>•</Text>
             <Text style={styles.durationText}>
@@ -649,7 +649,7 @@ function BarberDashboard({ route, navigation }: Props) {
                 marginTop: 4,
               }}
             >
-              <User size={12} color={hexToRgba(theme.primary, 0.48)} style={{ marginRight: 4 }} />
+              <User size={12} color={theme.textMuted} style={{ marginRight: 4 }} />
               <Text style={styles.phoneSubText}>{appointment.notes}</Text>
             </View>
           ) : null}
@@ -793,7 +793,7 @@ function BarberDashboard({ route, navigation }: Props) {
                     pressed && { backgroundColor: hexToRgba(theme.primary, 0.2) },
                   ]}
                 >
-                  <Pencil size={14} color={theme.primary} />
+                  <Pencil size={14} color={theme.textSecondary} />
                   <Text style={styles.secondaryActionText}>Editar Perfil</Text>
                 </Pressable>
               ) : null}
@@ -815,7 +815,7 @@ function BarberDashboard({ route, navigation }: Props) {
                     pressed && { backgroundColor: hexToRgba(theme.primary, 0.2) },
                   ]}
                 >
-                  <BarChart2 size={14} color={theme.primary} />
+                  <BarChart2 size={14} color={theme.textSecondary} />
                   <Text style={styles.secondaryActionText}>Métricas</Text>
                 </Pressable>
               ) : null}
@@ -830,7 +830,7 @@ function BarberDashboard({ route, navigation }: Props) {
                     pressed && { backgroundColor: hexToRgba(theme.primary, 0.2) },
                   ]}
                 >
-                  <Timer size={15} color={theme.primary} />
+                  <Timer size={15} color={theme.textSecondary} />
                   <Text style={styles.profileQuickButtonText}>Buffer</Text>
                 </Pressable>
                 <Pressable
@@ -840,7 +840,7 @@ function BarberDashboard({ route, navigation }: Props) {
                     pressed && { backgroundColor: hexToRgba(theme.primary, 0.2) },
                   ]}
                 >
-                  <CalendarOff size={15} color={theme.primary} />
+                  <CalendarOff size={15} color={theme.textSecondary} />
                   <Text style={styles.profileQuickButtonText}>Días</Text>
                 </Pressable>
                 <Pressable
@@ -850,7 +850,7 @@ function BarberDashboard({ route, navigation }: Props) {
                     pressed && { backgroundColor: hexToRgba(theme.primary, 0.2) },
                   ]}
                 >
-                  <Clock size={15} color={theme.primary} />
+                  <Clock size={15} color={theme.textSecondary} />
                   <Text style={styles.profileQuickButtonText}>Bloqueos</Text>
                 </Pressable>
               </View>
@@ -958,7 +958,7 @@ function BarberDashboard({ route, navigation }: Props) {
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             {loading && !appointments.length ? (
               <ActivityIndicator
-                color={theme.primary}
+                color={theme.textSecondary}
                 style={{ marginTop: 40 }}
               />
             ) : agendaView === 'calendar' ? (
@@ -1213,16 +1213,16 @@ const makeStyles = (theme: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: hexToRgba(theme.primary, 0.08),
+      backgroundColor: 'transparent',
       borderWidth: 1,
-      borderColor: hexToRgba(theme.primary, 0.2),
+      borderColor: theme.border,
       paddingVertical: 10,
       paddingHorizontal: 8,
       borderRadius: 14,
       gap: 6,
     },
     profileQuickButtonText: {
-      color: theme.primary,
+      color: theme.textSecondary,
       fontWeight: '800',
       fontSize: 12,
     },
@@ -1231,19 +1231,19 @@ const makeStyles = (theme: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: hexToRgba(theme.primary, 0.08),
+      backgroundColor: 'transparent',
       borderWidth: 1,
-      borderColor: hexToRgba(theme.primary, 0.2),
+      borderColor: theme.border,
       paddingVertical: 12,
       borderRadius: 16,
       gap: 8,
     },
     secondaryActionBtnLocked: {
-      borderColor: hexToRgba(theme.primary, 0.28),
+      borderColor: theme.border,
       opacity: 0.82,
     },
     secondaryActionText: {
-      color: theme.primary,
+      color: theme.textSecondary,
       fontWeight: '700',
       fontSize: 13,
     },
@@ -1366,9 +1366,9 @@ const makeStyles = (theme: Theme) =>
     },
     serviceRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
     serviceNameText: { color: theme.textSecondary, fontSize: 14, fontWeight: '600' },
-    dotSeparator: { color: hexToRgba(theme.primary, 0.38), marginHorizontal: 8 },
-    durationText: { color: hexToRgba(theme.primary, 0.58), fontSize: 13 },
-    phoneSubText: { color: hexToRgba(theme.primary, 0.5), fontSize: 12, fontWeight: '500' },
+    dotSeparator: { color: theme.textMuted, marginHorizontal: 8 },
+    durationText: { color: theme.textMuted, fontSize: 13 },
+    phoneSubText: { color: theme.textMuted, fontSize: 12, fontWeight: '500' },
     paymentInfoBadge: {
       marginTop: 10,
       alignSelf: 'flex-start',

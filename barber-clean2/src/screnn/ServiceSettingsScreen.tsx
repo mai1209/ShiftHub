@@ -428,7 +428,7 @@ function ServiceSettingsScreen({ navigation }: Props) {
 
         {loading ? (
           <View style={styles.loaderWrap}>
-            <ActivityIndicator size="large" color={theme.primary} />
+            <ActivityIndicator size="large" color={theme.textSecondary} />
           </View>
         ) : error ? (
           <View style={styles.errorCard}>
@@ -474,7 +474,7 @@ function ServiceSettingsScreen({ navigation }: Props) {
                       </Text>
                     </View>
                     <View style={styles.metaChip}>
-                      <Banknote size={12} color={theme.primary} />
+                      <Banknote size={12} color={theme.textSecondary} />
                       <Text style={[styles.metaText, { color: theme.primary }]}>
                         {formatCurrency(Number(service.price || 0))}
                       </Text>

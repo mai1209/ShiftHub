@@ -181,7 +181,7 @@ export default function ShopClosureSettingsScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerIcon}>
-            <LockKeyhole size={18} color={theme.primary} />
+            <LockKeyhole size={18} color={theme.textSecondary} />
           </View>
           <Text style={styles.title}>Cerrar barbería por día</Text>
           <Text style={styles.subtitle}>
@@ -205,7 +205,7 @@ export default function ShopClosureSettingsScreen() {
             onPress={() => setIsDateModalVisible(true)}
           >
             <View style={styles.dateInputIcon}>
-              <CalendarDays size={16} color={theme.primary} />
+              <CalendarDays size={16} color={theme.textSecondary} />
             </View>
             <View style={styles.dateInputBody}>
               <Text style={styles.dateInputValue}>{formatDateLabel(selectedDate)}</Text>
@@ -271,12 +271,12 @@ export default function ShopClosureSettingsScreen() {
           </Text>
 
           {loading ? (
-            <ActivityIndicator color={theme.primary} style={{ marginVertical: 24 }} />
+            <ActivityIndicator color={theme.textSecondary} style={{ marginVertical: 24 }} />
           ) : closedDays.length ? (
             closedDays.map(item => (
               <View key={item.date} style={styles.closedDayRow}>
                 <View style={styles.closedDayIcon}>
-                  <CalendarDays size={16} color={theme.primary} />
+                  <CalendarDays size={16} color={theme.textSecondary} />
                 </View>
                 <View style={styles.closedDayBody}>
                   <Text style={styles.closedDayTitle}>{formatDateLabel(item.date)}</Text>

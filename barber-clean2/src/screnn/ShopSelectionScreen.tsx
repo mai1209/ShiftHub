@@ -135,7 +135,7 @@ export default function ShopSelectionScreen({ navigation }: Props) {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.headerIcon}>
-        <Building2 size={26} color={theme.primary} />
+        <Building2 size={26} color={theme.textSecondary} />
       </View>
       <Text style={styles.title}>Elegí un local</Text>
       <Text style={styles.subtitle}>
@@ -149,7 +149,7 @@ export default function ShopSelectionScreen({ navigation }: Props) {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={theme.primary} style={styles.loader} />
+        <ActivityIndicator color={theme.textSecondary} style={styles.loader} />
       ) : (
         <View style={styles.list}>
           {shops.map(shop => (
@@ -162,7 +162,7 @@ export default function ShopSelectionScreen({ navigation }: Props) {
               onPress={() => openShop(shop)}
             >
               <View style={styles.shopIcon}>
-                <Store size={20} color={theme.primary} />
+                <Store size={20} color={theme.textSecondary} />
               </View>
               <View style={styles.shopBody}>
                 <Text style={styles.shopName}>{shop.name}</Text>

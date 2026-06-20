@@ -178,7 +178,7 @@ export default function PublicProfileSettingsScreen({ navigation }: { navigation
   if (loading) {
     return (
       <View style={[styles.screen, styles.centered]}>
-        <ActivityIndicator color={theme.primary} size="large" />
+        <ActivityIndicator color={theme.textSecondary} size="large" />
       </View>
     );
   }

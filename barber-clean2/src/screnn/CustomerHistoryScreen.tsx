@@ -1020,19 +1020,19 @@ function CustomerHistoryScreen({ navigation }: Props) {
         <View style={styles.summaryRow}>
           <SummaryCard
             styles={styles}
-            icon={<Scissors size={15} color={theme.primary} />}
+            icon={<Scissors size={15} color={theme.textSecondary} />}
             value={String(summary.servicesCount)}
             label="Servicios"
           />
           <SummaryCard
             styles={styles}
-            icon={<Users size={15} color={theme.primary} />}
+            icon={<Users size={15} color={theme.textSecondary} />}
             value={String(summary.uniqueClients)}
             label="Clientes"
           />
           <SummaryCard
             styles={styles}
-            icon={<Banknote size={15} color={theme.primary} />}
+            icon={<Banknote size={15} color={theme.textSecondary} />}
             value={formatCurrency(summary.totalRevenue)}
             label="Ingresos"
             compact
@@ -1042,7 +1042,7 @@ function CustomerHistoryScreen({ navigation }: Props) {
         <View style={styles.paymentBreakdownRow}>
           <View style={styles.paymentBreakdownCard}>
             <View style={styles.paymentBreakdownTop}>
-              <Banknote size={14} color={theme.primary} />
+              <Banknote size={14} color={theme.textSecondary} />
               <Text style={styles.paymentBreakdownLabel}>Efectivo</Text>
             </View>
             <Text style={styles.paymentBreakdownValue}>
@@ -1055,7 +1055,7 @@ function CustomerHistoryScreen({ navigation }: Props) {
 
           <View style={styles.paymentBreakdownCard}>
             <View style={styles.paymentBreakdownTop}>
-              <CreditCard size={14} color={theme.primary} />
+              <CreditCard size={14} color={theme.textSecondary} />
               <Text style={styles.paymentBreakdownLabel}>Transferencia</Text>
             </View>
             <Text style={styles.paymentBreakdownValue}>
@@ -1314,14 +1314,14 @@ function CustomerHistoryScreen({ navigation }: Props) {
             </View>
           <View style={styles.resultsHeaderActions}>
             <View style={styles.resultsBadge}>
-              <Filter size={12} color={theme.primary} />
+              <Filter size={12} color={theme.textSecondary} />
               <Text style={styles.resultsBadgeText}>{activeContextLabel}</Text>
             </View>
           </View>
         </View>
 
         {loading ? (
-          <ActivityIndicator color={theme.primary} style={{ marginTop: 42 }} />
+          <ActivityIndicator color={theme.textSecondary} style={{ marginTop: 42 }} />
         ) : customerRows.length ? (
           <View style={styles.tableCard}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>

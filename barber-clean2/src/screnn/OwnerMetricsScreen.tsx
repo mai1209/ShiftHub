@@ -178,7 +178,7 @@ function OwnerMetricsScreen({ navigation }: Props) {
         <View style={styles.filterContainer}>
           <View style={styles.filterHeader}>
             <View style={styles.filterLabelGroup}>
-              <Calendar size={14} color={theme.primary} />
+              <Calendar size={14} color={theme.textSecondary} />
               <Text style={styles.filterHeaderText}>Periodo de análisis</Text>
             </View>
           </View>
@@ -218,7 +218,7 @@ function OwnerMetricsScreen({ navigation }: Props) {
 
         {loading ? (
           <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
+            <ActivityIndicator size="large" color={theme.textSecondary} />
             <Text style={styles.loaderText}>
               Consolidando datos del local...
             </Text>
@@ -250,7 +250,7 @@ function OwnerMetricsScreen({ navigation }: Props) {
                 </View>
                 <View style={styles.heroDivider} />
                 <View style={styles.heroMetric}>
-                  <TrendingUp size={14} color={theme.primary} />
+                  <TrendingUp size={14} color={theme.textSecondary} />
                   <Text style={styles.heroMetricText}>Rendimiento Óptimo</Text>
                 </View>
               </View>
@@ -265,7 +265,7 @@ function OwnerMetricsScreen({ navigation }: Props) {
                     { backgroundColor: hexToRgba(theme.primary, 0.12) },
                   ]}
                 >
-                  <Banknote size={16} color={theme.primary} />
+                  <Banknote size={16} color={theme.textSecondary} />
                 </View>
                 <View>
                   <Text style={styles.paymentLabel}>Efectivo</Text>
@@ -285,7 +285,7 @@ function OwnerMetricsScreen({ navigation }: Props) {
                     { backgroundColor: hexToRgba(theme.primary, 0.12) },
                   ]}
                 >
-                  <CreditCard size={16} color={theme.primary} />
+                  <CreditCard size={16} color={theme.textSecondary} />
                 </View>
                 <View>
                   <Text style={styles.paymentLabel}>Transferencia</Text>
@@ -308,7 +308,7 @@ function OwnerMetricsScreen({ navigation }: Props) {
                     { backgroundColor: hexToRgba(theme.primary, 0.12) },
                   ]}
                 >
-                  <Users size={16} color={theme.primary} />
+                  <Users size={16} color={theme.textSecondary} />
                 </View>
                 <View>
                   <Text style={styles.paymentLabel}>Comisiones</Text>
@@ -326,7 +326,7 @@ function OwnerMetricsScreen({ navigation }: Props) {
                     { backgroundColor: hexToRgba(theme.primary, 0.12) },
                   ]}
                 >
-                  <TrendingUp size={16} color={theme.primary} />
+                  <TrendingUp size={16} color={theme.textSecondary} />
                 </View>
                 <View>
                   <Text style={styles.paymentLabel}>Ganancia del local</Text>
@@ -341,7 +341,7 @@ function OwnerMetricsScreen({ navigation }: Props) {
             {/* 3. RANKING DE BARBEROS */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Rendimiento por Barbero</Text>
-              <LayoutDashboard size={16} color={theme.primary} />
+              <LayoutDashboard size={16} color={theme.textSecondary} />
             </View>
 
             <View style={styles.barberList}>

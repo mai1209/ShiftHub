@@ -354,7 +354,7 @@ function CajaScreen({ navigation }: Props) {
           {isIncome ? '+' : '−'} {formatCurrency(entry.amount)}
         </Text>
         <Pressable style={styles.entryEdit} onPress={() => handleEdit(entry)}>
-          <Pencil size={15} color={theme.primary} />
+          <Pencil size={15} color={theme.textSecondary} />
         </Pressable>
         <Pressable
           style={styles.entryDelete}
@@ -395,7 +395,7 @@ function CajaScreen({ navigation }: Props) {
         {/* Selector de periodo */}
         <View style={styles.filterSection}>
           <View style={styles.filterHeader}>
-            <Calendar size={14} color={theme.primary} />
+            <Calendar size={14} color={theme.textSecondary} />
             <Text style={styles.filterTitle}>Periodo</Text>
           </View>
           <View style={styles.rangeTabs}>
@@ -438,7 +438,7 @@ function CajaScreen({ navigation }: Props) {
               onPress={() => doExport('excel')}
               disabled={!summary || exporting}
             >
-              <Download size={15} color={theme.primary} />
+              <Download size={15} color={theme.textSecondary} />
               <Text style={styles.exportBtnText}>Excel</Text>
             </Pressable>
             <Pressable
@@ -449,7 +449,7 @@ function CajaScreen({ navigation }: Props) {
               onPress={() => doExport('pdf')}
               disabled={!summary || exporting}
             >
-              <Download size={15} color={theme.primary} />
+              <Download size={15} color={theme.textSecondary} />
               <Text style={styles.exportBtnText}>PDF</Text>
             </Pressable>
           </View>
@@ -457,7 +457,7 @@ function CajaScreen({ navigation }: Props) {
 
         {loading ? (
           <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color={theme.primary} />
+            <ActivityIndicator size="large" color={theme.textSecondary} />
             <Text style={styles.loaderText}>Calculando la caja...</Text>
           </View>
         ) : error ? (
@@ -650,7 +650,7 @@ function CajaScreen({ navigation }: Props) {
               <>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>Servicios cobrados</Text>
-                  <Banknote size={16} color={theme.primary} />
+                  <Banknote size={16} color={theme.textSecondary} />
                 </View>
                 <View style={styles.entriesList}>
                   {summary.services.map(svc => (
@@ -695,7 +695,7 @@ function CajaScreen({ navigation }: Props) {
             {/* Ventas (ingresos cargados a mano: productos, propinas, etc.) */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Ventas</Text>
-              <TrendingUp size={16} color={theme.primary} />
+              <TrendingUp size={16} color={theme.textSecondary} />
             </View>
             {incomeEntries.length === 0 ? (
               <Text style={styles.emptyText}>
@@ -710,7 +710,7 @@ function CajaScreen({ navigation }: Props) {
             {/* Egresos (gastos del período) */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Egresos</Text>
-              <Store size={16} color={theme.primary} />
+              <Store size={16} color={theme.textSecondary} />
             </View>
             {expenseEntries.length === 0 ? (
               <Text style={styles.emptyText}>

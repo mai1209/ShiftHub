@@ -256,7 +256,7 @@ function ListBarber({ navigation }: Props) {
         >
           <View style={styles.header}>
             <View style={styles.headerText}>
-              <Text style={[styles.headerSubtitle, { color: theme.primary }]}>
+              <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
                 EQUIPO PROFESIONAL
               </Text>
               <Text style={styles.headerTitle}>
@@ -343,7 +343,7 @@ function ListBarber({ navigation }: Props) {
 
             {loading && !barbers.length ? (
               <ActivityIndicator
-                color={theme.primary}
+                color={theme.textSecondary}
                 style={{ marginVertical: 40 }}
               />
             ) : (
@@ -587,7 +587,7 @@ const createStyles = (theme: Theme) =>
     },
     logo: { width: 46, height: 46, resizeMode: 'contain' },
     headerSubtitle: {
-      color: theme.primary,
+      color: theme.textSecondary,
       fontSize: 12,
       fontWeight: '700',
       letterSpacing: 2,
@@ -898,11 +898,11 @@ const createStyles = (theme: Theme) =>
       borderRadius: 20,
       marginTop: 25,
       borderWidth: 1.5,
-      borderColor: hexToRgba(theme.primary, 0.5),
+      borderColor: theme.border,
       width: '100%',
     },
     addBtnText: {
-      color: theme.primary,
+      color: theme.textSecondary,
       fontSize: 14,
       fontWeight: '700',
       textAlign: 'center',

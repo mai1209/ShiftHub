@@ -28,7 +28,7 @@ export default function LockedFeatureScreen({ theme, title, body, navigation }: 
     >
       <View style={styles.card}>
         <View style={styles.iconWrap}>
-          <Lock size={26} color={theme.primary} />
+          <Lock size={26} color={theme.textSecondary} />
         </View>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.body}>{body}</Text>

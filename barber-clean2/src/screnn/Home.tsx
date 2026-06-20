@@ -869,7 +869,7 @@ function Home({ navigation }: Props) {
         {/* Header: Hora y Estado */}
         <View style={styles.cardHeader}>
           <View style={styles.timeTag}>
-            <Clock size={14} color={theme.primary} style={{ marginRight: 6 }} />
+            <Clock size={14} color={theme.textSecondary} style={{ marginRight: 6 }} />
             <Text style={styles.timeText}>
               {formatTimeOnly(appointment.startTime)}
             </Text>
@@ -1495,7 +1495,7 @@ function Home({ navigation }: Props) {
                   <View key={item.key} style={styles.setupItem}>
                     <View style={styles.setupStatusWrap}>
                       {item.complete ? (
-                        <CheckCircle2 size={18} color={theme.primary} />
+                        <CheckCircle2 size={18} color={theme.textSecondary} />
                       ) : (
                         <CircleDashed size={18} color={theme.textMuted} />
                       )}
@@ -1510,7 +1510,7 @@ function Home({ navigation }: Props) {
                       style={styles.setupActionBtn}
                       onPress={item.onPress}
                     >
-                      <Icon size={14} color={theme.primary} />
+                      <Icon size={14} color={theme.textSecondary} />
                       <Text style={styles.setupActionText}>
                         {item.actionLabel}
                       </Text>
@@ -1615,7 +1615,7 @@ function Home({ navigation }: Props) {
           <View style={{ marginTop: agendaView === 'calendar' ? 8 : 20 }}>
             {loading && !appointments.length ? (
               <ActivityIndicator
-                color={theme.primary}
+                color={theme.textSecondary}
                 style={{ marginTop: 40 }}
               />
             ) : agendaView === 'calendar' ? (
@@ -1930,7 +1930,7 @@ function Home({ navigation }: Props) {
                 navigation.navigate('Owner-Metrics');
               }}
             >
-              <TrendingUp size={22} color={theme.primary} />
+              <TrendingUp size={22} color={theme.textSecondary} />
               <View style={styles.dataModalOptionTextWrap}>
                 <Text
                   style={[styles.dataModalOptionTitle, { color: theme.textPrimary }]}
@@ -1950,7 +1950,7 @@ function Home({ navigation }: Props) {
                 navigation.navigate('Customer-History');
               }}
             >
-              <UserRound size={22} color={theme.primary} />
+              <UserRound size={22} color={theme.textSecondary} />
               <View style={styles.dataModalOptionTextWrap}>
                 <Text
                   style={[styles.dataModalOptionTitle, { color: theme.textPrimary }]}
@@ -1970,7 +1970,7 @@ function Home({ navigation }: Props) {
                 navigation.navigate('Caja');
               }}
             >
-              <Wallet size={22} color={theme.primary} />
+              <Wallet size={22} color={theme.textSecondary} />
               <View style={styles.dataModalOptionTextWrap}>
                 <Text
                   style={[styles.dataModalOptionTitle, { color: theme.textPrimary }]}

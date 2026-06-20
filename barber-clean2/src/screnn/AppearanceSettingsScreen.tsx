@@ -800,7 +800,7 @@ function SectionCard({
     <View style={styles.sectionCard}>
       <View style={styles.sectionHeader}>
         <View style={styles.sectionIconWrap}>
-          <Icon size={18} color={theme.primary} />
+          <Icon size={18} color={theme.textSecondary} />
         </View>
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>

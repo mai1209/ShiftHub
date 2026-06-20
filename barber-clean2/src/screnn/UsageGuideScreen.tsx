@@ -57,7 +57,7 @@ function StepCard({
           <Text style={styles.stepBadgeText}>{step}</Text>
         </View>
         <View style={styles.stepIcon}>
-          <Icon size={18} color={theme.primary} />
+          <Icon size={18} color={theme.textSecondary} />
         </View>
       </View>
       <Text style={styles.stepTitle}>{title}</Text>
@@ -86,7 +86,7 @@ function TipRow({
   return (
     <View style={styles.tipRow}>
       <View style={styles.tipIcon}>
-        <Icon size={16} color={theme.primary} />
+        <Icon size={16} color={theme.textSecondary} />
       </View>
       <View style={styles.tipBody}>
         <Text style={styles.tipTitle}>{title}</Text>
@@ -153,7 +153,7 @@ export default function UsageGuideScreen({ navigation }: Props) {
     >
       <View style={styles.heroCard}>
         <View style={styles.heroIcon}>
-          <BookOpen size={24} color={theme.primary} />
+          <BookOpen size={24} color={theme.textSecondary} />
         </View>
         <Text style={styles.heroEyebrow}>Centro de ayuda</Text>
         <Text style={styles.heroTitle}>

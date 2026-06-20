@@ -333,7 +333,7 @@ export default function BarberAccessScreen({ navigation, route }: Props) {
         hitSlop={10}
         accessibilityLabel="Cómo funciona la gestión de acceso"
       >
-        <Info size={18} color={theme.primary} />
+        <Info size={18} color={theme.textSecondary} />
       </Pressable>
 
       <Modal

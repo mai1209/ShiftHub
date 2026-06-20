@@ -128,7 +128,7 @@ export default function DateSelectModal({
                 )
               }
             >
-              <ChevronLeft size={18} color={theme.primary} />
+              <ChevronLeft size={18} color={theme.textSecondary} />
             </Pressable>
             <Text style={styles.monthLabel}>{getMonthLabel(displayedMonth)}</Text>
             <Pressable
@@ -139,7 +139,7 @@ export default function DateSelectModal({
                 )
               }
             >
-              <ChevronRight size={18} color={theme.primary} />
+              <ChevronRight size={18} color={theme.textSecondary} />
             </Pressable>
           </View>
 

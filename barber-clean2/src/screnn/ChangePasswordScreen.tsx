@@ -75,7 +75,7 @@ export default function ChangePasswordScreen({ navigation }: Props) {
       >
         <View style={styles.header}>
           <View style={styles.badge}>
-            <ShieldCheck size={12} color={theme.primary} strokeWidth={3} />
+            <ShieldCheck size={12} color={theme.textSecondary} strokeWidth={3} />
             <Text style={styles.headerSubtitle}>SEGURIDAD</Text>
           </View>
           <Text style={styles.headerTitle}>Actualizar Contraseña</Text>
@@ -171,7 +171,7 @@ function PasswordField({
           hitSlop={10}
         >
           {isPasswordVisible ? (
-            <EyeOff size={20} color={theme.primary} />
+            <EyeOff size={20} color={theme.textSecondary} />
           ) : (
             <Eye size={20} color={theme.textMuted} />
           )}

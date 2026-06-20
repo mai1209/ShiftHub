@@ -308,7 +308,7 @@ export default function WhatsAppCampaignScreen({ navigation }: { navigation: any
 
       {loading ? (
         <View style={styles.loadingBox}>
-          <ActivityIndicator color={theme.primary} />
+          <ActivityIndicator color={theme.textSecondary} />
         </View>
       ) : filteredContacts.length ? (
         <View style={styles.list}>

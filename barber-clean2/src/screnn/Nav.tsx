@@ -247,7 +247,7 @@ function Nav({ currentRouteName, role = 'admin', onNavigate }: Props) {
                 onNavigate('Reservas', { walkin: true });
               }}
             >
-              <Clock size={22} color={theme.primary} />
+              <Clock size={22} color={theme.textSecondary} />
               <View style={styles.modalOptionTextWrap}>
                 <Text
                   style={[styles.modalOptionTitle, { color: theme.textPrimary }]}
@@ -267,7 +267,7 @@ function Nav({ currentRouteName, role = 'admin', onNavigate }: Props) {
                 onNavigate('Reservas');
               }}
             >
-              <CalendarDays size={22} color={theme.primary} />
+              <CalendarDays size={22} color={theme.textSecondary} />
               <View style={styles.modalOptionTextWrap}>
                 <Text
                   style={[styles.modalOptionTitle, { color: theme.textPrimary }]}

@@ -224,7 +224,7 @@ export default function CouponSettingsScreen() {
   if (loading) {
     return (
       <View style={styles.loadingWrap}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <ActivityIndicator size="large" color={theme.textSecondary} />
       </View>
     );
   }

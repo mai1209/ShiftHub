@@ -736,7 +736,7 @@ function ReservasForm({ navigation, route }: any) {
   if (loading)
     return (
       <View style={[styles.screen, { justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
+        <ActivityIndicator size="large" color={theme.textSecondary} />
       </View>
     );
 

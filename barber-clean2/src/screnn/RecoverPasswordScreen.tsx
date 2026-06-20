@@ -127,7 +127,7 @@ export default function RecoverPasswordScreen({
       >
         <View style={styles.header}>
           <View style={styles.badge}>
-            <ShieldCheck size={12} color={theme.primary} strokeWidth={3} />
+            <ShieldCheck size={12} color={theme.textSecondary} strokeWidth={3} />
             <Text style={styles.headerSubtitle}>SEGURIDAD</Text>
           </View>
           <Text style={styles.headerTitle}>Recuperar Cuenta</Text>
@@ -267,7 +267,7 @@ function PasswordField({
         />
         <Pressable onPress={() => setVisible(!visible)} hitSlop={10}>
           {visible ? (
-            <EyeOff size={20} color={theme.primary} />
+            <EyeOff size={20} color={theme.textSecondary} />
           ) : (
             <Eye size={20} color={styles.iconColor} />
           )}

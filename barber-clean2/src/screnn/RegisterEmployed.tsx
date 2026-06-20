@@ -1370,7 +1370,7 @@ function RegisterEmployed({ navigation, route }: Props) {
 
                   {servicesLoading ? (
                     <ActivityIndicator
-                      color={theme.primary}
+                      color={theme.textSecondary}
                       style={styles.inlineLoader}
                     />
                   ) : services.length ? (
@@ -2042,7 +2042,7 @@ function RegisterEmployed({ navigation, route }: Props) {
                         onPress={() => setIsClosedDateModalVisible(true)}
                       >
                         <View style={styles.closedDateInputIcon}>
-                          <CalendarDays size={16} color={theme.primary} />
+                          <CalendarDays size={16} color={theme.textSecondary} />
                         </View>
                         <View style={styles.closedDateInputBody}>
                           <Text style={styles.closedDateInputValue}>
@@ -2164,7 +2164,7 @@ function RegisterEmployed({ navigation, route }: Props) {
                         onPress={() => setIsBlockDateModalVisible(true)}
                       >
                         <View style={styles.closedDateInputIcon}>
-                          <CalendarDays size={16} color={theme.primary} />
+                          <CalendarDays size={16} color={theme.textSecondary} />
                         </View>
                         <View style={styles.closedDateInputBody}>
                           <Text style={styles.closedDateInputValue}>
