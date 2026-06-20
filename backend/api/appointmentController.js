@@ -395,8 +395,12 @@ export async function createAppointment(req, res, next) {
       email,
       paymentMethod,
       servicePrice,
+      walkIn,
     } = req.body;
-    
+    // Servicio por "orden de llegada": ya ocurrió, se carga a posteriori.
+    // No debe ocupar un horario ni chocar con la agenda (ni con cierres/bloqueos).
+    const isWalkIn = walkIn === true || walkIn === "true";
+
     const customerName = String(req.body?.customerName ?? "").trim();
     const service = String(req.body?.service ?? "").trim();
     const notes = String(req.body?.notes ?? "").trim();
@@ -411,27 +415,29 @@ export async function createAppointment(req, res, next) {
     const ownerDoc = await UserModel.findById(ownerId)
       .select({ shopClosedDays: 1 })
       .lean();
-    const shopClosure = resolveShopClosureForDate(ownerDoc, startTime);
-    if (shopClosure) {
-      return res.status(400).json({
-        error: shopClosure.message,
-        closedDay: serializeShopClosure(shopClosure),
-      });
-    }
-    const barberClosure = resolveBarberClosureForDate(barber, startTime);
-    if (barberClosure) {
-      return res.status(400).json({
-        error: barberClosure.message,
-        closedDay: serializeBarberClosure(barberClosure),
-      });
-    }
+    if (!isWalkIn) {
+      const shopClosure = resolveShopClosureForDate(ownerDoc, startTime);
+      if (shopClosure) {
+        return res.status(400).json({
+          error: shopClosure.message,
+          closedDay: serializeShopClosure(shopClosure),
+        });
+      }
+      const barberClosure = resolveBarberClosureForDate(barber, startTime);
+      if (barberClosure) {
+        return res.status(400).json({
+          error: barberClosure.message,
+          closedDay: serializeBarberClosure(barberClosure),
+        });
+      }
 
-    // 1. VALIDACIÓN DÍA LABORAL (usar horario local de la barbería)
-    const dayOfWeek = getTimeZoneWeekday(startTime);
-    const barberWorkDays = (barber.workDays || []).map(Number);
-    
-    if (barberWorkDays.length > 0 && !barberWorkDays.includes(dayOfWeek)) {
-      return res.status(400).json({ error: "El barbero no trabaja este día." });
+      // 1. VALIDACIÓN DÍA LABORAL (usar horario local de la barbería)
+      const dayOfWeek = getTimeZoneWeekday(startTime);
+      const barberWorkDays = (barber.workDays || []).map(Number);
+
+      if (barberWorkDays.length > 0 && !barberWorkDays.includes(dayOfWeek)) {
+        return res.status(400).json({ error: "El barbero no trabaja este día." });
+      }
     }
 
     const finalOwnerId = ownerId || barber.owner;
@@ -451,44 +457,48 @@ export async function createAppointment(req, res, next) {
       durationMinutes,
       bufferAfterMinutes,
     );
-    const barberTimeBlocks = resolveBarberTimeBlocksForDate(barber, startTime);
-    const startTimeLabel = getTimeZoneLabel(startTime).time;
-    const [startHour, startMinute] = startTimeLabel.split(":").map(Number);
-    const startMinutes = startHour * 60 + startMinute;
-    const occupiedEndMinutes =
-      startMinutes + Number(durationMinutes || 0) + bufferAfterMinutes;
+    if (!isWalkIn) {
+      const barberTimeBlocks = resolveBarberTimeBlocksForDate(barber, startTime);
+      const startTimeLabel = getTimeZoneLabel(startTime).time;
+      const [startHour, startMinute] = startTimeLabel.split(":").map(Number);
+      const startMinutes = startHour * 60 + startMinute;
+      const occupiedEndMinutes =
+        startMinutes + Number(durationMinutes || 0) + bufferAfterMinutes;
 
-    const overlappingBlock = barberTimeBlocks.find((block) =>
-      doesTimeBlockOverlapRange(block, startMinutes, occupiedEndMinutes),
-    );
-    if (overlappingBlock) {
-      return res.status(400).json({
-        error: overlappingBlock.message,
-        blockedTime: overlappingBlock,
-      });
-    }
-
-    // 2. VALIDACIÓN SOLAPAMIENTO
-    const overlappingCandidates = await AppointmentModel.find({
-      barber: barberId,
-      status: { $ne: "cancelled" },
-      startTime: { $lt: occupiedEndTime },
-    })
-      .select({ startTime: 1, durationMinutes: 1, bufferAfterMinutesApplied: 1 })
-      .lean();
-
-    const isOverlapping = overlappingCandidates.some((existing) => {
-      const existingStart = new Date(existing.startTime);
-      const existingEnd = getAppointmentOccupiedEnd(
-        existingStart,
-        existing.durationMinutes || 30,
-        existing.bufferAfterMinutesApplied || 0,
+      const overlappingBlock = barberTimeBlocks.find((block) =>
+        doesTimeBlockOverlapRange(block, startMinutes, occupiedEndMinutes),
       );
-      return existingEnd > startTime;
-    });
+      if (overlappingBlock) {
+        return res.status(400).json({
+          error: overlappingBlock.message,
+          blockedTime: overlappingBlock,
+        });
+      }
 
-    if (isOverlapping) {
-      return res.status(409).json({ error: "El horario ya está ocupado" });
+      // 2. VALIDACIÓN SOLAPAMIENTO
+      const overlappingCandidates = await AppointmentModel.find({
+        barber: barberId,
+        status: { $ne: "cancelled" },
+        // Los servicios por orden de llegada (walkIn) no ocupan horario.
+        walkIn: { $ne: true },
+        startTime: { $lt: occupiedEndTime },
+      })
+        .select({ startTime: 1, durationMinutes: 1, bufferAfterMinutesApplied: 1 })
+        .lean();
+
+      const isOverlapping = overlappingCandidates.some((existing) => {
+        const existingStart = new Date(existing.startTime);
+        const existingEnd = getAppointmentOccupiedEnd(
+          existingStart,
+          existing.durationMinutes || 30,
+          existing.bufferAfterMinutesApplied || 0,
+        );
+        return existingEnd > startTime;
+      });
+
+      if (isOverlapping) {
+        return res.status(409).json({ error: "El horario ya está ocupado" });
+      }
     }
 
     // 2.5. MEMBRESÍA: si el cliente tiene una membresía usable, el turno va gratis.
@@ -521,6 +531,7 @@ export async function createAppointment(req, res, next) {
       paymentStatus: "unpaid",
       customerEmail: email || undefined,
       membershipId: membership?._id || null,
+      walkIn: isWalkIn,
     });
 
     // Descontamos 1 turno de la membresía una vez creado el turno.

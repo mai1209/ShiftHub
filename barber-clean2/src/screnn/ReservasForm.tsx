@@ -665,6 +665,8 @@ function ReservasForm({ navigation, route }: any) {
         email: customerEmail.trim(),
         durationMinutes: selectedService?.durationMinutes ?? 30,
         paymentMethod,
+        // Orden de llegada: ya ocurrió, no ocupa horario en la agenda.
+        walkIn: isWalkin,
       });
       Alert.alert('¡Reserva Exitosa!', 'Tu turno ha sido agendado.', [
         { text: 'Cerrar', onPress: () => navigation.goBack() },

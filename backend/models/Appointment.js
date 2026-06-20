@@ -88,6 +88,12 @@ const appointmentSchema = new mongoose.Schema(
       ref: "Membership",
       default: null,
     },
+    // Servicio cargado por "orden de llegada": ya ocurrió, no ocupa un horario
+    // en la agenda ni participa de la validación de solapamiento.
+    walkIn: {
+      type: Boolean,
+      default: false,
+    },
     servicePrice: {
       type: Number,
       default: 0,

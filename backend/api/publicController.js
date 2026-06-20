@@ -1808,6 +1808,8 @@ export async function publicBarberAppointments(req, res, next) {
       owner: ownerId,
       barber: barberId,
       status: { $in: ["pending", "completed"] },
+      // Los servicios por orden de llegada (walkIn) no ocupan horario.
+      walkIn: { $ne: true },
       startTime: { $gte: startOfDay, $lte: endOfDay },
     })
       .select({ startTime: 1, durationMinutes: 1, bufferAfterMinutesApplied: 1, status: 1 })
@@ -1982,6 +1984,8 @@ export async function publicCreateAppointment(req, res, next) {
       owner: ownerId,
       barber: barberId,
       status: { $in: ["pending", "completed"] },
+      // Los servicios por orden de llegada (walkIn) no ocupan horario.
+      walkIn: { $ne: true },
       startTime: { $lt: occupiedEndTime },
     })
       .select({ startTime: 1, durationMinutes: 1, bufferAfterMinutesApplied: 1 })

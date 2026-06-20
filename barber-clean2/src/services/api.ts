@@ -15,7 +15,7 @@ type ApiError = Error & {
   isNetworkError?: boolean;
 };
 
-const LAN_IP = '192.168.100.58';
+const LAN_IP = '192.168.100.56';
 const ANDROID_EMULATOR_HOST = '10.0.2.2';
 const REQUEST_TIMEOUT_MS = 15000;
 const FORCE_PROD_IN_DEBUG = false; // En desarrollo usamos el backend local para no mezclar datos con producción FALSO LOCAL / TRUE PRODUCCION.
@@ -641,6 +641,7 @@ export type Appointment = {
   status: 'awaiting_payment' | 'pending' | 'completed' | 'cancelled' | string;
   notes?: string;
   email: string;
+  walkIn?: boolean;
 };
 
 export type AppointmentMetricMonth = {
@@ -953,6 +954,7 @@ export function createAppointment(payload: {
   notes?: string;
   email: string;
   paymentMethod?: PaymentMethod;
+  walkIn?: boolean;
 }) {
   return request<{ appointment: Appointment }>('/api/appointments', {
     method: 'POST',

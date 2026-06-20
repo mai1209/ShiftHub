@@ -316,8 +316,10 @@ function BarberDashboard({ route, navigation }: Props) {
       const appointmentsRes = await fetchBarberAppointments(activeBarberId, dateParam);
 
       setAppointments(
+        // Los servicios por orden de llegada (walkIn) no son turnos de la
+        // agenda: no se muestran ni ocupan horario en el calendario.
         appointmentsRes.appointments.filter(
-          (item: Appointment) => item.status !== 'cancelled',
+          (item: Appointment) => item.status !== 'cancelled' && !item.walkIn,
         ),
       );
       setBarberProfile(

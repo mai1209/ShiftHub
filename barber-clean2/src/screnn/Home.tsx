@@ -492,7 +492,11 @@ function Home({ navigation }: Props) {
         date: formatDateParam(activeDate),
       });
       setAppointments(
-        appointmentsRes.appointments.filter(a => a.status !== 'cancelled'),
+        // Los servicios por orden de llegada (walkIn) ya ocurrieron: no son
+        // turnos de la agenda, así que no se muestran ni ocupan horario.
+        appointmentsRes.appointments.filter(
+          a => a.status !== 'cancelled' && !a.walkIn,
+        ),
       );
     } catch (err: any) {
       setError(err?.message ?? 'No pudimos cargar la información');
