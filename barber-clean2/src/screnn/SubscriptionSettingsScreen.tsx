@@ -24,9 +24,12 @@ import {
   buildStoreSyncPayloadFromActiveSubscription,
   buildStoreSyncPayloadFromPurchase,
   getStoreSubscriptionSkus,
+  inferLocalesFromProductId,
   inferPlanFromProductId,
   isStoreBillingPlatform,
+  MAX_TOTAL_LOCALES,
   pickPrimaryActiveSubscription,
+  proProductIdForLocales,
   STORE_SUBSCRIPTION_PRODUCTS,
 } from '../services/storeBilling';
 import { isSubscriptionRestricted, resolvePostAuthRoute } from '../services/subscriptionAccess';
@@ -52,6 +55,7 @@ type SubscriptionState = {
   couponValidUntil?: string | null;
   startedAt?: string | null;
   expiresAt?: string | null;
+  additionalBusinesses?: number | null;
   mercadoPagoPreapprovalId?: string | null;
   mercadoPagoPreapprovalStatus?: string | null;
   mercadoPagoPaymentId?: string | null;
@@ -509,6 +513,22 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
   const proStoreProduct = storeSubscriptions.find(product => product.id === STORE_SUBSCRIPTION_PRODUCTS.pro);
   const currentGooglePurchaseToken =
     subscription?.storePurchaseToken || null;
+
+  // Locales (sucursales). El productId del store manda; si no, additionalBusinesses + 1.
+  const currentTotalLocales = Math.max(
+    inferLocalesFromProductId(currentStoreProductId),
+    Number(subscription?.additionalBusinesses || 0) + 1,
+  );
+  const nextLocaleProductId = proProductIdForLocales(currentTotalLocales + 1);
+  const nextLocaleStoreProduct = nextLocaleProductId
+    ? storeSubscriptions.find(product => product.id === nextLocaleProductId)
+    : null;
+  const canAddLocale =
+    usesStoreBilling &&
+    currentStorePlan === 'pro' &&
+    Boolean(currentStoreProductId) &&
+    currentTotalLocales < MAX_TOTAL_LOCALES;
+
   const webManagedAccountMessage =
     subscription?.status === 'past_due' || subscription?.status === 'cancelled'
       ? 'Tu plan venció.'
@@ -659,6 +679,79 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
             currentStorePlan &&
             currentStorePlan !== targetPlan &&
             currentGooglePurchaseToken
+              ? {
+                  purchaseToken: currentGooglePurchaseToken,
+                  subscriptionProductReplacementParams: {
+                    oldProductId: currentStoreProductId,
+                    replacementMode: 'with-time-proration',
+                  },
+                }
+              : {}),
+          },
+        },
+      });
+    } catch (error: any) {
+      setBillingBusy(false);
+      Alert.alert('No pudimos abrir la compra', error?.message ?? 'Probá de nuevo.');
+    }
+  };
+
+  const handleAddLocale = async () => {
+    if (!usesStoreBilling) return;
+    if (currentStorePlan !== 'pro') {
+      Alert.alert(
+        'Disponible en Pro',
+        'Sumar sucursales está disponible solo en el plan Pro.',
+      );
+      return;
+    }
+    const nextTotal = currentTotalLocales + 1;
+    if (nextTotal > MAX_TOTAL_LOCALES) {
+      Alert.alert('Máximo alcanzado', `Podés tener hasta ${MAX_TOTAL_LOCALES} locales.`);
+      return;
+    }
+    const targetProductId = proProductIdForLocales(nextTotal);
+    const product = targetProductId
+      ? storeSubscriptions.find(item => item.id === targetProductId)
+      : null;
+    if (!targetProductId || !product) {
+      Alert.alert(
+        'No disponible',
+        'Todavía no pudimos cargar el precio de la sucursal desde la tienda.',
+      );
+      return;
+    }
+
+    try {
+      setBillingBusy(true);
+
+      if (Platform.OS === 'ios') {
+        await requestPurchase({
+          type: 'subs',
+          request: { apple: { sku: targetProductId } },
+        });
+        return;
+      }
+
+      const androidProduct = product.platform === 'android' ? product : null;
+      const firstOfferToken =
+        androidProduct?.subscriptionOffers?.[0]?.offerTokenAndroid ||
+        androidProduct?.subscriptionOfferDetailsAndroid?.[0]?.offerToken ||
+        null;
+
+      await requestPurchase({
+        type: 'subs',
+        request: {
+          google: {
+            skus: [targetProductId],
+            ...(firstOfferToken
+              ? {
+                  subscriptionOffers: [
+                    { sku: targetProductId, offerToken: firstOfferToken },
+                  ],
+                }
+              : {}),
+            ...(currentStoreProductId && currentGooglePurchaseToken
               ? {
                   purchaseToken: currentGooglePurchaseToken,
                   subscriptionProductReplacementParams: {
@@ -867,6 +960,33 @@ export default function SubscriptionSettingsScreen({ navigation }: { navigation:
                       </Text>
                     </Pressable>
                   </View>
+
+                  {canAddLocale ? (
+                    <View style={styles.iosNoticeCard}>
+                      <Text style={styles.iosNoticeTitle}>Sumar sucursal</Text>
+                      <Text style={styles.iosNoticeText}>
+                        Tenés {currentTotalLocales}{' '}
+                        {currentTotalLocales === 1 ? 'local' : 'locales'}. Sumá uno
+                        más; se agrega a tu suscripción de Apple y se cobra junto al
+                        plan.
+                      </Text>
+                      <Pressable
+                        style={[styles.primaryButton, billingBusy && styles.primaryButtonDisabled]}
+                        onPress={handleAddLocale}
+                        disabled={billingBusy || billingSyncing}
+                      >
+                        <Text style={styles.primaryButtonText}>
+                          {billingBusy
+                            ? 'Abriendo compra...'
+                            : `Sumar sucursal${
+                                nextLocaleStoreProduct?.displayPrice
+                                  ? ` · ${nextLocaleStoreProduct.displayPrice}`
+                                  : ''
+                              }`}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
 
                   <View style={styles.iosNoticeCard}>
                     <Text style={styles.iosNoticeTitle}>Restaurar o gestionar</Text>

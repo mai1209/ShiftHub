@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -49,13 +50,19 @@ export default function ShopSelectionScreen({ navigation }: Props) {
   }, []);
 
   const openAddBranch = useCallback(async () => {
+    // En iOS, política de Apple 3.1.1: NO orientamos a un pago externo. El alta de
+    // sucursal se hace por compra IN-APP (IAP) desde la pantalla de suscripción.
+    if (Platform.OS === 'ios') {
+      navigation.navigate('Subscription-Settings');
+      return;
+    }
     const url = buildAddBranchUrl(userEmail || undefined);
     try {
       await Linking.openURL(url);
     } catch {
       Alert.alert('No pudimos abrir el enlace', url);
     }
-  }, [userEmail]);
+  }, [navigation, userEmail]);
 
   const loadShops = useCallback(async () => {
     try {
@@ -187,10 +194,15 @@ export default function ShopSelectionScreen({ navigation }: Props) {
             if (!canCreateMore) {
               Alert.alert(
                 'Límite alcanzado',
-                'Llegaste al límite de locales de tu plan. Podés agregar una sucursal con un pago único desde la web.',
+                Platform.OS === 'ios'
+                  ? 'Llegaste al límite de locales de tu plan. Sumá una sucursal a tu suscripción.'
+                  : 'Llegaste al límite de locales de tu plan. Podés agregar una sucursal con un pago único desde la web.',
                 [
                   { text: 'Cancelar', style: 'cancel' },
-                  { text: 'Agregar sucursal', onPress: openAddBranch },
+                  {
+                    text: Platform.OS === 'ios' ? 'Sumar sucursal' : 'Agregar sucursal',
+                    onPress: openAddBranch,
+                  },
                 ],
               );
               return;
