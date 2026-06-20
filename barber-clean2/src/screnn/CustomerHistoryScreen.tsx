@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
@@ -41,6 +41,7 @@ import LockedFeatureScreen from '../components/LockedFeatureScreen';
 
 type Props = {
   navigation: any;
+  route?: { params?: { barberId?: string; barberName?: string } };
 };
 
 type PickerType = 'barber' | 'service' | 'month' | null;
@@ -189,7 +190,7 @@ async function shareExportedFile({
   });
 }
 
-function CustomerHistoryScreen({ navigation }: Props) {
+function CustomerHistoryScreen({ navigation, route }: Props) {
   const { theme, businessCopy } = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
   const now = useMemo(() => new Date(), []);
@@ -204,6 +205,12 @@ function CustomerHistoryScreen({ navigation }: Props) {
   >('all');
   const [selectedBarber, setSelectedBarber] = useState('all');
   const [selectedService, setSelectedService] = useState('all');
+
+  // Si llegamos desde "Rendimiento por barbero", pre-filtramos ese barbero.
+  useEffect(() => {
+    const name = route?.params?.barberName;
+    if (name) setSelectedBarber(name);
+  }, [route?.params?.barberName]);
   const [searchInput, setSearchInput] = useState('');
   const [visitsFilterInput, setVisitsFilterInput] = useState('');
   const [customerSegment, setCustomerSegment] = useState<

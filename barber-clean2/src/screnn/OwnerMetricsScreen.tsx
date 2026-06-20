@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  Image,
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -167,9 +166,6 @@ function OwnerMetricsScreen({ navigation }: Props) {
             <View style={styles.headerTextGroup}>
               <Text style={styles.headerSubtitle}>ADMINISTRACIÓN</Text>
               <Text style={styles.headerTitle}>Global Local</Text>
-            </View>
-            <View>
-              <Image style={styles.headerIcon} source={require('../assets/logo.png')} />
             </View>
           </View>
         </View>
@@ -347,7 +343,19 @@ function OwnerMetricsScreen({ navigation }: Props) {
             <View style={styles.barberList}>
               {(data?.byBarber ?? []).map(
                 (item: MonthOverviewBarber, index: number) => (
-                  <View key={item.barberId} style={styles.barberRow}>
+                  <Pressable
+                    key={item.barberId}
+                    style={({ pressed }) => [
+                      styles.barberRow,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                    onPress={() =>
+                      navigation.navigate('Customer-History', {
+                        barberId: item.barberId,
+                        barberName: item.barberName,
+                      })
+                    }
+                  >
                     <View style={styles.barberInfo}>
                       <View style={styles.barberRank}>
                         <Text style={styles.rankText}>{index + 1}</Text>
@@ -374,7 +382,12 @@ function OwnerMetricsScreen({ navigation }: Props) {
                         </Text>
                       </View>
                     </View>
-                  </View>
+                    <ChevronRight
+                      size={18}
+                      color={theme.textSecondary}
+                      style={{ marginLeft: 4 }}
+                    />
+                  </Pressable>
                 ),
               )}
             </View>
@@ -418,10 +431,6 @@ const makeStyles = (theme: Theme) =>
       color: theme.textPrimary,
       fontSize: 24,
       fontWeight: '900',
-    },
-    headerIcon: {
-      width: 20,
-      height: 20,
     },
 
     // Filtros

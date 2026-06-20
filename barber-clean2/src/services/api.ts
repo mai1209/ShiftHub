@@ -708,6 +708,8 @@ export type CustomerHistoryItem = {
   phone?: string;
   paymentMethod: PaymentMethod;
   price: number;
+  commission?: number;
+  commissionPercent?: number;
   status: string;
 };
 

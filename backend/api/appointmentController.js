@@ -326,11 +326,16 @@ function applyAppointmentMetrics(bucket, appointment, servicePriceMap, commissio
   }
 }
 
-function sanitizeHistoryAppointment(appointment, servicePriceMap) {
+function sanitizeHistoryAppointment(appointment, servicePriceMap, commissionMaps) {
   const fallbackPrice = servicePriceMap.get(
     String(appointment.service || "").trim().toLowerCase(),
   );
   const finalPrice = getEffectivePaidAmount(appointment, fallbackPrice);
+
+  const pct = commissionMaps
+    ? resolveCommissionPercent(appointment, commissionMaps)
+    : 0;
+  const commission = pct > 0 ? Number(((finalPrice * pct) / 100).toFixed(2)) : 0;
 
   return {
     _id: String(appointment._id),
@@ -344,6 +349,8 @@ function sanitizeHistoryAppointment(appointment, servicePriceMap) {
     phone: String(appointment.notes || "").trim(),
     paymentMethod: getEffectivePaymentMethod(appointment),
     price: finalPrice,
+    commissionPercent: pct,
+    commission,
     status: appointment.status,
   };
 }
@@ -952,14 +959,17 @@ export async function getCustomerHistory(req, res, next) {
       filter.$or = [{ customerName: regex }, { notes: regex }, { service: regex }];
     }
 
-    const [appointments, activeServices] = await Promise.all([
+    const [appointments, activeServices, commissionBarbers] = await Promise.all([
       AppointmentModel.find(filter)
         .populate({ path: "barber", select: "fullName" })
         .sort({ startTime: -1 })
         .limit(120)
         .lean(),
       ServiceModel.find({ owner: ownerId })
-        .select({ name: 1, price: 1 })
+        .select({ name: 1, price: 1, commissionPercent: 1 })
+        .lean(),
+      BarberModel.find({ owner: ownerId })
+        .select({ commissionPercent: 1 })
         .lean(),
     ]);
 
@@ -969,9 +979,10 @@ export async function getCustomerHistory(req, res, next) {
         Number(item.price || 0),
       ]),
     );
+    const commissionMaps = buildCommissionMaps(activeServices, commissionBarbers);
 
     let items = appointments.map(appointment =>
-      sanitizeHistoryAppointment(appointment, servicePriceMap),
+      sanitizeHistoryAppointment(appointment, servicePriceMap, commissionMaps),
     );
 
     if (paymentMethod === "cash" || paymentMethod === "transfer") {
