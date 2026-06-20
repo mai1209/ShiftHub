@@ -1686,13 +1686,26 @@ export async function publicGetMembership(req, res, next) {
       email,
     });
     if (!membership) return res.json({ membership: null });
+    let color = "#111827";
+    let giftText = "";
+    try {
+      await membership.populate({ path: "plan", select: "color giftText" });
+      if (membership.plan) {
+        color = membership.plan.color || color;
+        giftText = membership.plan.giftText || "";
+      }
+    } catch (_e) {
+      // si falla el populate, devolvemos el color por defecto
+    }
+    const turnsTotal = Number(membership.turnsTotal || 0);
     return res.json({
       membership: {
         planName: membership.planName || "Membresía",
-        turnsRemaining: Math.max(
-          0,
-          Number(membership.turnsTotal || 0) - Number(membership.turnsUsed || 0),
-        ),
+        color,
+        giftText,
+        turnsTotal,
+        turnsRemaining: Math.max(0, turnsTotal - Number(membership.turnsUsed || 0)),
+        expiresAt: membership.expiresAt || null,
       },
     });
   } catch (err) {

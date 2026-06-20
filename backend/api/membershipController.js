@@ -53,7 +53,9 @@ export async function findUsableMembership({ ownerId, shopId, email }) {
     $expr: { $lt: ["$turnsUsed", "$turnsTotal"] },
     $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
   };
-  if (shopId) filter.shop = shopId;
+  // La membresía vale en TODO el negocio del dueño: la buscamos por dueño + email
+  // sin atarla a una sucursal puntual (evita que no matchee por desajuste de shop).
+  void shopId;
   // La más próxima a vencer primero (las sin vencimiento al final).
   return MembershipModel.findOne(filter).sort({ expiresAt: 1, createdAt: 1 });
 }
