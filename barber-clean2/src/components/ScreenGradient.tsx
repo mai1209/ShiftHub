@@ -3,8 +3,9 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { Defs, Ellipse, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { useTheme } from '../context/ThemeContext';
 
-function BrownScreenGradient() {
-  const { theme } = useTheme();
+function BrownScreenGradient({ theme: themeOverride }: { theme?: any } = {}) {
+  const { theme: ctxTheme } = useTheme();
+  const theme = themeOverride ?? ctxTheme;
   const [c0, c1, c2, c3] = theme.gradientColors;
   const base = c0 ?? theme.background;
   const isLight = theme.mode === 'light';

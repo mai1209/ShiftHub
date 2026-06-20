@@ -14,6 +14,7 @@ import {
 import { launchImageLibrary } from 'react-native-image-picker';
 import { ImagePlus, PaintBucket, Sparkles, SwatchBook } from 'lucide-react-native';
 import ColorPickerModal from '../components/ColorPickerModal';
+import ScreenGradient from '../components/ScreenGradient';
 import { buildThemeFromConfig, useTheme } from '../context/ThemeContext';
 import type { Theme, ThemeMode } from '../context/ThemeContext';
 import { getUserProfile, saveUserProfile } from '../services/authStorage';
@@ -459,7 +460,9 @@ export default function AppearanceSettingsScreen({ navigation }: { navigation: a
         bannerDataUrl: form.bannerDataUrl,
         mobileBannerDataUrl: form.mobileBannerDataUrl,
       });
-      Alert.alert('Aspecto guardado', 'La vista del local se actualizó correctamente.');
+      Alert.alert('Aspecto guardado', 'La vista del local se actualizó correctamente.', [
+        { text: 'OK', onPress: () => navigation.navigate('Home') },
+      ]);
     } catch (err: any) {
       setError(err?.message ?? 'No se pudo guardar el aspecto.');
     } finally {
@@ -486,6 +489,8 @@ export default function AppearanceSettingsScreen({ navigation }: { navigation: a
       style={styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      {/* Fondo en vivo: refleja el degradado seleccionado para previsualizarlo. */}
+      <ScreenGradient theme={previewTheme} />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -504,9 +509,6 @@ export default function AppearanceSettingsScreen({ navigation }: { navigation: a
             Todo lo que cambies acá se ve antes de guardar.
           </Text>
           <View style={styles.previewHero}>
-            {form.mobileBannerDataUrl ? (
-              <Image source={{ uri: form.mobileBannerDataUrl }} style={styles.previewHeroBanner} />
-            ) : null}
             <View style={styles.previewHeroOverlay} />
             <Image style={styles.previewLogo} source={previewTheme.logo} />
             <View style={styles.previewTextWrap}>
@@ -602,43 +604,6 @@ export default function AppearanceSettingsScreen({ navigation }: { navigation: a
             <Pressable
               style={styles.ghostBtnInline}
               onPress={() => updateField('bannerDataUrl', null)}
-            >
-              <Text style={styles.ghostBtnText}>Quitar</Text>
-            </Pressable>
-          </View>
-        </SectionCard>
-
-        <SectionCard title="Portada para teléfono" icon={ImagePlus} theme={previewTheme}>
-          <Text style={styles.helperText}>
-            Esta imagen queda preparada para la versión móvil y para previews dentro de la app.
-          </Text>
-          <Text style={styles.recommendedSizeText}>Tamaño recomendado: 1080 x 1920 px</Text>
-          <View style={styles.bannerBox}>
-            {form.mobileBannerDataUrl ? (
-              <Image style={styles.mobileBannerPreview} source={{ uri: form.mobileBannerDataUrl }} />
-            ) : (
-              <View style={styles.bannerPlaceholder}>
-                <Text style={styles.bannerPlaceholderText}>Sin portada para teléfono</Text>
-              </View>
-            )}
-          </View>
-          <View style={styles.row}>
-            <Pressable
-              style={styles.secondaryBtn}
-              onPress={() =>
-                handlePickImage({
-                  field: 'mobileBannerDataUrl',
-                  maxWidth: 1080,
-                  maxHeight: 1920,
-                  invalidTitle: 'Portada para teléfono inválida',
-                })
-              }
-            >
-              <Text style={styles.secondaryBtnText}>Elegir portada</Text>
-            </Pressable>
-            <Pressable
-              style={styles.ghostBtnInline}
-              onPress={() => updateField('mobileBannerDataUrl', null)}
             >
               <Text style={styles.ghostBtnText}>Quitar</Text>
             </Pressable>
