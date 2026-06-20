@@ -20,7 +20,6 @@ import {
   Banknote,
   ChevronDown,
   CreditCard,
-  Filter,
   Scissors,
   Search,
   Users,
@@ -61,6 +60,7 @@ type CustomerRow = {
   lastService: string;
   lastPaymentMethod: 'cash' | 'transfer';
   totalRevenue: number;
+  totalCommission: number;
 };
 
 const MONTH_LABELS = [
@@ -331,12 +331,14 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
           lastService: item.service,
           lastPaymentMethod: item.paymentMethod,
           totalRevenue: Number(item.price || 0),
+          totalCommission: Number(item.commission || 0),
         });
         return;
       }
 
       current.visitsCount += 1;
       current.totalRevenue += Number(item.price || 0);
+      current.totalCommission += Number(item.commission || 0);
       if (new Date(item.startTime).getTime() > new Date(current.lastVisitAt).getTime()) {
         current.lastVisitAt = item.startTime;
         current.lastBarberName = item.barberName;
@@ -391,6 +393,10 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
       servicesCount: visitRows.length,
       uniqueClients: customerRows.length,
       totalRevenue,
+      totalCommission: visitRows.reduce(
+        (acc, item) => acc + Number(item.commission || 0),
+        0,
+      ),
       cashRevenue: visitRows
         .filter(item => item.paymentMethod === 'cash')
         .reduce((acc, item) => acc + Number(item.price || 0), 0),
@@ -1072,6 +1078,19 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
               {summary.transferCount} cobros
             </Text>
           </View>
+
+          <View style={styles.paymentBreakdownCard}>
+            <View style={styles.paymentBreakdownTop}>
+              <Scissors size={14} color={theme.textSecondary} />
+              <Text style={styles.paymentBreakdownLabel}>Comisión</Text>
+            </View>
+            <Text style={styles.paymentBreakdownValue}>
+              {formatCurrency(summary.totalCommission)}
+            </Text>
+            <Text style={styles.paymentBreakdownMeta}>
+              {selectedBarber === 'all' ? 'todos' : selectedBarber}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.filtersCard}>
@@ -1313,18 +1332,10 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
         </View>
 
         <View style={styles.resultsHeader}>
-          <View>
-              <Text style={styles.resultsTitle}>Clientes del período</Text>
-              <Text style={styles.resultsSubtitle}>
-              {customerRows.length} clientes encontrados · ordenado por {sortLabel.toLowerCase()}
-              </Text>
-            </View>
-          <View style={styles.resultsHeaderActions}>
-            <View style={styles.resultsBadge}>
-              <Filter size={12} color={theme.textSecondary} />
-              <Text style={styles.resultsBadgeText}>{activeContextLabel}</Text>
-            </View>
-          </View>
+          <Text style={styles.resultsTitle}>Clientes del período</Text>
+          <Text style={styles.resultsSubtitle}>
+            {customerRows.length} clientes encontrados · ordenado por {sortLabel.toLowerCase()}
+          </Text>
         </View>
 
         {loading ? (
@@ -1400,6 +1411,11 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
                       <Text style={styles.priceText}>
                         {formatCurrency(item.totalRevenue)}
                       </Text>
+                      {item.totalCommission > 0 ? (
+                        <Text style={styles.commissionText}>
+                          Com: {formatCurrency(item.totalCommission)}
+                        </Text>
+                      ) : null}
                     </View>
                   </View>
                 ))}
@@ -2048,6 +2064,12 @@ const makeStyles = (theme: Theme) =>
       color: '#F7A047',
       fontSize: 13,
       fontWeight: '900',
+    },
+    commissionText: {
+      color: theme.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+      marginTop: 2,
     },
     emptyState: {
       backgroundColor: theme.card,

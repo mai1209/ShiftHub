@@ -327,8 +327,22 @@ function CajaScreen({ navigation }: Props) {
     );
   };
 
-  const incomeEntries = entries.filter(e => e.type === 'income');
-  const expenseEntries = entries.filter(e => e.type === 'expense');
+  // Listas siempre con lo último cargado primero (fecha desc, desempate por _id
+  // que en Mongo es creciente con el tiempo de creación).
+  const byDateDesc = <T extends { date: string; _id: string }>(list: T[]) =>
+    [...list].sort((a, b) => {
+      const t = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (t !== 0) return t;
+      return a._id > b._id ? -1 : a._id < b._id ? 1 : 0;
+    });
+  const incomeEntries = byDateDesc(entries.filter(e => e.type === 'income'));
+  const expenseEntries = byDateDesc(entries.filter(e => e.type === 'expense'));
+  const sortedServices = [...(summary?.services ?? [])].sort((a, b) => {
+    const t =
+      new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime();
+    if (t !== 0) return t;
+    return a._id > b._id ? -1 : a._id < b._id ? 1 : 0;
+  });
 
   const renderEntryRow = (entry: CashEntry) => {
     const isIncome = entry.type === 'income';
@@ -653,7 +667,7 @@ function CajaScreen({ navigation }: Props) {
                   <Banknote size={16} color={theme.textSecondary} />
                 </View>
                 <View style={styles.entriesList}>
-                  {summary.services.map(svc => (
+                  {sortedServices.map(svc => (
                     <View key={svc._id} style={styles.entryRow}>
                       <View style={styles.entryInfo}>
                         <Text style={styles.entryDesc}>
