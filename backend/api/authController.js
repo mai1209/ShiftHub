@@ -119,9 +119,40 @@ function getStoreSubscriptionProducts() {
   };
 }
 
+// Productos IAP de Pro por cantidad de locales (mismo subscription group que el
+// Pro base). El número en el id = locales TOTALES (la base ya incluye 1).
+const STORE_PRO_LOCALE_PRODUCT_IDS = {
+  2: "shifthub_pro_2locales",
+  3: "shifthub_pro_3locales",
+  4: "shifthub_pro_4locales",
+  5: "shifthub_pro_5locales",
+  6: "shifthub_pro_6locales",
+};
+
+// Locales TOTALES que representa un productId de la tienda (1 si es la base/basic).
+function resolveStoreTotalLocalesFromProductId(productId) {
+  const id = String(productId || "").trim();
+  if (!id) return 1;
+  for (const [count, pid] of Object.entries(STORE_PRO_LOCALE_PRODUCT_IDS)) {
+    if (pid === id) return Number(count);
+  }
+  return 1;
+}
+
+function isProStoreProductId(productId) {
+  const id = String(productId || "").trim();
+  if (!id) return false;
+  return Object.values(STORE_PRO_LOCALE_PRODUCT_IDS).includes(id);
+}
+
 function resolveStorePlan({ provider, plan, productId, currentPlanId }) {
   if (plan === "basic" || plan === "pro") {
     return plan;
+  }
+
+  // Tiers de Pro con locales (shifthub_pro_Nlocales) → plan Pro.
+  if (isProStoreProductId(productId) || isProStoreProductId(currentPlanId)) {
+    return "pro";
   }
 
   const catalog = getStoreSubscriptionProducts();
@@ -1599,10 +1630,19 @@ export async function syncStoreSubscription(req, res, next) {
     const nextStatus = status === "cancelled" ? "cancelled" : status === "past_due" ? "past_due" : "active";
     const startedAt = userDoc.subscription?.startedAt || new Date();
 
+    // Tier de Pro con locales: el productId define cuántos locales totales hay.
+    // additionalBusinesses = totales - 1 (la base incluye 1). Recurrente: Apple
+    // ya cobra el precio del tier, así que el extra es parte de la suscripción.
+    const storeTotalLocales =
+      plan === "pro" ? resolveStoreTotalLocalesFromProductId(productId) : 1;
+    const storeAdditionalBusinesses = Math.max(0, storeTotalLocales - 1);
+
     userDoc.subscription = {
       ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
       plan,
       status: nextStatus,
+      additionalBusinesses: storeAdditionalBusinesses,
+      additionalBusinessesRecurring: storeAdditionalBusinesses > 0,
       billingCycle: "monthly",
       renewalMode: autoRenewing ? "automatic" : "manual",
       provider,

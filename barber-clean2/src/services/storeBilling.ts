@@ -9,8 +9,40 @@ export const STORE_SUBSCRIPTION_PRODUCTS = {
 
 export type StorePlan = keyof typeof STORE_SUBSCRIPTION_PRODUCTS;
 
+// Tiers de Pro por cantidad de locales TOTALES (la base ya incluye 1). Todos en el
+// mismo subscription group que `shifthub_pro_monthly`. Tope: 6 locales.
+export const STORE_PRO_LOCALE_PRODUCTS: Record<number, string> = {
+  2: 'shifthub_pro_2locales',
+  3: 'shifthub_pro_3locales',
+  4: 'shifthub_pro_4locales',
+  5: 'shifthub_pro_5locales',
+  6: 'shifthub_pro_6locales',
+};
+
+export const MAX_TOTAL_LOCALES = 6;
+
+// Locales TOTALES que representa un productId (1 = base/basic).
+export function inferLocalesFromProductId(value?: string | null): number {
+  const id = String(value || '').trim();
+  if (!id) return 1;
+  const found = Object.entries(STORE_PRO_LOCALE_PRODUCTS).find(
+    ([, pid]) => pid === id,
+  );
+  return found ? Number(found[0]) : 1;
+}
+
+// productId del tier de Pro para una cantidad de locales totales (null si es 1 o
+// supera el tope).
+export function proProductIdForLocales(totalLocales: number): string | null {
+  if (totalLocales <= 1) return STORE_SUBSCRIPTION_PRODUCTS.pro;
+  return STORE_PRO_LOCALE_PRODUCTS[totalLocales] ?? null;
+}
+
 export function getStoreSubscriptionSkus() {
-  return Object.values(STORE_SUBSCRIPTION_PRODUCTS);
+  return [
+    ...Object.values(STORE_SUBSCRIPTION_PRODUCTS),
+    ...Object.values(STORE_PRO_LOCALE_PRODUCTS),
+  ];
 }
 
 export function isStoreBillingPlatform() {
@@ -20,6 +52,11 @@ export function isStoreBillingPlatform() {
 export function inferPlanFromProductId(value?: string | null): StorePlan | null {
   const normalized = String(value || '').trim();
   if (!normalized) return null;
+
+  // Los tiers de locales son del plan Pro.
+  if (Object.values(STORE_PRO_LOCALE_PRODUCTS).includes(normalized)) {
+    return 'pro';
+  }
 
   return (Object.entries(STORE_SUBSCRIPTION_PRODUCTS).find(([, productId]) => productId === normalized)?.[0] ??
     null) as StorePlan | null;
