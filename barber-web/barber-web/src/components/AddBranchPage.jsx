@@ -1,246 +1,144 @@
-import { useEffect, useMemo, useState } from 'react';
-import { initMercadoPago, CardPayment } from '@mercadopago/sdk-react';
-import { addBranchesPayment, fetchPlanPricing } from '../services/api';
-import styles from '../styles/SubscriptionCheckoutPage.module.css';
-import { SHIFT_APP_BRAND_NAME } from '../utils/businessCopy';
+import { useState } from 'react';
+import { addBranchesPayment } from '../services/api';
 
-const MP_PUBLIC_KEY = process.env.REACT_APP_MERCADO_PAGO_PUBLIC_KEY || '';
-
-if (MP_PUBLIC_KEY) {
+function getQueryEmail() {
   try {
-    initMercadoPago(MP_PUBLIC_KEY, { locale: 'es-AR' });
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('No se pudo inicializar Mercado Pago:', err);
+    const url = new URL(window.location.href);
+    return String(url.searchParams.get('email') || '').trim();
+  } catch (_e) {
+    return '';
   }
 }
 
-const MAX_BRANCHES = 10;
-
-function getInitialEmail() {
-  const url = new URL(window.location.href);
-  return String(url.searchParams.get('email') || '').trim();
-}
-
-function isValidEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
-}
-
 export default function AddBranchPage() {
-  const [email, setEmail] = useState(() => getInitialEmail());
-  const [qty, setQty] = useState(1);
-  const [names, setNames] = useState(['']);
-  const [pricing, setPricing] = useState(null);
-  const [loadingPricing, setLoadingPricing] = useState(true);
-  const [message, setMessage] = useState('');
+  const [email, setEmail] = useState(getQueryEmail);
+  const [branchName, setBranchName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetchPlanPricing();
-        if (!cancelled) setPricing(response?.pricing ?? null);
-      } catch {
-        if (!cancelled) setError('No pudimos cargar el precio de las sucursales.');
-      } finally {
-        if (!cancelled) setLoadingPricing(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const canSubmit =
+    email.includes('@') && branchName.trim().length > 0 && !submitting;
 
-  // Mantener el array de nombres alineado con la cantidad.
-  useEffect(() => {
-    setNames((current) => {
-      const next = current.slice(0, qty);
-      while (next.length < qty) next.push('');
-      return next;
-    });
-  }, [qty]);
-
-  const unitArs = Number(pricing?.additionalBusiness?.ars || 0);
-  const totalArs = useMemo(() => unitArs * qty, [unitArs, qty]);
-
-  const emailValid = isValidEmail(email);
-  const namesComplete = names.every((n) => (n || '').trim().length > 0);
-  const canPay = emailValid && namesComplete && unitArs > 0 && !!MP_PUBLIC_KEY;
-
-  const updateName = (index, value) => {
-    setNames((current) => current.map((n, i) => (i === index ? value : n)));
-  };
-
-  const handleBrickSubmit = async (formData) => {
+  const handleSubmit = async () => {
     setError('');
     setMessage('');
-
-    const cleanNames = names.map((n) => (n || '').trim()).filter(Boolean);
-    if (cleanNames.length < qty) {
-      const msg = 'Completá el nombre de cada sucursal antes de pagar.';
-      setError(msg);
-      throw new Error(msg);
-    }
-
+    setSubmitting(true);
     try {
-      const response = await addBranchesPayment({
+      const res = await addBranchesPayment({
         email: email.trim().toLowerCase(),
-        businessNames: cleanNames,
-        payment: formData,
+        businessNames: [branchName.trim()],
       });
-
-      const status = String(response.status || '').toLowerCase();
-      if (status === 'approved') {
-        setMessage(
-          `¡Pago aprobado! Cobramos ARS ${Number(response.amount || 0).toLocaleString(
-            'es-AR',
-          )} y ya creamos ${cleanNames.length} sucursal${
-            cleanNames.length === 1 ? '' : 'es'
-          }. Abrí la app, entrá a "Mis locales" y vas a verlas.`,
-        );
-      } else if (status === 'in_process' || status === 'pending') {
-        setMessage(
-          'Tu pago quedó en revisión de Mercado Pago. Apenas se acredite (suele ser unos minutos) creamos las sucursales automáticamente.',
-        );
-      } else {
-        throw new Error(
-          response.statusDetail
-            ? `El pago no se pudo completar (${response.statusDetail}). Probá con otra tarjeta.`
-            : 'El pago fue rechazado. Probá con otra tarjeta.',
-        );
-      }
+      setMessage(
+        res?.message ||
+          'Sucursal agregada. El costo se suma a tu plan y se cobra en tu próxima renovación.',
+      );
+      setBranchName('');
     } catch (err) {
-      const msg =
-        err?.details?.error || err?.message || 'No pudimos procesar el pago.';
-      setError(msg);
-      throw err instanceof Error ? err : new Error(msg);
+      setError(err.message || 'No pudimos agregar la sucursal.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleBrickError = () => {
-    setError('Hubo un problema con el formulario de pago. Recargá la página e intentá de nuevo.');
+  const S = {
+    screen: {
+      minHeight: '100vh',
+      background:
+        'radial-gradient(circle at top right, rgba(214,11,123,0.06), transparent 34%), linear-gradient(180deg, #f7f8fc 0%, #eef2f7 100%)',
+      color: '#0f172a',
+      display: 'flex',
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+      padding: '48px 16px',
+      fontFamily: "'DM Sans', system-ui, sans-serif",
+    },
+    card: {
+      width: '100%',
+      maxWidth: 460,
+      background: '#fff',
+      color: '#0f172a',
+      borderRadius: 20,
+      padding: 24,
+      border: '1px solid rgba(15,23,42,.06)',
+      boxShadow: '0 24px 60px rgba(15,23,42,.12)',
+    },
+    eyebrow: { color: '#d60b7b', fontWeight: 800, letterSpacing: 2, fontSize: 12 },
+    h1: { fontSize: 24, margin: '6px 0 4px' },
+    sub: { color: '#64748b', fontSize: 14, margin: '0 0 18px' },
+    label: { display: 'block', fontWeight: 700, fontSize: 13, margin: '14px 0 6px' },
+    input: {
+      width: '100%',
+      padding: '12px 14px',
+      borderRadius: 12,
+      border: '1px solid rgba(15,23,42,.15)',
+      fontSize: 15,
+    },
+    note: {
+      marginTop: 18,
+      padding: 14,
+      borderRadius: 14,
+      background: '#fff0f7',
+      border: '1px solid #fbcfe8',
+      color: '#9d174d',
+      fontSize: 13,
+      lineHeight: 1.5,
+    },
+    btn: {
+      marginTop: 18,
+      width: '100%',
+      padding: '14px',
+      borderRadius: 14,
+      border: 0,
+      background: 'linear-gradient(135deg, #ff1493 0%, #d60b7b 100%)',
+      color: '#fff',
+      fontWeight: 800,
+      fontSize: 15,
+      cursor: canSubmit ? 'pointer' : 'not-allowed',
+      opacity: canSubmit ? 1 : 0.5,
+    },
+    msg: { marginTop: 16, padding: 12, borderRadius: 12, background: '#ecfdf5', color: '#065f46' },
+    err: { marginTop: 16, padding: 12, borderRadius: 12, background: '#fef2f2', color: '#991b1b' },
   };
 
   return (
-    <div className={styles.screen}>
-      <div className={styles.layout}>
-        <div className={styles.leftCol}>
-          <p className={styles.eyebrow}>{SHIFT_APP_BRAND_NAME}</p>
-          <h1 className={styles.title}>Agregar sucursal</h1>
-          <p className={styles.subtitle}>
-            Sumá uno o más locales a tu cuenta. Es un pago único por cada sucursal
-            nueva; tu plan mensual y el débito automático no cambian.
-          </p>
+    <main style={S.screen}>
+      <div style={S.card}>
+        <div style={S.eyebrow}>SHIFTHUB</div>
+        <h1 style={S.h1}>Agregar una sucursal</h1>
+        <p style={S.sub}>
+          Sumá un local más a tu cuenta. Disponible para el plan Pro.
+        </p>
 
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>Email de tu cuenta</label>
-            <input
-              className={styles.localNameInput}
-              type="email"
-              placeholder="tucuenta@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            {email && !emailValid ? (
-              <p className={styles.stepHint}>Revisá el formato del email.</p>
-            ) : null}
-          </div>
+        <label style={S.label}>Email de tu cuenta</label>
+        <input
+          style={S.input}
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="tu@negocio.com"
+        />
 
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>¿Cuántas sucursales querés agregar?</label>
-            <div className={styles.localsStepper}>
-              <button
-                type="button"
-                className={styles.stepBtn}
-                onClick={() => setQty((q) => Math.max(1, q - 1))}
-                disabled={qty <= 1}
-              >
-                −
-              </button>
-              <span className={styles.stepCount}>{qty}</span>
-              <button
-                type="button"
-                className={styles.stepBtn}
-                onClick={() => setQty((q) => Math.min(MAX_BRANCHES, q + 1))}
-                disabled={qty >= MAX_BRANCHES}
-              >
-                +
-              </button>
-            </div>
-          </div>
+        <label style={S.label}>Nombre de la nueva sucursal</label>
+        <input
+          style={S.input}
+          value={branchName}
+          onChange={(e) => setBranchName(e.target.value)}
+          placeholder="Ej. Sucursal Centro"
+        />
 
-          <div className={styles.field}>
-            <label className={styles.fieldLabel}>Nombre de cada sucursal</label>
-            {names.map((name, index) => (
-              <input
-                key={index}
-                className={styles.localNameInput}
-                type="text"
-                placeholder={`Sucursal ${index + 1}`}
-                value={name}
-                onChange={(e) => updateName(index, e.target.value)}
-              />
-            ))}
-          </div>
+        <div style={S.note}>
+          El costo de la sucursal se <strong>suma a tu plan mensual</strong> y se
+          cobra en tu próxima renovación. No es un pago aparte.
         </div>
 
-        <div className={styles.rightCol}>
-          <div className={styles.formCard}>
-            <div className={styles.summaryCard}>
-              <div className={styles.summaryRow}>
-                <span>Precio por sucursal</span>
-                <span>
-                  {loadingPricing
-                    ? '—'
-                    : `ARS ${unitArs.toLocaleString('es-AR')}`}
-                </span>
-              </div>
-              <div className={styles.summaryRow}>
-                <span>Cantidad</span>
-                <span>{qty}</span>
-              </div>
-              <div className={styles.summaryTotalRow}>
-                <span>Total a pagar</span>
-                <span>
-                  {loadingPricing
-                    ? '—'
-                    : `ARS ${totalArs.toLocaleString('es-AR')}`}
-                </span>
-              </div>
-            </div>
+        <button style={S.btn} disabled={!canSubmit} onClick={handleSubmit}>
+          {submitting ? 'Agregando…' : 'Agregar sucursal'}
+        </button>
 
-            {canPay ? (
-              <div className={styles.brickBox}>
-                <CardPayment
-                  key={`add-branch-${totalArs}`}
-                  initialization={{ amount: Number(totalArs) }}
-                  customization={{ paymentMethods: { maxInstallments: 1 } }}
-                  onSubmit={handleBrickSubmit}
-                  onError={handleBrickError}
-                />
-              </div>
-            ) : (
-              <p className={styles.brickHint}>
-                {!MP_PUBLIC_KEY
-                  ? 'El pago no está disponible en este momento.'
-                  : 'Completá tu email y el nombre de cada sucursal para habilitar el pago.'}
-              </p>
-            )}
-
-            {message && (
-              <div className={styles.messageBox}>
-                <span>{message}</span>
-              </div>
-            )}
-            {error && (
-              <div className={styles.errorBox}>
-                <span>{error}</span>
-              </div>
-            )}
-          </div>
-        </div>
+        {message ? <div style={S.msg}>{message}</div> : null}
+        {error ? <div style={S.err}>{error}</div> : null}
       </div>
-    </div>
+    </main>
   );
 }

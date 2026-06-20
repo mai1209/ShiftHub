@@ -8,7 +8,6 @@ import { BarberModel } from "../models/Barber.js";
 import { sendAppMail } from "../services/mailer.js";
 import {
   activateSubscriptionFromApprovedPayment,
-  applyAddBranchesFromApprovedPayment,
   applyPendingCouponToSubscription,
   calculateSubscriptionExpiry,
   createAppointmentMercadoPagoPreference,
@@ -44,7 +43,9 @@ import {
   createMercadoPagoSystemPayment,
   createMercadoPagoSystemPreapproval,
   createMercadoPagoSystemPreference,
+  updateMercadoPagoSystemPreapproval,
 } from "../services/mercadoPago.js";
+import { appendNamedShopsForOwner } from "../utils/shopContext.js";
 import {
   buildAstroPaySubscriptionReturnUrls,
   buildAstroPaySubscriptionWebhookUrl,
@@ -1327,20 +1328,6 @@ export async function publicCreateSubscriptionPayment(req, res, next) {
 export async function publicAddBranchesPayment(req, res, next) {
   try {
     const email = String(req.body?.email || "").trim().toLowerCase();
-    const payment =
-      req.body?.payment && typeof req.body.payment === "object" ? req.body.payment : {};
-
-    const token = String(payment.token || "").trim();
-    const paymentMethodId = String(payment.payment_method_id || "").trim();
-    const installments = Math.max(1, Math.trunc(Number(payment.installments) || 1));
-    const issuerId =
-      payment.issuer_id != null && String(payment.issuer_id).trim() !== ""
-        ? String(payment.issuer_id).trim()
-        : null;
-    const payerIdentification =
-      payment.payer && typeof payment.payer === "object"
-        ? payment.payer.identification
-        : null;
     const branchNames = parseBusinessNames(req.body?.businessNames);
 
     if (!email) {
@@ -1353,11 +1340,6 @@ export async function publicAddBranchesPayment(req, res, next) {
         error: "Indicá el nombre de al menos una sucursal.",
       });
     }
-    if (!token || !paymentMethodId) {
-      return res.status(400).json({
-        error: "No recibimos los datos de la tarjeta. Volvé a intentar el pago.",
-      });
-    }
 
     const userDoc = await UserModel.findOne({ email, isActive: true });
     if (!userDoc) {
@@ -1367,114 +1349,107 @@ export async function publicAddBranchesPayment(req, res, next) {
     }
 
     const plan = String(userDoc.subscription?.plan || "").trim();
-    const subStatus = String(userDoc.subscription?.status || "").trim();
-    const hasPaidPlan = ["basic", "pro", "custom"].includes(plan);
-    if (!hasPaidPlan || !["active", "trial"].includes(subStatus)) {
-      return res.status(400).json({
-        error: "Necesitás una suscripción activa para agregar sucursales.",
+    if (plan !== "pro") {
+      return res.status(409).json({
+        error: "Sumar sucursales está disponible solo en el plan Pro.",
       });
     }
 
-    const qty = branchNames.length;
-    const pricingDoc = await getOrCreatePlanPricing();
-    const pricing = serializePlanPricing(pricingDoc);
-    const branchesPricing = resolveAdditionalBusinessesArs({
-      plan,
-      pricing,
-      subscription: { additionalBusinesses: qty },
-    });
-    const amount = Number(Number(branchesPricing.ars || 0).toFixed(2));
-
-    if (!(amount > 0)) {
-      return res.status(400).json({
-        error: "No hay un precio configurado para las sucursales adicionales.",
+    const provider = String(userDoc.subscription?.provider || "").trim().toLowerCase();
+    if (provider === "apple" || provider === "google") {
+      return res.status(409).json({
+        error:
+          "Tu suscripción se gestiona desde App Store / Google Play. Sumá la sucursal desde la app.",
       });
     }
 
-    const externalReference = `add_branches:${userDoc._id.toString()}:${Date.now()}`;
+    // Tope: 6 locales en total (1 base + 5 adicionales).
+    const MAX_ADDITIONAL_BUSINESSES = 5;
+    const currentExtra = Math.max(
+      0,
+      Number(userDoc.subscription?.additionalBusinesses || 0),
+    );
+    if (currentExtra + branchNames.length > MAX_ADDITIONAL_BUSINESSES) {
+      const remaining = Math.max(0, MAX_ADDITIONAL_BUSINESSES - currentExtra);
+      return res.status(409).json({
+        error:
+          remaining > 0
+            ? `Podés sumar hasta ${remaining} sucursal(es) más (máximo 6 locales en total).`
+            : "Llegaste al máximo de 6 locales por cuenta.",
+      });
+    }
 
+    // No se cobra aparte: creamos las sucursales, incrementamos el contador y
+    // marcamos los locales como recurrentes. El costo se cobra en la próxima
+    // renovación (en débito automático subimos el monto del preapproval).
+    const created = await appendNamedShopsForOwner(userDoc, branchNames);
+    const increment = created > 0 ? created : branchNames.length;
     userDoc.subscription = {
       ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
-      pendingAddBranchNames: branchNames,
+      additionalBusinesses: currentExtra + increment,
+      additionalBusinessesRecurring: true,
     };
     await userDoc.save();
 
-    const paymentPayload = {
-      transaction_amount: amount,
-      token,
-      description: `ShiftHub: ${qty} sucursal${qty === 1 ? "" : "es"} adicional${
-        qty === 1 ? "" : "es"
-      }`,
-      installments,
-      payment_method_id: paymentMethodId,
-      external_reference: externalReference,
-      notification_url: `${buildMercadoPagoSubscriptionWebhookUrl()}?userId=${userDoc._id.toString()}`,
-      metadata: {
-        user_id: userDoc._id.toString(),
-        subscription_type: "add_branches",
-        add_branches_qty: qty,
-      },
-      payer: {
-        email: userDoc.email,
-      },
-    };
-
-    if (issuerId) {
-      paymentPayload.issuer_id = issuerId;
-    }
-
+    // Débito automático: subimos el monto del preapproval para incluir los
+    // locales. (En renovación manual, el próximo checkout ya recalcula el monto.)
+    let recurringUpdated = false;
+    const preapprovalId = String(
+      userDoc.subscription?.mercadoPagoPreapprovalId || "",
+    ).trim();
     if (
-      payerIdentification &&
-      typeof payerIdentification === "object" &&
-      payerIdentification.type &&
-      payerIdentification.number
+      String(userDoc.subscription?.renewalMode || "").trim() === "automatic" &&
+      preapprovalId
     ) {
-      paymentPayload.payer.identification = {
-        type: String(payerIdentification.type).trim(),
-        number: String(payerIdentification.number).trim(),
-      };
-    }
-
-    let mpPayment;
-    try {
-      mpPayment = await createMercadoPagoSystemPayment({
-        payload: paymentPayload,
-        idempotencyKey: externalReference,
-      });
-    } catch (mpError) {
-      return res.status(402).json({
-        status: "rejected",
-        error: mpError?.message || "Mercado Pago no pudo procesar el pago.",
-      });
-    }
-
-    const paymentStatus = String(mpPayment?.status || "").trim();
-    const currentPaymentId = mpPayment?.id ? String(mpPayment.id) : null;
-
-    if (paymentStatus === "approved") {
-      // Creación sincrónica de los locales. El webhook queda de respaldo
-      // (idempotente por subscription.lastAddBranchesPaymentId).
       try {
-        await applyAddBranchesFromApprovedPayment({
-          userDoc,
-          payment: mpPayment,
-          paymentId: currentPaymentId,
+        const pricingDoc = await getOrCreatePlanPricing();
+        const pricing = serializePlanPricing(pricingDoc);
+        const resolvedPricing = resolvePlanPricingForSubscription({
+          plan,
+          pricing,
+          subscription: userDoc.subscription,
         });
-      } catch (activationError) {
+        const localesArs = Number(
+          resolveAdditionalBusinessesArs({
+            plan,
+            pricing,
+            subscription: userDoc.subscription,
+          }).ars || 0,
+        );
+        const newAmount = Number(
+          (Number(resolvedPricing.effectiveArs || 0) + localesArs).toFixed(2),
+        );
+        if (newAmount > 0) {
+          await updateMercadoPagoSystemPreapproval({
+            preapprovalId,
+            payload: {
+              auto_recurring: {
+                transaction_amount: newAmount,
+                currency_id: "ARS",
+              },
+            },
+          });
+          userDoc.subscription = {
+            ...(userDoc.subscription?.toObject?.() ?? userDoc.subscription ?? {}),
+            mercadoPagoPreapprovalAmountArs: newAmount,
+          };
+          await userDoc.save();
+          recurringUpdated = true;
+        }
+      } catch (mpError) {
         console.error(
-          "Error creando sucursales sincrónico (el webhook lo reintentará):",
-          activationError?.message || activationError,
+          "No se pudo actualizar el monto recurrente (se reintenta en la próxima sync):",
+          mpError?.message || mpError,
         );
       }
     }
 
     return res.json({
-      paymentId: currentPaymentId,
-      status: paymentStatus,
-      statusDetail: mpPayment?.status_detail || null,
-      amount,
-      currencyId: "ARS",
-      quantity: qty,
+      status: "applied",
+      additionalBusinesses: Number(userDoc.subscription?.additionalBusinesses || 0),
+      recurringUpdated,
+      message:
+        "Sucursal agregada. El costo se suma a tu plan y se cobra en tu próxima renovación.",
     });
   } catch (err) {
     return next(err);
