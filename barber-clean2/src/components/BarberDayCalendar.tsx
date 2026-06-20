@@ -113,10 +113,13 @@ const freeSlotsOf = (
   interval: number,
 ): { min: number; label: string }[] => {
   const ranges = barberRangesOf(barber);
-  const busy = appts.map(a => {
-    const s = calStartMin(a.startTime);
-    return { s, e: s + occupiedMinutesOf(a) };
-  });
+  const busy = appts
+    // Un turno cobrado (completed) ya terminó: libera el horario.
+    .filter(a => a.status !== 'completed')
+    .map(a => {
+      const s = calStartMin(a.startTime);
+      return { s, e: s + occupiedMinutesOf(a) };
+    });
   const out: { min: number; label: string }[] = [];
   const seen = new Set<number>();
   ranges.forEach(r => {

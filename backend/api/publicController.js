@@ -1807,7 +1807,8 @@ export async function publicBarberAppointments(req, res, next) {
     const appointments = await AppointmentModel.find({
       owner: ownerId,
       barber: barberId,
-      status: { $in: ["pending", "completed"] },
+      // Un turno cobrado (completed) libera el horario; solo bloquean los activos.
+      status: { $in: ["pending", "awaiting_payment"] },
       // Los servicios por orden de llegada (walkIn) no ocupan horario.
       walkIn: { $ne: true },
       startTime: { $gte: startOfDay, $lte: endOfDay },
@@ -1983,7 +1984,8 @@ export async function publicCreateAppointment(req, res, next) {
     const overlappingCandidates = await AppointmentModel.find({
       owner: ownerId,
       barber: barberId,
-      status: { $in: ["pending", "completed"] },
+      // Un turno cobrado (completed) libera el horario; solo bloquean los activos.
+      status: { $in: ["pending", "awaiting_payment"] },
       // Los servicios por orden de llegada (walkIn) no ocupan horario.
       walkIn: { $ne: true },
       startTime: { $lt: occupiedEndTime },

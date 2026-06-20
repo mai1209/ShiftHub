@@ -478,7 +478,8 @@ export async function createAppointment(req, res, next) {
       // 2. VALIDACIÓN SOLAPAMIENTO
       const overlappingCandidates = await AppointmentModel.find({
         barber: barberId,
-        status: { $ne: "cancelled" },
+        // Un turno cobrado (completed) ya terminó: libera el horario.
+        status: { $nin: ["cancelled", "completed"] },
         // Los servicios por orden de llegada (walkIn) no ocupan horario.
         walkIn: { $ne: true },
         startTime: { $lt: occupiedEndTime },
