@@ -33,8 +33,22 @@ export function applyFixedDiscountByUsdReference({
 
 export const ADDITIONAL_BUSINESS_PRICE_USD_REFERENCE = 10;
 
-// Recargo por locales/negocios adicionales: USD 10 por local, convertido a ARS
-// con el ratio del plan (mismo criterio que muestra el panel admin).
+// Recargo ESCALONADO por locales adicionales (la base ya incluye 1 local):
+//  - 1º y 2º adicional: precio unitario completo (ej. 10 USD c/u)
+//  - del 3º en adelante: mitad (ej. 5 USD c/u)
+// Devuelve el multiplicador en "unidades" del precio unitario configurado.
+export function additionalBusinessesUnits(count) {
+  const safe = Math.max(0, Math.trunc(Number(count) || 0));
+  let units = 0;
+  for (let i = 1; i <= safe; i += 1) {
+    units += i <= 2 ? 1 : 0.5;
+  }
+  return units;
+}
+
+// Recargo por locales/negocios adicionales: precio unitario administrado desde el
+// panel admin (PlanPricing.additionalBusiness), aplicado de forma escalonada
+// (10/10/5/5/...).
 export function resolveAdditionalBusinessesArs({ pricing, subscription = {} }) {
   const count = Math.max(0, Math.trunc(Number(subscription?.additionalBusinesses) || 0));
   if (!count) return { count: 0, usdReference: 0, ars: 0 };
@@ -45,11 +59,12 @@ export function resolveAdditionalBusinessesArs({ pricing, subscription = {} }) {
   const unitUsd = Number(
     pricing?.additionalBusiness?.usdReference || ADDITIONAL_BUSINESS_PRICE_USD_REFERENCE,
   );
+  const units = additionalBusinessesUnits(count);
 
   return {
     count,
-    usdReference: count * unitUsd,
-    ars: Number((count * unitArs).toFixed(2)),
+    usdReference: Number((units * unitUsd).toFixed(2)),
+    ars: Number((units * unitArs).toFixed(2)),
   };
 }
 

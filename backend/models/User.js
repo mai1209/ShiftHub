@@ -223,6 +223,13 @@ const subscriptionSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Si los locales adicionales se cobran de forma RECURRENTE (sumados al plan
+    // mensual). Los que pagaron one-time con el modelo viejo quedan en false
+    // (grandfathering): su recurrente sigue siendo solo el plan.
+    additionalBusinessesRecurring: {
+      type: Boolean,
+      default: false,
+    },
     // Nombres de los locales adicionales elegidos en el checkout (autoservicio).
     // Al aprobarse el pago se crean los Shop con estos nombres y se vacía.
     pendingBusinessNames: {
