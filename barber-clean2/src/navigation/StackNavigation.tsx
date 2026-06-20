@@ -21,7 +21,8 @@ import AppearanceSettingsScreen from '../screnn/AppearanceSettingsScreen';
 import PublicProfileSettingsScreen from '../screnn/PublicProfileSettingsScreen';
 import ServiceSettingsScreen from '../screnn/ServiceSettingsScreen';
 import CouponSettingsScreen from '../screnn/CouponSettingsScreen';
-import MembershipSettingsScreen from '../screnn/MembershipSettingsScreen';
+import MembershipScreen from '../screnn/MembershipScreen';
+import MembersListScreen from '../screnn/MembersListScreen';
 import PaymentSettingsScreen from '../screnn/PaymentSettingsScreen';
 import NotificationSettingsScreen from '../screnn/NotificationSettingsScreen';
 import BarberProfileSettingsScreen from '../screnn/BarberProfileSettingsScreen';
@@ -81,6 +82,7 @@ export type RootStackParamList = {
   'Service-Settings': undefined;
   'Coupon-Settings': undefined;
   'Membership-Settings': undefined;
+  'Members-List': undefined;
   'Payment-Settings': undefined;
   'Notification-Settings': undefined;
   'Barber-Profile-Settings': undefined;
@@ -156,7 +158,8 @@ export default function StackNavigator({
               <Stack.Screen name="Public-Profile-Settings" component={PublicProfileSettingsScreen} />
               <Stack.Screen name="Service-Settings" component={ServiceSettingsScreen} />
               <Stack.Screen name="Coupon-Settings" component={CouponSettingsScreen} />
-              <Stack.Screen name="Membership-Settings" component={MembershipSettingsScreen} />
+              <Stack.Screen name="Membership-Settings" component={MembershipScreen} />
+              <Stack.Screen name="Members-List" component={MembersListScreen} />
               <Stack.Screen name="Payment-Settings" component={PaymentSettingsScreen} />
               <Stack.Screen name="Notification-Settings" component={NotificationSettingsScreen} />
               <Stack.Screen name="Barber-Profile-Settings" component={BarberProfileSettingsScreen} />

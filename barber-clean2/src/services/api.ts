@@ -1225,6 +1225,7 @@ export type MembershipPlan = {
 
 export type Membership = {
   _id: string;
+  plan?: string | null;
   planName: string;
   customerName: string;
   customerEmail: string;
