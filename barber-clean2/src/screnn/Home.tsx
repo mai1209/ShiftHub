@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Image,
+  Dimensions,
   StatusBar,
   Alert,
   Platform,
@@ -1005,7 +1006,6 @@ function Home({ navigation }: Props) {
   // ===== Vista Calendario (agenda del día tipo timeline) =====
   const CAL_HOUR_H = 104;
   const CAL_HEADER_H = 52;
-  const CAL_COL_W = 158;
 
   const calColBarbers = useMemo(() => {
     if (barbersFull.length) {
@@ -1026,6 +1026,14 @@ function Home({ navigation }: Props) {
       raw: b,
     }));
   }, [barbersFull, appointments, businessCopy]);
+
+  // Sin gutter de horas: las columnas llenan el ancho disponible (scrollContent
+  // tiene paddingHorizontal 20). Con muchos barberos cae a un ancho mínimo y scrollea.
+  const CAL_AVAIL_W = Dimensions.get('window').width - 40;
+  const CAL_COL_W = Math.max(
+    168,
+    Math.floor(CAL_AVAIL_W / Math.max(1, calColBarbers.length)),
+  );
 
   const colorForBarber = (barberId: string) => {
     const idx = calColBarbers.findIndex(c => c.id === barberId);
@@ -1255,29 +1263,6 @@ function Home({ navigation }: Props) {
 
     return (
       <View style={{ flexDirection: 'row' }}>
-        {/* Gutter de horas (fijo a la izquierda) */}
-        <View style={{ width: 48 }}>
-          <View style={{ height: CAL_HEADER_H }} />
-          <View style={{ height: gridHeight }}>
-            {ticks.map(m => (
-              <Text
-                key={m}
-                style={[
-                  styles.calHourLabel,
-                  {
-                    position: 'absolute',
-                    top: topOf(m) - 7,
-                    fontWeight: m % 60 === 0 ? '700' : '500',
-                    opacity: m % 60 === 0 ? 0.85 : 0.5,
-                  },
-                ]}
-              >
-                {minToLabel(m)}
-              </Text>
-            ))}
-          </View>
-        </View>
-
         {/* Columnas de profesionales (scroll horizontal) */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {calColBarbers.map(col => {
@@ -2315,12 +2300,6 @@ const createStyles = (theme: Theme) =>
     calViewBtnText: { fontSize: 12, fontWeight: '700', color: theme.textMuted },
     calViewBtnTextActive: { color: theme.textOnPrimary },
     // Calendario (timeline)
-    calHourLabel: {
-      width: 48,
-      color: '#9aa1ac',
-      fontSize: 11,
-      fontWeight: '600',
-    },
     calGrid: { position: 'relative', marginTop: 4 },
     calGridClosed: { opacity: 0.6 },
     calClosedNote: {
@@ -2347,9 +2326,9 @@ const createStyles = (theme: Theme) =>
     calBlockName: { color: theme.textPrimary, fontSize: 13, fontWeight: '700' },
     calBlockSvc: { color: theme.textMuted, fontSize: 11 },
     calFreePlusText: {
-      color: theme.primary,
+      color: theme.textMuted,
       fontSize: 12,
-      fontWeight: '800',
+      fontWeight: '600',
       lineHeight: 16,
     },
     calColHead: {
