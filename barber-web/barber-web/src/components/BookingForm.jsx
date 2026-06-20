@@ -39,6 +39,36 @@ const minutesToLabel = (totalMinutes) => {
 
 const DEFAULT_SLOT_INTERVAL_MINUTES = 15;
 
+// Degradado "metálico/platinado" para la tarjeta de membresía (igual que la app).
+const clampByte = (x) => Math.max(0, Math.min(255, Math.round(x)));
+const hexToRgb = (hex) => {
+  const s = String(hex || "").replace("#", "");
+  const full = s.length === 3 ? s.split("").map((c) => c + c).join("") : s;
+  const num = parseInt(full || "000000", 16);
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+};
+const toHex = ({ r, g, b }) =>
+  "#" + [r, g, b].map((x) => clampByte(x).toString(16).padStart(2, "0")).join("");
+const lightenHex = (hex, amt) => {
+  const { r, g, b } = hexToRgb(hex);
+  return toHex({
+    r: r + (255 - r) * amt,
+    g: g + (255 - g) * amt,
+    b: b + (255 - b) * amt,
+  });
+};
+const darkenHex = (hex, amt) => {
+  const { r, g, b } = hexToRgb(hex);
+  return toHex({ r: r * (1 - amt), g: g * (1 - amt), b: b * (1 - amt) });
+};
+const metallicGradient = (color) => {
+  const c = color || "#111827";
+  return `linear-gradient(135deg, ${lightenHex(c, 0.38)} 0%, ${c} 30%, ${lightenHex(
+    c,
+    0.5,
+  )} 52%, ${darkenHex(c, 0.16)} 74%, ${darkenHex(c, 0.42)} 100%)`;
+};
+
 // El intervalo de turnos es por empleado/recurso (Barber.bookingSlotIntervalMinutes).
 function normalizeSlotIntervalMinutes(value) {
   return Number(value) === 30 ? 30 : DEFAULT_SLOT_INTERVAL_MINUTES;
@@ -1553,9 +1583,12 @@ function BookingForm({ shopSlug, onNotFound }) {
             />
           </div>
         </div>
-        {/* CAMPO DE EMAIL (opcional) */}
+        {/* CAMPO DE EMAIL (opcional). Si sos miembro, ingresalo para vincular tu membresía. */}
         <div className={styles.fieldGroup}>
-          <label className={styles.label}>Email (opcional, para el comprobante)</label>
+          <label className={styles.label}>Email (opcional)</label>
+          <p className={styles.memberHint}>
+            ¿Sos miembro? Ingresá tu email y usás tu turno gratis.
+          </p>
           <input
             className={styles.input}
             type="email"
@@ -1574,12 +1607,35 @@ function BookingForm({ shopSlug, onNotFound }) {
               {emailReview.message}
             </p>
           ) : null}
+
           {membership && membership.turnsRemaining > 0 ? (
-            <div className={styles.membershipBanner}>
-              🎉 Tenés la membresía <strong>{membership.planName}</strong>: te
-              quedan <strong>{membership.turnsRemaining}</strong> turno
-              {membership.turnsRemaining === 1 ? "" : "s"} gratis. Este turno se
-              reserva sin cargo.
+            <div className={styles.membershipCard}>
+              <div
+                className={styles.membershipCardInner}
+                style={{ background: metallicGradient(membership.color) }}
+              >
+                <span className={styles.membershipBadge}>Membresía</span>
+                <span className={styles.membershipName}>
+                  {membership.planName}
+                </span>
+                <div className={styles.membershipTurns}>
+                  <span className={styles.membershipTurnsNum}>
+                    {membership.turnsRemaining}
+                  </span>
+                  <span className={styles.membershipTurnsLbl}>
+                    turno{membership.turnsRemaining === 1 ? "" : "s"} gratis
+                    disponibles
+                  </span>
+                </div>
+                {membership.giftText ? (
+                  <span className={styles.membershipGift}>
+                    🎁 {membership.giftText}
+                  </span>
+                ) : null}
+                <span className={styles.membershipNote}>
+                  Este turno va sin cargo.
+                </span>
+              </div>
             </div>
           ) : null}
         </div>

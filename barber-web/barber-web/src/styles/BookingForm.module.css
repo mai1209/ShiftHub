@@ -1294,16 +1294,65 @@ span img{
   padding: 11px 12px;
 }
 
-.membershipBanner {
-  border: 1px solid rgba(22, 163, 74, 0.35);
-  border-radius: 16px;
-  background: rgba(22, 163, 74, 0.12);
-  color: var(--text);
-  font-size: 0.86rem;
-  font-weight: 700;
-  line-height: 1.45;
-  margin-top: 12px;
-  padding: 12px 14px;
+.memberHint {
+  margin: -2px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pink, #d60b7b);
+  opacity: 0.9;
+}
+.membershipCard {
+  margin-top: 10px;
+}
+.membershipCardInner {
+  border-radius: 18px;
+  padding: 20px 20px;
+  min-height: 160px;
+  margin: 0 30px;
+  color: #fff;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+.membershipBadge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.membershipName {
+  font-size: 19px;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.membershipTurns {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 4px;
+}
+.membershipTurnsNum {
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+}
+.membershipTurnsLbl {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.95;
+}
+.membershipGift {
+  font-size: 12px;
+  opacity: 0.95;
+  margin-top: 2px;
+}
+.membershipNote {
+  font-size: 11px;
+  opacity: 0.85;
+  margin-top: 4px;
 }
 
 .oldPrice {
