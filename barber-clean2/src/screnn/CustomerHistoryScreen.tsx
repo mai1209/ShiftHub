@@ -20,6 +20,7 @@ import {
   Banknote,
   ChevronDown,
   CreditCard,
+  Filter,
   Scissors,
   Search,
   Users,
@@ -212,6 +213,7 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
     if (name) setSelectedBarber(name);
   }, [route?.params?.barberName]);
   const [searchInput, setSearchInput] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [visitsFilterInput, setVisitsFilterInput] = useState('');
   const [customerSegment, setCustomerSegment] = useState<
     'all' | 'new' | 'recurrent'
@@ -1058,10 +1060,14 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
               <Banknote size={14} color={theme.textSecondary} />
               <Text style={styles.paymentBreakdownLabel}>Efectivo</Text>
             </View>
-            <Text style={styles.paymentBreakdownValue}>
+            <Text
+              style={styles.paymentBreakdownValue}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
               {formatCurrency(summary.cashRevenue)}
             </Text>
-            <Text style={styles.paymentBreakdownMeta}>
+            <Text style={styles.paymentBreakdownMeta} numberOfLines={1}>
               {summary.cashCount} cobros
             </Text>
           </View>
@@ -1071,10 +1077,14 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
               <CreditCard size={14} color={theme.textSecondary} />
               <Text style={styles.paymentBreakdownLabel}>Transferencia</Text>
             </View>
-            <Text style={styles.paymentBreakdownValue}>
+            <Text
+              style={styles.paymentBreakdownValue}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
               {formatCurrency(summary.transferRevenue)}
             </Text>
-            <Text style={styles.paymentBreakdownMeta}>
+            <Text style={styles.paymentBreakdownMeta} numberOfLines={1}>
               {summary.transferCount} cobros
             </Text>
           </View>
@@ -1084,29 +1094,51 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
               <Scissors size={14} color={theme.textSecondary} />
               <Text style={styles.paymentBreakdownLabel}>Comisión</Text>
             </View>
-            <Text style={styles.paymentBreakdownValue}>
+            <Text
+              style={styles.paymentBreakdownValue}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
               {formatCurrency(summary.totalCommission)}
             </Text>
-            <Text style={styles.paymentBreakdownMeta}>
+            <Text style={styles.paymentBreakdownMeta} numberOfLines={1}>
               {selectedBarber === 'all' ? 'todos' : selectedBarber}
             </Text>
           </View>
         </View>
 
         <View style={styles.filtersCard}>
-          <View style={styles.filtersCardHeader}>
-            <View>
-              <Text style={styles.filtersTitle}>Filtros</Text>
-              <Text style={styles.filtersSubtitle}>{activeContextLabel}</Text>
-            </View>
-
-            {hasActiveFilters ? (
-              <Pressable style={styles.clearButton} onPress={clearAllFilters}>
-                <X size={13} color={theme.textSecondary} />
-                <Text style={styles.clearButtonText}>Limpiar</Text>
-              </Pressable>
-            ) : null}
+          <View style={styles.filtersHeaderRow}>
+            <Pressable
+              style={styles.filtersToggle}
+              onPress={() => setFiltersOpen(o => !o)}
+              hitSlop={6}
+            >
+              <View style={styles.filtersToggleIcon}>
+                <Filter size={16} color={theme.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.filtersTitle}>Filtrar</Text>
+                <Text style={styles.filtersSubtitle}>{activeContextLabel}</Text>
+              </View>
+              <ChevronDown
+                size={20}
+                color={theme.textSecondary}
+                style={{
+                  transform: [{ rotate: filtersOpen ? '180deg' : '0deg' }],
+                }}
+              />
+            </Pressable>
           </View>
+
+          {!filtersOpen ? null : (
+          <View style={styles.filtersBody}>
+          {hasActiveFilters ? (
+            <Pressable style={styles.clearButton} onPress={clearAllFilters}>
+              <X size={13} color={theme.textSecondary} />
+              <Text style={styles.clearButtonText}>Limpiar</Text>
+            </Pressable>
+          ) : null}
 
           <View style={styles.searchFieldWrap}>
             <Search size={16} color={theme.textMuted} />
@@ -1318,6 +1350,8 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
               </Pressable>
             </View>
           </View>
+          </View>
+          )}
 
           <View style={styles.clientInsightRow}>
             <View style={styles.clientInsightCard}>
@@ -1789,6 +1823,29 @@ const makeStyles = (theme: Theme) =>
       alignItems: 'flex-start',
       justifyContent: 'space-between',
       marginBottom: 14,
+    },
+    filtersHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    filtersToggle: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    filtersToggleIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filtersBody: {
+      gap: 14,
+      marginTop: 16,
     },
     filtersTitle: {
       color: theme.textPrimary,
