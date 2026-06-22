@@ -15,6 +15,7 @@ import {
   Settings,
   Clock,
   CalendarDays,
+  History,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
@@ -276,6 +277,26 @@ function Nav({ currentRouteName, role = 'admin', onNavigate }: Props) {
                 </Text>
                 <Text style={[styles.modalOptionSub, { color: theme.textMuted }]}>
                   Elegí fecha y horario disponible
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={[styles.modalOption, { borderColor: theme.border }]}
+              onPress={() => {
+                setShowNewTurnModal(false);
+                onNavigate('Caja', { openService: true });
+              }}
+            >
+              <History size={22} color={theme.textSecondary} />
+              <View style={styles.modalOptionTextWrap}>
+                <Text
+                  style={[styles.modalOptionTitle, { color: theme.textPrimary }]}
+                >
+                  Turno olvidado
+                </Text>
+                <Text style={[styles.modalOptionSub, { color: theme.textMuted }]}>
+                  Cargá un servicio que ya hiciste — no ocupa horario
                 </Text>
               </View>
             </Pressable>

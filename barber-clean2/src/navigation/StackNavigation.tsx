@@ -75,7 +75,7 @@ export type RootStackParamList = {
     | undefined;
   'Owner-Metrics': undefined;
   'Customer-History': { barberId?: string; barberName?: string } | undefined;
-  Caja: undefined;
+  Caja: { openService?: boolean } | undefined;
   Settings: undefined;
   'Appearance-Settings': undefined;
   'Public-Profile-Settings': undefined;

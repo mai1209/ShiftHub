@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -23,6 +23,12 @@ import {
   fetchCashSummary,
   updateAppointmentStatus,
   deleteAppointment,
+  createAppointment,
+  fetchBarbers,
+  fetchServices,
+  type Barber,
+  type ServiceOption,
+  type PaymentMethod,
 } from '../services/api';
 import { getUserProfile } from '../services/authStorage';
 import { hasProPlanAccess } from '../services/planAccess';
@@ -45,7 +51,10 @@ import {
   X,
 } from 'lucide-react-native';
 
-type Props = { navigation: any };
+type Props = {
+  navigation: any;
+  route?: { params?: { openService?: boolean } };
+};
 
 type RangeMode = 'daily' | 'weekly' | 'monthly' | 'annual';
 
@@ -93,8 +102,8 @@ const EXPENSE_CATEGORIES = [
 ];
 const INCOME_CATEGORIES = ['Producto', 'Propina', 'Otro'];
 
-function CajaScreen({ navigation }: Props) {
-  const { theme } = useTheme();
+function CajaScreen({ navigation, route }: Props) {
+  const { theme, businessCopy } = useTheme();
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const [rangeMode, setRangeMode] = useState<RangeMode>('monthly');
@@ -128,6 +137,37 @@ function CajaScreen({ navigation }: Props) {
   const [categoryInput, setCategoryInput] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Modo del formulario: movimiento común o registrar un servicio de un
+  // profesional (turno olvidado) que suma a las métricas del negocio y del
+  // profesional, pero al ser walkIn NO ocupa un horario en la agenda.
+  const [formMode, setFormMode] = useState<'movement' | 'service'>('movement');
+  const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([]);
+  const [svcBarberId, setSvcBarberId] = useState('');
+  const [svcServiceId, setSvcServiceId] = useState('');
+  const [svcPriceInput, setSvcPriceInput] = useState('');
+  const [svcMethod, setSvcMethod] = useState<PaymentMethod>('cash');
+  const [svcCustomer, setSvcCustomer] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const [b, s] = await Promise.all([fetchBarbers(), fetchServices()]);
+        if (!mounted) return;
+        setBarbers(b.barbers || []);
+        setServiceOptions(
+          (s.services || []).filter(opt => opt.isActive !== false),
+        );
+      } catch {
+        // si falla, el modo "servicio" simplemente no tendrá opciones
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const buildRangeParams = useCallback(() => {
     if (rangeMode === 'daily') return { range: 'daily' as const, date: toYmd(refDate) };
@@ -208,6 +248,12 @@ function CajaScreen({ navigation }: Props) {
     setDescriptionInput('');
     setCategoryInput('');
     setEditingId(null);
+    setFormMode('movement');
+    setSvcBarberId('');
+    setSvcServiceId('');
+    setSvcPriceInput('');
+    setSvcMethod('cash');
+    setSvcCustomer('');
   };
 
   const handleOpenForm = () => {
@@ -215,6 +261,17 @@ function CajaScreen({ navigation }: Props) {
     setFormType('expense');
     setFormOpen(true);
   };
+
+  // "Turno olvidado" desde el + del menú: abre la carga de servicio (walk-in).
+  useEffect(() => {
+    if (route?.params?.openService) {
+      resetForm();
+      setFormMode('service');
+      setFormOpen(true);
+      navigation.setParams?.({ openService: undefined });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route?.params?.openService]);
 
   const handleEdit = (entry: CashEntry) => {
     setEditingId(entry._id);
@@ -225,7 +282,64 @@ function CajaScreen({ navigation }: Props) {
     setFormOpen(true);
   };
 
+  const handleSaveService = async () => {
+    const price = Number(svcPriceInput.replace(',', '.'));
+    const service = serviceOptions.find(opt => opt._id === svcServiceId);
+    if (!svcBarberId) {
+      Alert.alert(
+        `Falta el ${businessCopy.staffSingular}`,
+        `Elegí qué ${businessCopy.staffSingular} hizo el servicio.`,
+      );
+      return;
+    }
+    if (!service) {
+      Alert.alert('Falta el servicio', 'Elegí el servicio realizado.');
+      return;
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      Alert.alert('Monto inválido', 'Ingresá un precio mayor a 0.');
+      return;
+    }
+    try {
+      setSaving(true);
+      // Se registra como un turno YA completado por orden de llegada: suma a las
+      // métricas del negocio ("servicios cobrados") y del profesional (con su
+      // comisión), pero al ser walkIn NO ocupa un horario en la agenda ni choca
+      // con otros turnos.
+      const created = await createAppointment({
+        barberId: svcBarberId,
+        customerName: svcCustomer.trim() || 'Orden de llegada',
+        service: service.name,
+        servicePrice: price,
+        durationMinutes: service.durationMinutes || 30,
+        startTime: new Date().toISOString(),
+        email: '',
+        paymentMethod: svcMethod,
+        walkIn: true,
+      });
+      const apptId = created?.appointment?._id;
+      if (apptId) {
+        await updateAppointmentStatus(apptId, 'completed', {
+          paymentMethodCollected: svcMethod,
+          paymentStatus: 'paid',
+          amountPaid: price,
+        });
+      }
+      resetForm();
+      setFormOpen(false);
+      await loadData(true);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'No se pudo registrar el servicio.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
+    if (formMode === 'service') {
+      await handleSaveService();
+      return;
+    }
     const amount = Number(amountInput.replace(',', '.'));
     if (!Number.isFinite(amount) || amount <= 0) {
       Alert.alert('Monto inválido', 'Ingresá un monto mayor a 0.');
@@ -548,7 +662,11 @@ function CajaScreen({ navigation }: Props) {
                 <Pressable style={styles.modalCard} onPress={() => {}}>
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>
-                      {editingId ? 'Editar movimiento' : 'Nuevo movimiento'}
+                      {editingId
+                        ? 'Editar movimiento'
+                        : formMode === 'service'
+                        ? 'Registrar servicio'
+                        : 'Nuevo movimiento'}
                     </Text>
                     <Pressable
                       style={styles.modalClose}
@@ -565,6 +683,37 @@ function CajaScreen({ navigation }: Props) {
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                   >
+                    {!editingId && (
+                      <View style={styles.typeToggle}>
+                        <Pressable
+                          style={[
+                            styles.typeOption,
+                            formMode === 'movement' && {
+                              backgroundColor: hexToRgba(theme.primary, 0.15),
+                              borderColor: theme.primary,
+                            },
+                          ]}
+                          onPress={() => setFormMode('movement')}
+                        >
+                          <Text style={styles.typeOptionText}>Movimiento</Text>
+                        </Pressable>
+                        <Pressable
+                          style={[
+                            styles.typeOption,
+                            formMode === 'service' && {
+                              backgroundColor: hexToRgba(theme.primary, 0.15),
+                              borderColor: theme.primary,
+                            },
+                          ]}
+                          onPress={() => setFormMode('service')}
+                        >
+                          <Text style={styles.typeOptionText}>Servicio</Text>
+                        </Pressable>
+                      </View>
+                    )}
+
+                    {formMode === 'movement' && (
+                      <>
                     <View style={styles.typeToggle}>
                   <Pressable
                     style={[
@@ -640,6 +789,117 @@ function CajaScreen({ navigation }: Props) {
                     );
                   })}
                 </View>
+                      </>
+                    )}
+
+                    {formMode === 'service' && (
+                      <>
+                        <Text style={styles.categoryLabel}>
+                          {businessCopy.staffSingularCapitalized}
+                        </Text>
+                        <View style={styles.categoryChips}>
+                          {barbers.map(b => {
+                            const active = svcBarberId === b._id;
+                            return (
+                              <Pressable
+                                key={b._id}
+                                style={[
+                                  styles.categoryChip,
+                                  active && styles.categoryChipActive,
+                                ]}
+                                onPress={() => setSvcBarberId(b._id)}
+                              >
+                                <Text
+                                  style={[
+                                    styles.categoryChipText,
+                                    active && styles.categoryChipTextActive,
+                                  ]}
+                                >
+                                  {b.fullName}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+
+                        <Text style={styles.categoryLabel}>Servicio</Text>
+                        <View style={styles.categoryChips}>
+                          {serviceOptions.map(s => {
+                            const active = svcServiceId === s._id;
+                            return (
+                              <Pressable
+                                key={s._id}
+                                style={[
+                                  styles.categoryChip,
+                                  active && styles.categoryChipActive,
+                                ]}
+                                onPress={() => {
+                                  setSvcServiceId(s._id);
+                                  setSvcPriceInput(
+                                    s.price != null ? String(s.price) : '',
+                                  );
+                                }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.categoryChipText,
+                                    active && styles.categoryChipTextActive,
+                                  ]}
+                                >
+                                  {s.name}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+
+                        <TextInput
+                          style={[styles.input, { marginTop: 10 }]}
+                          placeholder="Precio"
+                          placeholderTextColor={theme.placeholder}
+                          keyboardType="numeric"
+                          value={svcPriceInput}
+                          onChangeText={setSvcPriceInput}
+                        />
+                        <TextInput
+                          style={[styles.input, { marginTop: 10 }]}
+                          placeholder="Cliente (opcional)"
+                          placeholderTextColor={theme.placeholder}
+                          value={svcCustomer}
+                          onChangeText={setSvcCustomer}
+                        />
+
+                        <Text style={styles.categoryLabel}>Cobrado con</Text>
+                        <View style={styles.typeToggle}>
+                          <Pressable
+                            style={[
+                              styles.typeOption,
+                              svcMethod === 'cash' && {
+                                backgroundColor: hexToRgba(INCOME_COLOR, 0.15),
+                                borderColor: INCOME_COLOR,
+                              },
+                            ]}
+                            onPress={() => setSvcMethod('cash')}
+                          >
+                            <Text style={styles.typeOptionText}>Efectivo</Text>
+                          </Pressable>
+                          <Pressable
+                            style={[
+                              styles.typeOption,
+                              svcMethod === 'transfer' && {
+                                backgroundColor: hexToRgba(INCOME_COLOR, 0.15),
+                                borderColor: INCOME_COLOR,
+                              },
+                            ]}
+                            onPress={() => setSvcMethod('transfer')}
+                          >
+                            <Text style={styles.typeOptionText}>
+                              Transferencia
+                            </Text>
+                          </Pressable>
+                        </View>
+                      </>
+                    )}
 
                     <Pressable
                       style={[styles.saveBtn, saving && { opacity: 0.6 }]}
@@ -651,6 +911,8 @@ function CajaScreen({ navigation }: Props) {
                           ? 'Guardando...'
                           : editingId
                           ? 'Guardar cambios'
+                          : formMode === 'service'
+                          ? 'Registrar servicio'
                           : 'Guardar movimiento'}
                       </Text>
                     </Pressable>
