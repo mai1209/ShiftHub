@@ -319,18 +319,14 @@ function LandingPage() {
             role="img"
             aria-label={SHIFT_APP_BRAND_NAME}
           >
-            <g
-              transform="translate(29 2) scale(2.6)"
-              stroke="#0f172a"
-              strokeWidth="2.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M3 8h16" />
-              <path d="M14 4l5 4-5 4" />
-              <path d="M21 16H5" />
-              <path d="M10 12l-5 4 5 4" />
-            </g>
+            <image
+              href={`${process.env.PUBLIC_URL}/shift-arrows.png`}
+              x="28"
+              y="0"
+              width="64"
+              height="64"
+              preserveAspectRatio="xMidYMid meet"
+            />
             <text
               x="60"
               y="122"
@@ -739,18 +735,14 @@ function LandingPage() {
               role="img"
               aria-label={SHIFT_APP_BRAND_NAME}
             >
-              <g
-                transform="translate(29 2) scale(2.6)"
-                stroke="#0f172a"
-                strokeWidth="2.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M3 8h16" />
-                <path d="M14 4l5 4-5 4" />
-                <path d="M21 16H5" />
-                <path d="M10 12l-5 4 5 4" />
-              </g>
+              <image
+                href={`${process.env.PUBLIC_URL}/shift-arrows.png`}
+                x="28"
+                y="0"
+                width="64"
+                height="64"
+                preserveAspectRatio="xMidYMid meet"
+              />
               <text
                 x="60"
                 y="122"
