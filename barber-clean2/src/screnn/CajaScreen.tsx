@@ -115,6 +115,8 @@ function CajaScreen({ navigation, route }: Props) {
   const [entries, setEntries] = useState<CashEntry[]>([]);
   const [exporting, setExporting] = useState(false);
   const [shopName, setShopName] = useState('');
+  const [servicesExpanded, setServicesExpanded] = useState(false);
+  const SERVICES_PREVIEW = 5;
 
   const doExport = async (kind: 'excel' | 'pdf') => {
     if (!summary) return;
@@ -929,7 +931,10 @@ function CajaScreen({ navigation, route }: Props) {
                   <Banknote size={16} color={theme.textSecondary} />
                 </View>
                 <View style={styles.entriesList}>
-                  {sortedServices.map(svc => (
+                  {(servicesExpanded
+                    ? sortedServices
+                    : sortedServices.slice(0, SERVICES_PREVIEW)
+                  ).map(svc => (
                     <View key={svc._id} style={styles.entryRow}>
                       <View style={styles.entryInfo}>
                         <Text style={styles.entryDesc}>
@@ -965,6 +970,20 @@ function CajaScreen({ navigation, route }: Props) {
                     </View>
                   ))}
                 </View>
+                {sortedServices.length > SERVICES_PREVIEW ? (
+                  <Pressable
+                    style={styles.seeMoreBtn}
+                    onPress={() => setServicesExpanded(v => !v)}
+                  >
+                    <Text style={styles.seeMoreText}>
+                      {servicesExpanded
+                        ? 'Ver menos'
+                        : `Ver más (${
+                            sortedServices.length - SERVICES_PREVIEW
+                          })`}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </>
             ) : null}
 
@@ -1093,6 +1112,17 @@ const makeStyles = (theme: Theme) =>
       fontWeight: '700',
       textTransform: 'capitalize',
     },
+    seeMoreBtn: {
+      alignSelf: 'center',
+      marginTop: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 18,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.card,
+    },
+    seeMoreText: { color: theme.primary, fontSize: 13, fontWeight: '800' },
     exportRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
     exportBtn: {
       flex: 1,

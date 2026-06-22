@@ -19,10 +19,13 @@ import * as XLSX from 'xlsx';
 import {
   Banknote,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CreditCard,
   Filter,
   Scissors,
   Search,
+  ShoppingBag,
   Users,
   X,
 } from 'lucide-react-native';
@@ -30,9 +33,11 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../context/ThemeContext';
 import {
+  CashEntry,
   CustomerHistoryResponse,
   ServiceOption,
   getCurrentUser,
+  fetchCashEntries,
   fetchCustomerHistory,
   fetchServices,
 } from '../services/api';
@@ -88,6 +93,20 @@ const TABLE_COLUMNS = [
   { key: 'payment', label: 'Último pago', width: 130 },
   { key: 'price', label: 'Total gastado', width: 120 },
 ];
+
+type HistoryRangeMode = 'daily' | 'weekly' | 'monthly' | 'annual';
+
+const RANGE_OPTIONS: { key: HistoryRangeMode; label: string }[] = [
+  { key: 'daily', label: 'Día' },
+  { key: 'weekly', label: 'Semana' },
+  { key: 'monthly', label: 'Mes' },
+  { key: 'annual', label: 'Año' },
+];
+
+const toYmd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`;
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('es-AR', {
@@ -201,6 +220,15 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<CustomerHistoryResponse | null>(null);
   const [services, setServices] = useState<ServiceOption[]>([]);
+  const [historyTab, setHistoryTab] = useState<'services' | 'sales'>(
+    'services',
+  );
+  const [salesEntries, setSalesEntries] = useState<CashEntry[]>([]);
+  // Período propio de la pestaña Ventas (Día/Semana/Mes/Año), reusando el
+  // patrón de CajaScreen. La pestaña Servicios sigue con su selector de "Mes".
+  const [salesRangeMode, setSalesRangeMode] =
+    useState<HistoryRangeMode>('monthly');
+  const [salesRefDate, setSalesRefDate] = useState(() => new Date());
   const [paymentFilter, setPaymentFilter] = useState<
     'all' | 'cash' | 'transfer'
   >('all');
@@ -233,6 +261,62 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
     [now],
   );
 
+  // Período de la pestaña Ventas (mismo patrón que CajaScreen).
+  const buildSalesRangeParams = useCallback(() => {
+    if (salesRangeMode === 'daily')
+      return { range: 'daily' as const, date: toYmd(salesRefDate) };
+    if (salesRangeMode === 'weekly')
+      return { range: 'weekly' as const, date: toYmd(salesRefDate) };
+    if (salesRangeMode === 'annual')
+      return { range: 'annual' as const, year: salesRefDate.getFullYear() };
+    return {
+      range: 'monthly' as const,
+      year: salesRefDate.getFullYear(),
+      month: salesRefDate.getMonth() + 1,
+    };
+  }, [salesRangeMode, salesRefDate]);
+
+  const shiftSalesPeriod = (dir: number) => {
+    setSalesRefDate(prev => {
+      const d = new Date(prev);
+      if (salesRangeMode === 'daily') d.setDate(d.getDate() + dir);
+      else if (salesRangeMode === 'weekly') d.setDate(d.getDate() + dir * 7);
+      else if (salesRangeMode === 'annual')
+        d.setFullYear(d.getFullYear() + dir);
+      else d.setMonth(d.getMonth() + dir);
+      return d;
+    });
+  };
+
+  const salesPeriodLabel = useMemo(() => {
+    if (salesRangeMode === 'daily') {
+      return salesRefDate.toLocaleDateString('es-AR');
+    }
+    if (salesRangeMode === 'annual') {
+      return String(salesRefDate.getFullYear());
+    }
+    if (salesRangeMode === 'weekly') {
+      return `Semana del ${salesRefDate.toLocaleDateString('es-AR')}`;
+    }
+    return formatMonthYear(salesRefDate.toISOString());
+  }, [salesRangeMode, salesRefDate]);
+
+  const salesTotal = useMemo(
+    () => salesEntries.reduce((acc, entry) => acc + (entry.amount || 0), 0),
+    [salesEntries],
+  );
+
+  // Ventas con lo último cargado primero (fecha desc, desempate por _id).
+  const sortedSalesEntries = useMemo(
+    () =>
+      [...salesEntries].sort((a, b) => {
+        const t = new Date(b.date).getTime() - new Date(a.date).getTime();
+        if (t !== 0) return t;
+        return a._id > b._id ? -1 : a._id < b._id ? 1 : 0;
+      }),
+    [salesEntries],
+  );
+
   const loadData = useCallback(
     async (isRefresh = false) => {
       try {
@@ -241,16 +325,20 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
         const canUseFeature = hasProPlanAccess(currentUser?.user);
         setHasAccess(canUseFeature);
         if (!canUseFeature) return;
-        const [historyResponse, servicesResponse] = await Promise.all([
-          fetchCustomerHistory({
-            year: now.getFullYear(),
-            month: selectedMonth,
-            paymentMethod: paymentFilter === 'all' ? undefined : paymentFilter,
-          }),
-          fetchServices(),
-        ]);
+        const [historyResponse, servicesResponse, salesResponse] =
+          await Promise.all([
+            fetchCustomerHistory({
+              year: now.getFullYear(),
+              month: selectedMonth,
+              paymentMethod:
+                paymentFilter === 'all' ? undefined : paymentFilter,
+            }),
+            fetchServices(),
+            fetchCashEntries({ ...buildSalesRangeParams(), type: 'income' }),
+          ]);
         setData(historyResponse);
         setServices(servicesResponse?.services ?? []);
+        setSalesEntries(salesResponse?.entries ?? []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -258,7 +346,7 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
         setRefreshing(false);
       }
     },
-    [now, paymentFilter, selectedMonth],
+    [buildSalesRangeParams, now, paymentFilter, selectedMonth],
   );
 
   useFocusEffect(
@@ -1032,6 +1120,154 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
           />
         }
       >
+        <View style={styles.historyTabs}>
+          <Pressable
+            style={[
+              styles.historyTab,
+              historyTab === 'services' && styles.historyTabActive,
+            ]}
+            onPress={() => setHistoryTab('services')}
+          >
+            <Scissors
+              size={15}
+              color={
+                historyTab === 'services' ? theme.primary : theme.textMuted
+              }
+            />
+            <Text
+              style={[
+                styles.historyTabText,
+                historyTab === 'services' && styles.historyTabTextActive,
+              ]}
+            >
+              Servicios
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.historyTab,
+              historyTab === 'sales' && styles.historyTabActive,
+            ]}
+            onPress={() => setHistoryTab('sales')}
+          >
+            <ShoppingBag
+              size={15}
+              color={historyTab === 'sales' ? theme.primary : theme.textMuted}
+            />
+            <Text
+              style={[
+                styles.historyTabText,
+                historyTab === 'sales' && styles.historyTabTextActive,
+              ]}
+            >
+              Ventas
+            </Text>
+          </Pressable>
+        </View>
+
+        {historyTab === 'sales' ? (
+          <View>
+            <View style={styles.rangeSelectorWrap}>
+              <View style={styles.rangeTabs}>
+                {RANGE_OPTIONS.map(opt => {
+                  const active = salesRangeMode === opt.key;
+                  return (
+                    <Pressable
+                      key={opt.key}
+                      style={[styles.rangeTab, active && styles.rangeTabActive]}
+                      onPress={() => setSalesRangeMode(opt.key)}
+                    >
+                      <Text
+                        style={[
+                          styles.rangeTabText,
+                          active && styles.rangeTabTextActive,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={styles.periodNav}>
+                <Pressable
+                  style={styles.periodNavBtn}
+                  onPress={() => shiftSalesPeriod(-1)}
+                >
+                  <ChevronLeft size={18} color={theme.textPrimary} />
+                </Pressable>
+                <Text style={styles.periodNavLabel}>{salesPeriodLabel}</Text>
+                <Pressable
+                  style={styles.periodNavBtn}
+                  onPress={() => shiftSalesPeriod(1)}
+                >
+                  <ChevronRight size={18} color={theme.textPrimary} />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.summaryRow}>
+              <SummaryCard
+                styles={styles}
+                icon={<ShoppingBag size={15} color={theme.textSecondary} />}
+                value={String(salesEntries.length)}
+                label="Ventas"
+              />
+              <SummaryCard
+                styles={styles}
+                icon={<Banknote size={15} color={theme.textSecondary} />}
+                value={formatCurrency(salesTotal)}
+                label="Total"
+                compact
+              />
+            </View>
+
+            {loading ? (
+              <ActivityIndicator
+                color={theme.textSecondary}
+                style={{ marginTop: 42 }}
+              />
+            ) : salesEntries.length ? (
+              <View style={styles.salesList}>
+                {sortedSalesEntries.map(entry => (
+                  <View key={entry._id} style={styles.salesRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.salesDesc}>
+                        {entry.description || 'Ingreso'}
+                      </Text>
+                      <View style={styles.salesMetaRow}>
+                        <Text style={styles.salesDate}>
+                          {new Date(entry.date).toLocaleDateString('es-AR')}
+                        </Text>
+                        {entry.category ? (
+                          <View style={styles.salesBadge}>
+                            <Text style={styles.salesBadgeText}>
+                              {entry.category}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </View>
+                    <Text style={styles.salesAmount}>
+                      + {formatCurrency(entry.amount)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>
+                  Sin ventas en este período
+                </Text>
+                <Text style={styles.emptyText}>
+                  Las ventas se cargan como ingresos en la Caja (productos,
+                  propinas, etc.).
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : (
+        <>
         <View style={styles.summaryRow}>
           <SummaryCard
             styles={styles}
@@ -1464,6 +1700,8 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
               resultado general.
             </Text>
           </View>
+        )}
+        </>
         )}
       </ScrollView>
 
@@ -1934,6 +2172,109 @@ const makeStyles = (theme: Theme) =>
       color: theme.textPrimary,
       fontSize: 13,
       fontWeight: '700',
+    },
+    historyTabs: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 16,
+    },
+    historyTab: {
+      flex: 1,
+      flexDirection: 'row',
+      gap: 7,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 11,
+      borderRadius: 14,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    historyTabActive: {
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+      borderColor: theme.primary,
+    },
+    historyTabText: { color: theme.textMuted, fontSize: 14, fontWeight: '700' },
+    historyTabTextActive: { color: theme.primary },
+    salesList: { gap: 10, marginTop: 16 },
+    salesRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      padding: 14,
+      borderRadius: 14,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    salesDesc: { color: theme.textPrimary, fontSize: 14, fontWeight: '600' },
+    salesMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 4,
+      flexWrap: 'wrap',
+    },
+    salesDate: { color: theme.textMuted, fontSize: 12 },
+    salesBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 8,
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+    },
+    salesBadgeText: { color: theme.primary, fontSize: 11, fontWeight: '700' },
+    salesAmount: { color: '#16a34a', fontSize: 15, fontWeight: '800' },
+    rangeSelectorWrap: {
+      width: '100%',
+      gap: 10,
+      marginTop: 4,
+      marginBottom: 16,
+    },
+    rangeTabs: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    rangeTab: {
+      flex: 1,
+      paddingVertical: 9,
+      borderRadius: 12,
+      alignItems: 'center',
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    rangeTabActive: {
+      backgroundColor: hexToRgba(theme.primary, 0.12),
+      borderColor: theme.primary,
+    },
+    rangeTabText: { color: theme.textMuted, fontSize: 13, fontWeight: '700' },
+    rangeTabTextActive: { color: theme.primary },
+    periodNav: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      backgroundColor: theme.surfaceAlt,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    periodNavBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.card,
+    },
+    periodNavLabel: {
+      flex: 1,
+      textAlign: 'center',
+      color: theme.textPrimary,
+      fontSize: 14,
+      fontWeight: '700',
+      textTransform: 'capitalize',
     },
     paymentRow: {
       flexDirection: 'row',
