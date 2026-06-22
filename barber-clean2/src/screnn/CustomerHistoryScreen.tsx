@@ -1294,7 +1294,11 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
           <View style={styles.paymentBreakdownCard}>
             <View style={styles.paymentBreakdownTop}>
               <Banknote size={14} color={theme.textSecondary} />
-              <Text style={styles.paymentBreakdownLabel}>Efectivo</Text>
+              <Text
+                style={styles.paymentBreakdownLabel}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >Efectivo</Text>
             </View>
             <Text
               style={styles.paymentBreakdownValue}
@@ -1311,7 +1315,11 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
           <View style={styles.paymentBreakdownCard}>
             <View style={styles.paymentBreakdownTop}>
               <CreditCard size={14} color={theme.textSecondary} />
-              <Text style={styles.paymentBreakdownLabel}>Transferencia</Text>
+              <Text
+                style={styles.paymentBreakdownLabel}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >Transferencia</Text>
             </View>
             <Text
               style={styles.paymentBreakdownValue}
@@ -1328,7 +1336,11 @@ function CustomerHistoryScreen({ navigation, route }: Props) {
           <View style={styles.paymentBreakdownCard}>
             <View style={styles.paymentBreakdownTop}>
               <Scissors size={14} color={theme.textSecondary} />
-              <Text style={styles.paymentBreakdownLabel}>Comisión</Text>
+              <Text
+                style={styles.paymentBreakdownLabel}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >Comisión</Text>
             </View>
             <Text
               style={styles.paymentBreakdownValue}
@@ -1918,29 +1930,34 @@ const makeStyles = (theme: Theme) =>
       borderRadius: 18,
       borderWidth: 1,
       borderColor: theme.border,
-      padding: 14,
+      paddingVertical: 14,
+      paddingHorizontal: 8,
+      alignItems: 'center',
     },
     paymentBreakdownTop: {
-      flexDirection: 'row',
+      flexDirection: 'column',
       alignItems: 'center',
-      gap: 8,
-      marginBottom: 10,
+      gap: 6,
+      marginBottom: 8,
     },
     paymentBreakdownLabel: {
       color: theme.textSecondary,
-      fontSize: 12,
+      fontSize: 11,
       fontWeight: '800',
+      textAlign: 'center',
     },
     paymentBreakdownValue: {
       color: theme.textPrimary,
       fontSize: 16,
       fontWeight: '900',
+      textAlign: 'center',
     },
     paymentBreakdownMeta: {
       color: theme.textMuted,
       fontSize: 11,
       fontWeight: '700',
       marginTop: 4,
+      textAlign: 'center',
     },
     customerControlsRow: {
       gap: 12,
