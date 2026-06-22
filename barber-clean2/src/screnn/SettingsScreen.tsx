@@ -245,33 +245,6 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
             />
             <View style={styles.separator} />
             <MenuItem
-              icon={Tag}
-              label="Cupones"
-              description="Códigos de descuento para que el cliente los aplique en la web de turnos."
-              onPress={() => navigation.navigate('Coupon-Settings')}
-              theme={theme}
-              styles={styles}
-            />
-            <View style={styles.separator} />
-            <MenuItem
-              icon={CreditCard}
-              label="Membresías"
-              description={
-                hasProAccess
-                  ? 'Vendé packs de turnos: el cliente reserva gratis hasta agotarlos o que venza el plan.'
-                  : 'Disponible desde el plan Pro.'
-              }
-              onPress={() =>
-                hasProAccess
-                  ? navigation.navigate('Membership-Settings')
-                  : openUpgrade()
-              }
-              theme={theme}
-              styles={styles}
-              locked={!hasProAccess}
-            />
-            <View style={styles.separator} />
-            <MenuItem
               icon={KeyRound}
               label={`Permitir que el ${businessCopy.staffSingular} edite su perfil `}
               description={
@@ -334,6 +307,33 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
               onPress={() => navigation.navigate('Payment-Settings')}
               theme={theme}
               styles={styles}
+            />
+            <View style={styles.separator} />
+            <MenuItem
+              icon={Tag}
+              label="Cupones"
+              description="Códigos de descuento para que el cliente los aplique en la web de turnos."
+              onPress={() => navigation.navigate('Coupon-Settings')}
+              theme={theme}
+              styles={styles}
+            />
+            <View style={styles.separator} />
+            <MenuItem
+              icon={CreditCard}
+              label="Membresías"
+              description={
+                hasProAccess
+                  ? 'Vendé packs de turnos: el cliente reserva gratis hasta agotarlos o que venza el plan.'
+                  : 'Disponible desde el plan Pro.'
+              }
+              onPress={() =>
+                hasProAccess
+                  ? navigation.navigate('Membership-Settings')
+                  : openUpgrade()
+              }
+              theme={theme}
+              styles={styles}
+              locked={!hasProAccess}
             />
           </View>
 
