@@ -731,12 +731,39 @@ function LandingPage() {
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
           <div className={styles.footerLogo}>
-            <div className={styles.footerLogoMark}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-            </div>
-            <span>{SHIFT_APP_BRAND_NAME}</span>
+            <svg
+              height="40"
+              viewBox="0 0 120 132"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              role="img"
+              aria-label={SHIFT_APP_BRAND_NAME}
+            >
+              <g
+                transform="translate(29 2) scale(2.6)"
+                stroke="#0f172a"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M3 8h16" />
+                <path d="M14 4l5 4-5 4" />
+                <path d="M21 16H5" />
+                <path d="M10 12l-5 4 5 4" />
+              </g>
+              <text
+                x="60"
+                y="122"
+                textAnchor="middle"
+                fontFamily="Poppins, sans-serif"
+                fontWeight="900"
+                fontSize="44"
+                letterSpacing="-2"
+                fill="#0f172a"
+              >
+                SHIFT
+              </text>
+            </svg>
           </div>
           <a href="https://www.letsbuilditcodex.com/" target="_blank" rel="noreferrer" className={styles.footerCredit}>
             {SHIFT_APP_BRAND_NAME} by <strong>CODEX</strong> · {new Date().getFullYear()}
