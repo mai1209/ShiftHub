@@ -410,8 +410,21 @@ export default function SubscriptionCheckoutPage() {
         </a>
         <div className={styles.topBarBrand}>
           <div className={styles.topBarMark}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M8 2L14 5v6L8 14 2 11V5L8 2z" stroke="#fff" strokeWidth="1.5" strokeLinejoin="round" />
+            <svg
+              width="26"
+              height="26"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#0f172a"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 8h16" />
+              <path d="M14 4l5 4-5 4" />
+              <path d="M21 16H5" />
+              <path d="M10 12l-5 4 5 4" />
             </svg>
           </div>
           <span className={styles.topBarName}>{SHIFT_APP_BRAND_NAME}</span>

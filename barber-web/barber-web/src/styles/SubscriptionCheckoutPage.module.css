@@ -125,11 +125,10 @@ a { text-decoration: none; color: inherit; }
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  background: linear-gradient(135deg, var(--indigo), var(--indigo-mid));
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 10px rgba(57,224,31,0.28);
 }
 .topBarName {
   font-family: "Poppins", sans-serif;
