@@ -311,8 +311,11 @@ function LandingPage() {
       <nav className={styles.nav}>
         <div className={styles.navLogo}>
           <div className={styles.navLogoMark}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 8h16"/>
+              <path d="M14 4l5 4-5 4"/>
+              <path d="M21 16H5"/>
+              <path d="M10 12l-5 4 5 4"/>
             </svg>
           </div>
           <span className={styles.navLogoText}>{SHIFT_APP_BRAND_NAME}</span>
