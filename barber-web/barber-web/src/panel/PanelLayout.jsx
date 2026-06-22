@@ -77,7 +77,7 @@ function PanelLayout() {
         <div className={styles.brand}>
           <img
             className={styles.brandLogo}
-            src={`${process.env.PUBLIC_URL}/logo.png`}
+            src={`${process.env.PUBLIC_URL}/shift-mark.svg`}
             alt={SHIFT_APP_BRAND_NAME}
           />
           <span className={styles.brandName}>{SHIFT_APP_BRAND_NAME}</span>
